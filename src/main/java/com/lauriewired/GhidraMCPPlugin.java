@@ -1696,7 +1696,16 @@ public class GhidraMCPPlugin extends Plugin {
             }
 
             // Create BSimServerInfo from the path/URL
-            BSimServerInfo serverInfo = new BSimServerInfo(databasePath);
+            // Use URL constructor for URLs (postgresql://, file://, etc.)
+            // Use String constructor only for file paths
+            BSimServerInfo serverInfo;
+            if (databasePath.contains("://")) {
+                // It's a URL - use URL constructor
+                serverInfo = new BSimServerInfo(new java.net.URL(databasePath));
+            } else {
+                // It's a file path - use String constructor
+                serverInfo = new BSimServerInfo(databasePath);
+            }
             
             // Initialize the database connection
             bsimDatabase = BSimClientFactory.buildClient(serverInfo, false);
@@ -1872,17 +1881,16 @@ public class GhidraMCPPlugin extends Plugin {
             
             DescriptionManager descManager = gensig.getDescriptionManager();
 
-            for (Function func : funcManager.getFunctions(true)) {
-                try {
-                    gensig.scanFunction(func);
-                    queriedFunctions++;
-                } catch (Exception e) {
-                    Msg.warn(this, "Failed to generate signature for " + func.getName());
-                }
+            // Use built-in scanFunctions to scan all at once
+            try {
+                gensig.scanFunctions(funcManager.getFunctions(true), 30, new ConsoleTaskMonitor());
+                queriedFunctions = descManager.numFunctions();
+            } catch (Exception e) {
+                return "Error: Failed to generate signatures: " + e.getMessage();
             }
 
-            if (descManager.numFunctions() == 0) {
-                return "Error: Failed to generate signatures for any functions";
+            if (queriedFunctions == 0) {
+                return "Error: No function signatures were generated";
             }
 
             // Create query

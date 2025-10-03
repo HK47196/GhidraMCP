@@ -20,6 +20,11 @@ MCP Server + Ghidra Plugin
 - Decompile and analyze binaries in Ghidra
 - Automatically rename methods and data
 - List methods, classes, imports, and exports
+- BSim integration for function similarity matching
+  - Connect to BSim databases (H2, PostgreSQL)
+  - Query individual functions for similar matches
+  - Batch query all functions in a program
+  - View similarity scores, confidence levels, and executable metadata
 
 # Installation
 
