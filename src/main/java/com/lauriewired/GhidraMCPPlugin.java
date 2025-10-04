@@ -377,6 +377,22 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, getBSimStatus());
         });
 
+        server.createContext("/bsim/get_match_disassembly", exchange -> {
+            Map<String, String> params = parsePostParams(exchange);
+            String executablePath = params.get("executable_path");
+            String functionName = params.get("function_name");
+            String functionAddress = params.get("function_address");
+            sendResponse(exchange, getBSimMatchDisassembly(executablePath, functionName, functionAddress));
+        });
+
+        server.createContext("/bsim/get_match_decompile", exchange -> {
+            Map<String, String> params = parsePostParams(exchange);
+            String executablePath = params.get("executable_path");
+            String functionName = params.get("function_name");
+            String functionAddress = params.get("function_address");
+            sendResponse(exchange, getBSimMatchDecompile(executablePath, functionName, functionAddress));
+        });
+
         server.setExecutor(null);
         new Thread(() -> {
             try {
@@ -840,12 +856,9 @@ public class GhidraMCPPlugin extends Plugin {
             Function func = getFunctionForAddress(program, addr);
             if (func == null) return "No function found at or containing address " + addressStr;
 
-            DecompInterface decomp = new DecompInterface();
-            decomp.openProgram(program);
-            DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
-
-            return (result != null && result.decompileCompleted()) 
-                ? result.getDecompiledFunction().getC() 
+            String decompCode = decompileFunctionInProgram(func, program);
+            return (decompCode != null && !decompCode.isEmpty()) 
+                ? decompCode 
                 : "Decompilation failed";
         } catch (Exception e) {
             return "Error decompiling function: " + e.getMessage();
@@ -865,27 +878,7 @@ public class GhidraMCPPlugin extends Plugin {
             Function func = getFunctionForAddress(program, addr);
             if (func == null) return "No function found at or containing address " + addressStr;
 
-            StringBuilder result = new StringBuilder();
-            Listing listing = program.getListing();
-            Address start = func.getEntryPoint();
-            Address end = func.getBody().getMaxAddress();
-
-            InstructionIterator instructions = listing.getInstructions(start, true);
-            while (instructions.hasNext()) {
-                Instruction instr = instructions.next();
-                if (instr.getAddress().compareTo(end) > 0) {
-                    break; // Stop if we've gone past the end of the function
-                }
-                String comment = listing.getComment(CommentType.EOL, instr.getAddress());
-                comment = (comment != null) ? "; " + comment : "";
-
-                result.append(String.format("%s: %s %s\n", 
-                    instr.getAddress(), 
-                    instr.toString(),
-                    comment));
-            }
-
-            return result.toString();
+            return disassembleFunctionInProgram(func, program);
         } catch (Exception e) {
             return "Error disassembling function: " + e.getMessage();
         }
@@ -1936,6 +1929,231 @@ public class GhidraMCPPlugin extends Plugin {
     }
 
     /**
+     * Get detailed information about a BSim match from a program in the Ghidra project.
+     * Falls back gracefully if the program is not found in the project.
+     */
+    /**
+     * Get the disassembly of a BSim match from a program in the Ghidra project.
+     */
+    private String getBSimMatchDisassembly(String executablePath, String functionName, String functionAddress) {
+        return getBSimMatchFunction(executablePath, functionName, functionAddress, true, false);
+    }
+
+    /**
+     * Get the decompilation of a BSim match from a program in the Ghidra project.
+     */
+    private String getBSimMatchDecompile(String executablePath, String functionName, String functionAddress) {
+        return getBSimMatchFunction(executablePath, functionName, functionAddress, false, true);
+    }
+
+    /**
+     * Get function details for a BSim match from a program in the Ghidra project.
+     * Falls back gracefully if the program is not found in the project.
+     */
+    private String getBSimMatchFunction(String executablePath, String functionName, String functionAddress,
+                                        boolean includeDisassembly, boolean includeDecompile) {
+        // Input validation
+        if (executablePath == null || executablePath.isEmpty()) {
+            return "Error: Executable path is required";
+        }
+        if (functionName == null || functionName.isEmpty()) {
+            return "Error: Function name is required";
+        }
+        if (functionAddress == null || functionAddress.isEmpty()) {
+            return "Error: Function address is required";
+        }
+
+        StringBuilder result = new StringBuilder();
+        result.append("Match Details\n");
+        result.append("=============\n");
+        result.append(String.format("Executable: %s\n", executablePath));
+        result.append(String.format("Function: %s\n", functionName));
+        result.append(String.format("Address: %s\n\n", functionAddress));
+
+        ProgramManager pm = tool.getService(ProgramManager.class);
+        if (pm == null) {
+            result.append("ERROR: ProgramManager service not available\n");
+            return result.toString();
+        }
+
+        String fileName = new java.io.File(executablePath).getName();
+        Program matchedProgram = null;
+        boolean needsRelease = false;
+
+        // Strategy 1: Check all open programs
+        Program[] openPrograms = pm.getAllOpenPrograms();
+        for (Program program : openPrograms) {
+            if (executablePath.equals(program.getExecutablePath()) || fileName.equals(program.getName())) {
+                matchedProgram = program;
+                needsRelease = false;
+                break;
+            }
+        }
+
+        // Strategy 2: Try to find in project but not currently open
+        if (matchedProgram == null) {
+            ghidra.framework.model.Project project = tool.getProject();
+            if (project != null) {
+                ghidra.framework.model.DomainFile domainFile = findDomainFileRecursive(
+                    project.getProjectData().getRootFolder(), fileName);
+                
+                if (domainFile != null) {
+                    try {
+                        ghidra.framework.model.DomainObject domainObject = 
+                            domainFile.getDomainObject(this, false, false, new ConsoleTaskMonitor());
+                        if (domainObject instanceof Program) {
+                            matchedProgram = (Program) domainObject;
+                            needsRelease = true;
+                        }
+                    } catch (Exception e) {
+                        Msg.error(this, "Failed to open program from project: " + fileName, e);
+                    }
+                }
+            }
+        }
+
+        if (matchedProgram == null) {
+            result.append("ERROR: Program not found in Ghidra project\n");
+            result.append("The matched executable is not in the current project.\n");
+            result.append("\nTo view match details, please import the program into Ghidra:\n");
+            result.append("  ").append(executablePath).append("\n");
+            return result.toString();
+        }
+
+        try {
+            // Find the function
+            Address addr = matchedProgram.getAddressFactory().getAddress(functionAddress);
+            Function func = matchedProgram.getFunctionManager().getFunctionAt(addr);
+            
+            if (func == null) {
+                func = matchedProgram.getFunctionManager().getFunctionContaining(addr);
+            }
+            
+            if (func == null) {
+                result.append("ERROR: Function not found at address ").append(functionAddress).append("\n");
+                return result.toString();
+            }
+
+            // Get function prototype
+            result.append("Function Prototype:\n");
+            result.append("-------------------\n");
+            result.append(func.getSignature()).append("\n\n");
+
+            // Get decompilation if requested
+            if (includeDecompile) {
+                result.append("Decompilation:\n");
+                result.append("--------------\n");
+                String decompCode = decompileFunctionInProgram(func, matchedProgram);
+                if (decompCode != null && !decompCode.isEmpty()) {
+                    result.append(decompCode).append("\n");
+                } else {
+                    result.append("(Decompilation not available)\n");
+                }
+            }
+
+            // Get assembly if requested
+            if (includeDisassembly) {
+                if (includeDecompile) {
+                    result.append("\n");
+                }
+                result.append("Assembly:\n");
+                result.append("---------\n");
+                String asmCode = disassembleFunctionInProgram(func, matchedProgram);
+                if (asmCode != null && !asmCode.isEmpty()) {
+                    result.append(asmCode);
+                } else {
+                    result.append("(Assembly not available)\n");
+                }
+            }
+
+            return result.toString();
+
+        } catch (Exception e) {
+            result.append("ERROR: Exception while processing program: ").append(e.getMessage()).append("\n");
+            Msg.error(this, "Error getting BSim match function", e);
+            return result.toString();
+        } finally {
+            // Release the program if we opened it from the project
+            if (needsRelease && matchedProgram != null) {
+                matchedProgram.release(this);
+            }
+        }
+    }
+
+    /**
+     * Recursively search for a domain file by name in a folder and its subfolders
+     */
+    private ghidra.framework.model.DomainFile findDomainFileRecursive(
+            ghidra.framework.model.DomainFolder folder, String fileName) {
+        
+        // Check files in current folder
+        for (ghidra.framework.model.DomainFile file : folder.getFiles()) {
+            if (fileName.equals(file.getName())) {
+                return file;
+            }
+        }
+        
+        // Recursively check subfolders
+        for (ghidra.framework.model.DomainFolder subfolder : folder.getFolders()) {
+            ghidra.framework.model.DomainFile result = findDomainFileRecursive(subfolder, fileName);
+            if (result != null) {
+                return result;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Decompile a function within a specific program
+     */
+    private String decompileFunctionInProgram(Function func, Program program) {
+        try {
+            DecompInterface decomp = new DecompInterface();
+            decomp.openProgram(program);
+            DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
+            
+            if (result != null && result.decompileCompleted()) {
+                return result.getDecompiledFunction().getC();
+            }
+        } catch (Exception e) {
+            Msg.error(this, "Error decompiling function in external program", e);
+        }
+        return null;
+    }
+
+    /**
+     * Disassemble a function within a specific program
+     */
+    private String disassembleFunctionInProgram(Function func, Program program) {
+        try {
+            StringBuilder result = new StringBuilder();
+            Listing listing = program.getListing();
+            Address start = func.getEntryPoint();
+            Address end = func.getBody().getMaxAddress();
+
+            InstructionIterator instructions = listing.getInstructions(start, true);
+            while (instructions.hasNext()) {
+                Instruction instr = instructions.next();
+                if (instr.getAddress().compareTo(end) > 0) {
+                    break;
+                }
+                String comment = listing.getComment(CommentType.EOL, instr.getAddress());
+                comment = (comment != null) ? "; " + comment : "";
+
+                result.append(String.format("%s: %s %s\n", 
+                    instr.getAddress(), 
+                    instr.toString(),
+                    comment));
+            }
+            return result.toString();
+        } catch (Exception e) {
+            Msg.error(this, "Error disassembling function in external program", e);
+        }
+        return null;
+    }
+
+    /**
      * Format BSim query results into a readable string with pagination
      */
     private String formatBSimResults(ResponseNearest response, String queryFunctionName, int offset, int limit) {
@@ -1971,7 +2189,6 @@ public class GhidraMCPPlugin extends Plugin {
             if (queryFunctionName != null) {
                 // Single function: paginate through similarity matches
                 int totalMatches = simResult.size();
-                int displayedInThisFunction = 0;
                 
                 Iterator<SimilarityNote> noteIter = simResult.iterator();
                 int matchIndex = 0;
@@ -2018,7 +2235,6 @@ public class GhidraMCPPlugin extends Plugin {
                     result.append("\n");
                     matchIndex++;
                     displayedMatchCount++;
-                    displayedInThisFunction++;
                 }
                 
                 // Add pagination info for single function

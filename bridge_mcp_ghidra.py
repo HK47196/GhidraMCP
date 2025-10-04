@@ -387,6 +387,56 @@ def bsim_status() -> str:
     """
     return "\n".join(safe_get("bsim/status"))
 
+@mcp.tool()
+def bsim_get_match_disassembly(
+    executable_path: str,
+    function_name: str,
+    function_address: str,
+) -> str:
+    """
+    Get the disassembly of a specific BSim match. This requires the matched 
+    executable to be available in the Ghidra project.
+
+    Args:
+        executable_path: Path to the matched executable (from BSim match result)
+        function_name: Name of the matched function
+        function_address: Address of the matched function (e.g., "0x401000")
+
+    Returns:
+        Function prototype and assembly code for the matched function.
+        Returns an error message if the program is not found in the project.
+    """
+    return safe_post("bsim/get_match_disassembly", {
+        "executable_path": executable_path,
+        "function_name": function_name,
+        "function_address": function_address,
+    })
+
+@mcp.tool()
+def bsim_get_match_decompile(
+    executable_path: str,
+    function_name: str,
+    function_address: str,
+) -> str:
+    """
+    Get the decompilation of a specific BSim match. This requires the matched 
+    executable to be available in the Ghidra project.
+
+    Args:
+        executable_path: Path to the matched executable (from BSim match result)
+        function_name: Name of the matched function
+        function_address: Address of the matched function (e.g., "0x401000")
+
+    Returns:
+        Function prototype and decompiled C code for the matched function.
+        Returns an error message if the program is not found in the project.
+    """
+    return safe_post("bsim/get_match_decompile", {
+        "executable_path": executable_path,
+        "function_name": function_name,
+        "function_address": function_address,
+    })
+
 def main():
     parser = argparse.ArgumentParser(description="MCP server for Ghidra")
     parser.add_argument("--ghidra-server", type=str, default=DEFAULT_GHIDRA_SERVER,
