@@ -311,6 +311,8 @@ def bsim_query_function(
     max_matches: int = 10,
     similarity_threshold: float = 0.7,
     confidence_threshold: float = 0.0,
+    offset: int = 0,
+    limit: int = 100,
 ) -> str:
     """
     Query a single function against the BSim database to find similar functions.
@@ -320,6 +322,8 @@ def bsim_query_function(
         max_matches: Maximum number of matches to return (default: 10)
         similarity_threshold: Minimum similarity score 0.0-1.0 (default: 0.7)
         confidence_threshold: Minimum confidence score (default: 0.0)
+        offset: Pagination offset (default: 0)
+        limit: Maximum number of results to return (default: 100)
 
     Returns:
         List of matching functions with similarity scores and metadata
@@ -329,6 +333,8 @@ def bsim_query_function(
         "max_matches": str(max_matches),
         "similarity_threshold": str(similarity_threshold),
         "confidence_threshold": str(confidence_threshold),
+        "offset": str(offset),
+        "limit": str(limit),
     })
 
 @mcp.tool()
@@ -336,6 +342,8 @@ def bsim_query_all_functions(
     max_matches_per_function: int = 5,
     similarity_threshold: float = 0.7,
     confidence_threshold: float = 0.0,
+    offset: int = 0,
+    limit: int = 100,
 ) -> str:
     """
     Query all functions in the current program against the BSim database.
@@ -345,6 +353,8 @@ def bsim_query_all_functions(
         max_matches_per_function: Max matches per function (default: 5)
         similarity_threshold: Minimum similarity score 0.0-1.0 (default: 0.7)
         confidence_threshold: Minimum confidence score (default: 0.0)
+        offset: Pagination offset (default: 0)
+        limit: Maximum number of results to return (default: 100)
 
     Returns:
         Summary and detailed results for all matching functions
@@ -353,6 +363,8 @@ def bsim_query_all_functions(
         "max_matches_per_function": str(max_matches_per_function),
         "similarity_threshold": str(similarity_threshold),
         "confidence_threshold": str(confidence_threshold),
+        "offset": str(offset),
+        "limit": str(limit),
     })
 
 @mcp.tool()

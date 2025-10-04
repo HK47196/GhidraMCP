@@ -354,7 +354,9 @@ public class GhidraMCPPlugin extends Plugin {
             int maxMatches = parseIntOrDefault(params.get("max_matches"), 10);
             double similarityThreshold = parseDoubleOrDefault(params.get("similarity_threshold"), "0.7");
             double confidenceThreshold = parseDoubleOrDefault(params.get("confidence_threshold"), "0.0");
-            sendResponse(exchange, queryBSimFunction(functionAddress, maxMatches, similarityThreshold, confidenceThreshold));
+            int offset = parseIntOrDefault(params.get("offset"), 0);
+            int limit = parseIntOrDefault(params.get("limit"), 100);
+            sendResponse(exchange, queryBSimFunction(functionAddress, maxMatches, similarityThreshold, confidenceThreshold, offset, limit));
         });
 
         server.createContext("/bsim/query_all_functions", exchange -> {
@@ -362,7 +364,9 @@ public class GhidraMCPPlugin extends Plugin {
             int maxMatchesPerFunction = parseIntOrDefault(params.get("max_matches_per_function"), 5);
             double similarityThreshold = parseDoubleOrDefault(params.get("similarity_threshold"), "0.7");
             double confidenceThreshold = parseDoubleOrDefault(params.get("confidence_threshold"), "0.0");
-            sendResponse(exchange, queryAllBSimFunctions(maxMatchesPerFunction, similarityThreshold, confidenceThreshold));
+            int offset = parseIntOrDefault(params.get("offset"), 0);
+            int limit = parseIntOrDefault(params.get("limit"), 100);
+            sendResponse(exchange, queryAllBSimFunctions(maxMatchesPerFunction, similarityThreshold, confidenceThreshold, offset, limit));
         });
 
         server.createContext("/bsim/disconnect", exchange -> {
@@ -1784,7 +1788,8 @@ public class GhidraMCPPlugin extends Plugin {
      * Query a single function against the BSim database
      */
     private String queryBSimFunction(String functionAddress, int maxMatches, 
-                                     double similarityThreshold, double confidenceThreshold) {
+                                     double similarityThreshold, double confidenceThreshold,
+                                     int offset, int limit) {
         if (bsimDatabase == null) {
             return "Error: Not connected to a BSim database. Use bsim_select_database first.";
         }
@@ -1839,8 +1844,8 @@ public class GhidraMCPPlugin extends Plugin {
                 func.getName(), similarityThreshold, maxMatches, 
                 response.result != null ? response.result.size() : 0));
 
-            // Format results
-            return formatBSimResults(response, func.getName());
+            // Format results with pagination
+            return formatBSimResults(response, func.getName(), offset, limit);
 
         } catch (Exception e) {
             return "Error querying BSim database: " + e.getMessage();
@@ -1851,7 +1856,8 @@ public class GhidraMCPPlugin extends Plugin {
      * Query all functions in the current program against the BSim database
      */
     private String queryAllBSimFunctions(int maxMatchesPerFunction, 
-                                        double similarityThreshold, double confidenceThreshold) {
+                                        double similarityThreshold, double confidenceThreshold,
+                                        int offset, int limit) {
         if (bsimDatabase == null) {
             return "Error: Not connected to a BSim database. Use bsim_select_database first.";
         }
@@ -1919,8 +1925,8 @@ public class GhidraMCPPlugin extends Plugin {
             results.append("Successfully queried ").append(queriedFunctions).append(" functions\n");
             results.append("Functions with matches: ").append(functionsWithMatches).append("\n\n");
 
-            // Format detailed results
-            results.append(formatBSimResults(response, null));
+            // Format detailed results with pagination
+            results.append(formatBSimResults(response, null, offset, limit));
 
             return results.toString();
 
@@ -1930,9 +1936,9 @@ public class GhidraMCPPlugin extends Plugin {
     }
 
     /**
-     * Format BSim query results into a readable string
+     * Format BSim query results into a readable string with pagination
      */
-    private String formatBSimResults(ResponseNearest response, String queryFunctionName) {
+    private String formatBSimResults(ResponseNearest response, String queryFunctionName, int offset, int limit) {
         StringBuilder result = new StringBuilder();
         
         if (queryFunctionName != null) {
@@ -1940,7 +1946,8 @@ public class GhidraMCPPlugin extends Plugin {
         }
 
         Iterator<SimilarityResult> iter = response.result.iterator();
-        int functionCount = 0;
+        int totalMatchCount = 0;
+        int displayedMatchCount = 0;
 
         while (iter.hasNext()) {
             SimilarityResult simResult = iter.next();
@@ -1959,55 +1966,146 @@ public class GhidraMCPPlugin extends Plugin {
                       .append(" at ").append(base.getAddress()).append("\n");
             }
 
-            result.append("Found ").append(simResult.size()).append(" match(es):\n");
-
-            Iterator<SimilarityNote> noteIter = simResult.iterator();
-            int matchNum = 1;
-            while (noteIter.hasNext()) {
-                SimilarityNote note = noteIter.next();
-                FunctionDescription match = note.getFunctionDescription();
-                ExecutableRecord exe = match.getExecutableRecord();
-
-                result.append(String.format("Match %d:\n", matchNum));
+            // For single function query, paginate the matches
+            // For all functions query, paginate the functions (existing behavior)
+            if (queryFunctionName != null) {
+                // Single function: paginate through similarity matches
+                int totalMatches = simResult.size();
+                int displayedInThisFunction = 0;
                 
-                if (exe != null) {
-                    result.append(String.format("  Executable: %s\n", exe.getNameExec()));
+                Iterator<SimilarityNote> noteIter = simResult.iterator();
+                int matchIndex = 0;
+                
+                while (noteIter.hasNext()) {
+                    SimilarityNote note = noteIter.next();
+                    
+                    // Skip matches before offset
+                    if (matchIndex < offset) {
+                        matchIndex++;
+                        continue;
+                    }
+                    
+                    // Stop if we've reached the limit
+                    if (displayedMatchCount >= limit) {
+                        break;
+                    }
+                    
+                    FunctionDescription match = note.getFunctionDescription();
+                    ExecutableRecord exe = match.getExecutableRecord();
+
+                    result.append(String.format("Match %d:\n", matchIndex + 1));
+                    
+                    if (exe != null) {
+                        result.append(String.format("  Executable: %s\n", exe.getNameExec()));
+                    }
+                    
+                    result.append(String.format("  Function: %s\n", match.getFunctionName()));
+                    result.append(String.format("  Address: %s\n", match.getAddress()));
+                    result.append(String.format("  Similarity: %.4f\n", note.getSimilarity()));
+                    result.append(String.format("  Confidence: %.4f\n", note.getSignificance()));
+                    
+                    if (exe != null) {
+                        String arch = exe.getArchitecture();
+                        String compiler = exe.getNameCompiler();
+                        if (arch != null && !arch.isEmpty()) {
+                            result.append(String.format("  Architecture: %s\n", arch));
+                        }
+                        if (compiler != null && !compiler.isEmpty()) {
+                            result.append(String.format("  Compiler: %s\n", compiler));
+                        }
+                    }
+                    
+                    result.append("\n");
+                    matchIndex++;
+                    displayedMatchCount++;
+                    displayedInThisFunction++;
                 }
                 
-                result.append(String.format("  Function: %s\n", match.getFunctionName()));
-                result.append(String.format("  Address: %s\n", match.getAddress()));
-                result.append(String.format("  Similarity: %.4f\n", note.getSimilarity()));
-                result.append(String.format("  Confidence: %.4f\n", note.getSignificance()));
+                // Add pagination info for single function
+                int remaining = totalMatches - offset - displayedMatchCount;
+                if (remaining < 0) remaining = 0;
                 
-                if (exe != null) {
-                    String arch = exe.getArchitecture();
-                    String compiler = exe.getNameCompiler();
-                    if (arch != null && !arch.isEmpty()) {
-                        result.append(String.format("  Architecture: %s\n", arch));
-                    }
-                    if (compiler != null && !compiler.isEmpty()) {
-                        result.append(String.format("  Compiler: %s\n", compiler));
-                    }
-                }
-                
-                result.append("\n");
-                matchNum++;
-            }
-            result.append("\n");
-            functionCount++;
-
-            // Limit output for "query all" to avoid overwhelming response
-            if (queryFunctionName == null && functionCount >= 20) {
-                int remaining = response.result.size() - functionCount;
+                result.append(String.format("Showing matches %d-%d of %d", 
+                    offset + 1, offset + displayedMatchCount, totalMatches));
                 if (remaining > 0) {
-                    result.append("... and ").append(remaining).append(" more functions with matches\n");
+                    result.append(String.format(" (%d more available)\n", remaining));
+                } else {
+                    result.append("\n");
                 }
-                break;
+            } else {
+                // All functions query: paginate by function (skip if before offset)
+                if (totalMatchCount < offset) {
+                    totalMatchCount++;
+                    continue;
+                }
+                
+                // Stop if we've reached the limit
+                if (displayedMatchCount >= limit) {
+                    break;
+                }
+                
+                result.append("Found ").append(simResult.size()).append(" match(es):\n");
+
+                Iterator<SimilarityNote> noteIter = simResult.iterator();
+                int matchNum = 1;
+                while (noteIter.hasNext()) {
+                    SimilarityNote note = noteIter.next();
+                    FunctionDescription match = note.getFunctionDescription();
+                    ExecutableRecord exe = match.getExecutableRecord();
+
+                    result.append(String.format("Match %d:\n", matchNum));
+                    
+                    if (exe != null) {
+                        result.append(String.format("  Executable: %s\n", exe.getNameExec()));
+                    }
+                    
+                    result.append(String.format("  Function: %s\n", match.getFunctionName()));
+                    result.append(String.format("  Address: %s\n", match.getAddress()));
+                    result.append(String.format("  Similarity: %.4f\n", note.getSimilarity()));
+                    result.append(String.format("  Confidence: %.4f\n", note.getSignificance()));
+                    
+                    if (exe != null) {
+                        String arch = exe.getArchitecture();
+                        String compiler = exe.getNameCompiler();
+                        if (arch != null && !arch.isEmpty()) {
+                            result.append(String.format("  Architecture: %s\n", arch));
+                        }
+                        if (compiler != null && !compiler.isEmpty()) {
+                            result.append(String.format("  Compiler: %s\n", compiler));
+                        }
+                    }
+                    
+                    result.append("\n");
+                    matchNum++;
+                }
+                result.append("\n");
+                totalMatchCount++;
+                displayedMatchCount++;
             }
         }
 
-        if (functionCount == 0 && queryFunctionName == null) {
-            result.append("No matches found for any functions\n");
+        // Add pagination info for all functions query
+        if (queryFunctionName == null) {
+            // Count remaining functions
+            int remaining = 0;
+            while (iter.hasNext()) {
+                SimilarityResult simResult = iter.next();
+                if (simResult.size() > 0) {
+                    remaining++;
+                }
+            }
+            
+            if (displayedMatchCount == 0) {
+                result.append("No matches found for any functions\n");
+            } else {
+                result.append(String.format("Showing functions %d-%d of %d+ results", 
+                    offset + 1, offset + displayedMatchCount, offset + displayedMatchCount + remaining));
+                if (remaining > 0) {
+                    result.append(String.format(" (%d more available)\n", remaining));
+                } else {
+                    result.append("\n");
+                }
+            }
         }
 
         return result.toString();
