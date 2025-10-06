@@ -311,6 +311,8 @@ def bsim_query_function(
     max_matches: int = 10,
     similarity_threshold: float = 0.7,
     confidence_threshold: float = 0.0,
+    max_similarity: float | None = None,
+    max_confidence: float | None = None,
     offset: int = 0,
     limit: int = 100,
 ) -> str:
@@ -320,28 +322,39 @@ def bsim_query_function(
     Args:
         function_address: Address of the function to query (e.g., "0x401000")
         max_matches: Maximum number of matches to return (default: 10)
-        similarity_threshold: Minimum similarity score 0.0-1.0 (default: 0.7)
-        confidence_threshold: Minimum confidence score (default: 0.0)
+        similarity_threshold: Minimum similarity score (inclusive, 0.0-1.0, default: 0.7)
+        confidence_threshold: Minimum confidence score (inclusive, 0.0-1.0, default: 0.0)
+        max_similarity: Maximum similarity score (exclusive, 0.0-1.0, default: unbounded)
+        max_confidence: Maximum confidence score (exclusive, 0.0-1.0, default: unbounded)
         offset: Pagination offset (default: 0)
         limit: Maximum number of results to return (default: 100)
 
     Returns:
         List of matching functions with similarity scores and metadata
     """
-    return safe_post("bsim/query_function", {
+    data = {
         "function_address": function_address,
         "max_matches": str(max_matches),
         "similarity_threshold": str(similarity_threshold),
         "confidence_threshold": str(confidence_threshold),
         "offset": str(offset),
         "limit": str(limit),
-    })
+    }
+    
+    if max_similarity is not None:
+        data["max_similarity"] = str(max_similarity)
+    if max_confidence is not None:
+        data["max_confidence"] = str(max_confidence)
+    
+    return safe_post("bsim/query_function", data)
 
 @mcp.tool()
 def bsim_query_all_functions(
     max_matches_per_function: int = 5,
     similarity_threshold: float = 0.7,
     confidence_threshold: float = 0.0,
+    max_similarity: float | None = None,
+    max_confidence: float | None = None,
     offset: int = 0,
     limit: int = 100,
 ) -> str:
@@ -351,21 +364,30 @@ def bsim_query_all_functions(
 
     Args:
         max_matches_per_function: Max matches per function (default: 5)
-        similarity_threshold: Minimum similarity score 0.0-1.0 (default: 0.7)
-        confidence_threshold: Minimum confidence score (default: 0.0)
+        similarity_threshold: Minimum similarity score (inclusive, 0.0-1.0, default: 0.7)
+        confidence_threshold: Minimum confidence score (inclusive, 0.0-1.0, default: 0.0)
+        max_similarity: Maximum similarity score (exclusive, 0.0-1.0, default: unbounded)
+        max_confidence: Maximum confidence score (exclusive, 0.0-1.0, default: unbounded)
         offset: Pagination offset (default: 0)
         limit: Maximum number of results to return (default: 100)
 
     Returns:
         Summary and detailed results for all matching functions
     """
-    return safe_post("bsim/query_all_functions", {
+    data = {
         "max_matches_per_function": str(max_matches_per_function),
         "similarity_threshold": str(similarity_threshold),
         "confidence_threshold": str(confidence_threshold),
         "offset": str(offset),
         "limit": str(limit),
-    })
+    }
+    
+    if max_similarity is not None:
+        data["max_similarity"] = str(max_similarity)
+    if max_confidence is not None:
+        data["max_confidence"] = str(max_confidence)
+    
+    return safe_post("bsim/query_all_functions", data)
 
 @mcp.tool()
 def bsim_disconnect() -> str:

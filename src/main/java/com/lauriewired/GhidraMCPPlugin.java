@@ -354,9 +354,11 @@ public class GhidraMCPPlugin extends Plugin {
             int maxMatches = parseIntOrDefault(params.get("max_matches"), 10);
             double similarityThreshold = parseDoubleOrDefault(params.get("similarity_threshold"), "0.7");
             double confidenceThreshold = parseDoubleOrDefault(params.get("confidence_threshold"), "0.0");
+            double maxSimilarity = parseDoubleOrDefault(params.get("max_similarity"), String.valueOf(Double.POSITIVE_INFINITY));
+            double maxConfidence = parseDoubleOrDefault(params.get("max_confidence"), String.valueOf(Double.POSITIVE_INFINITY));
             int offset = parseIntOrDefault(params.get("offset"), 0);
             int limit = parseIntOrDefault(params.get("limit"), 100);
-            sendResponse(exchange, queryBSimFunction(functionAddress, maxMatches, similarityThreshold, confidenceThreshold, offset, limit));
+            sendResponse(exchange, queryBSimFunction(functionAddress, maxMatches, similarityThreshold, confidenceThreshold, maxSimilarity, maxConfidence, offset, limit));
         });
 
         server.createContext("/bsim/query_all_functions", exchange -> {
@@ -364,9 +366,11 @@ public class GhidraMCPPlugin extends Plugin {
             int maxMatchesPerFunction = parseIntOrDefault(params.get("max_matches_per_function"), 5);
             double similarityThreshold = parseDoubleOrDefault(params.get("similarity_threshold"), "0.7");
             double confidenceThreshold = parseDoubleOrDefault(params.get("confidence_threshold"), "0.0");
+            double maxSimilarity = parseDoubleOrDefault(params.get("max_similarity"), String.valueOf(Double.POSITIVE_INFINITY));
+            double maxConfidence = parseDoubleOrDefault(params.get("max_confidence"), String.valueOf(Double.POSITIVE_INFINITY));
             int offset = parseIntOrDefault(params.get("offset"), 0);
             int limit = parseIntOrDefault(params.get("limit"), 100);
-            sendResponse(exchange, queryAllBSimFunctions(maxMatchesPerFunction, similarityThreshold, confidenceThreshold, offset, limit));
+            sendResponse(exchange, queryAllBSimFunctions(maxMatchesPerFunction, similarityThreshold, confidenceThreshold, maxSimilarity, maxConfidence, offset, limit));
         });
 
         server.createContext("/bsim/disconnect", exchange -> {
@@ -1779,9 +1783,19 @@ public class GhidraMCPPlugin extends Plugin {
 
     /**
      * Query a single function against the BSim database
+     * 
+     * @param functionAddress Address of the function to query
+     * @param maxMatches Maximum number of matches to return
+     * @param similarityThreshold Minimum similarity score (inclusive, 0.0-1.0)
+     * @param confidenceThreshold Minimum confidence score (inclusive, 0.0-1.0)
+     * @param maxSimilarity Maximum similarity score (exclusive, 0.0-1.0, default: unbounded/infinity)
+     * @param maxConfidence Maximum confidence score (exclusive, 0.0-1.0, default: unbounded/infinity)
+     * @param offset Pagination offset
+     * @param limit Maximum number of results to return
      */
     private String queryBSimFunction(String functionAddress, int maxMatches, 
                                      double similarityThreshold, double confidenceThreshold,
+                                     double maxSimilarity, double maxConfidence,
                                      int offset, int limit) {
         if (bsimDatabase == null) {
             return "Error: Not connected to a BSim database. Use bsim_select_database first.";
@@ -1819,9 +1833,11 @@ public class GhidraMCPPlugin extends Plugin {
             }
 
             // Create and execute query
+            // Note: We don't set query.max here because we need to filter by max similarity/confidence first,
+            // then limit to maxMatches. Setting query.max too early might exclude valid matches.
             QueryNearest query = new QueryNearest();
             query.manage = descManager;
-            query.max = maxMatches;
+            query.max = Integer.MAX_VALUE; // Get all potential matches
             query.thresh = similarityThreshold;
             query.signifthresh = confidenceThreshold;
 
@@ -1833,9 +1849,12 @@ public class GhidraMCPPlugin extends Plugin {
             }
 
             // Debug info
-            Msg.info(this, String.format("Query completed for %s: threshold=%.2f, max=%d, results=%d", 
-                func.getName(), similarityThreshold, maxMatches, 
+            Msg.info(this, String.format("Query completed for %s: threshold=%.2f, results=%d", 
+                func.getName(), similarityThreshold,
                 response.result != null ? response.result.size() : 0));
+
+            // Filter results by max similarity and max confidence, and limit to maxMatches
+            filterBSimResults(response, maxSimilarity, maxConfidence, maxMatches);
 
             // Format results with pagination
             return formatBSimResults(response, func.getName(), offset, limit);
@@ -1847,9 +1866,18 @@ public class GhidraMCPPlugin extends Plugin {
 
     /**
      * Query all functions in the current program against the BSim database
+     * 
+     * @param maxMatchesPerFunction Maximum number of matches per function
+     * @param similarityThreshold Minimum similarity score (inclusive, 0.0-1.0)
+     * @param confidenceThreshold Minimum confidence score (inclusive, 0.0-1.0)
+     * @param maxSimilarity Maximum similarity score (exclusive, 0.0-1.0, default: unbounded/infinity)
+     * @param maxConfidence Maximum confidence score (exclusive, 0.0-1.0, default: unbounded/infinity)
+     * @param offset Pagination offset
+     * @param limit Maximum number of results to return
      */
     private String queryAllBSimFunctions(int maxMatchesPerFunction, 
                                         double similarityThreshold, double confidenceThreshold,
+                                        double maxSimilarity, double maxConfidence,
                                         int offset, int limit) {
         if (bsimDatabase == null) {
             return "Error: Not connected to a BSim database. Use bsim_select_database first.";
@@ -1865,7 +1893,6 @@ public class GhidraMCPPlugin extends Plugin {
             FunctionManager funcManager = program.getFunctionManager();
             int totalFunctions = funcManager.getFunctionCount();
             int queriedFunctions = 0;
-            int functionsWithMatches = 0;
 
             results.append("Querying ").append(totalFunctions).append(" functions against BSim database...\n\n");
 
@@ -1893,9 +1920,11 @@ public class GhidraMCPPlugin extends Plugin {
             }
 
             // Create query
+            // Note: We don't set query.max here because we need to filter by max similarity/confidence first,
+            // then limit to maxMatchesPerFunction. Setting query.max too early might exclude valid matches.
             QueryNearest query = new QueryNearest();
             query.manage = descManager;
-            query.max = maxMatchesPerFunction;
+            query.max = Integer.MAX_VALUE; // Get all potential matches
             query.thresh = similarityThreshold;
             query.signifthresh = confidenceThreshold;
 
@@ -1906,17 +1935,10 @@ public class GhidraMCPPlugin extends Plugin {
                 return "Error: Query returned no response";
             }
 
-            // Count functions with matches
-            Iterator<SimilarityResult> iter = response.result.iterator();
-            while (iter.hasNext()) {
-                SimilarityResult result = iter.next();
-                if (result.size() > 0) {
-                    functionsWithMatches++;
-                }
-            }
+            // Filter results by max similarity and max confidence, and limit to maxMatchesPerFunction
+            filterBSimResults(response, maxSimilarity, maxConfidence, maxMatchesPerFunction);
 
             results.append("Successfully queried ").append(queriedFunctions).append(" functions\n");
-            results.append("Functions with matches: ").append(functionsWithMatches).append("\n\n");
 
             // Format detailed results with pagination
             results.append(formatBSimResults(response, null, offset, limit));
@@ -2154,6 +2176,56 @@ public class GhidraMCPPlugin extends Plugin {
     }
 
     /**
+     * Filter BSim results by maximum similarity and confidence thresholds, and limit matches.
+     * Removes matches that exceed the specified maximum values, and limits the number of 
+     * matches per function. Implements early stopping for efficiency.
+     * 
+     * Note: Maximum thresholds are exclusive (values >= max are filtered out),
+     * while minimum thresholds (applied in the query) are inclusive.
+     * 
+     * @param response The BSim query response to filter
+     * @param maxSimilarity Maximum similarity score (exclusive) - matches >= this value are removed
+     * @param maxConfidence Maximum confidence score (exclusive) - matches >= this value are removed
+     * @param maxMatches Maximum number of matches to keep per function (for early stopping)
+     */
+    private void filterBSimResults(ResponseNearest response, double maxSimilarity, double maxConfidence, int maxMatches) {
+        if (response == null || response.result == null) {
+            return;
+        }
+
+        Iterator<SimilarityResult> iter = response.result.iterator();
+        while (iter.hasNext()) {
+            SimilarityResult simResult = iter.next();
+            Iterator<SimilarityNote> noteIter = simResult.iterator();
+            
+            int validMatchCount = 0;
+            
+            while (noteIter.hasNext()) {
+                SimilarityNote note = noteIter.next();
+                
+                // Remove matches that meet or exceed max similarity or max confidence (exclusive)
+                if (note.getSimilarity() >= maxSimilarity || note.getSignificance() >= maxConfidence) {
+                    noteIter.remove();
+                } else {
+                    // This is a valid match
+                    validMatchCount++;
+                    
+                    // Early stopping: if we've reached maxMatches valid matches, remove all remaining
+                    if (validMatchCount > maxMatches) {
+                        noteIter.remove();
+                    }
+                }
+            }
+        }
+    }
+    
+    private Address getAddressFromLong(long address) {
+        Program program = getCurrentProgram();
+        String hexAddr = Long.toHexString(address);
+        return program.getAddressFactory().getAddress(hexAddr);
+    }
+
+    /**
      * Format BSim query results into a readable string with pagination
      */
     private String formatBSimResults(ResponseNearest response, String queryFunctionName, int offset, int limit) {
@@ -2175,17 +2247,12 @@ public class GhidraMCPPlugin extends Plugin {
                 if (queryFunctionName == null) {
                     continue; // Skip functions with no matches when querying all
                 }
-                result.append("No matches found\n");
-                continue;
-            }
-
-            if (queryFunctionName == null) {
-                result.append("Function: ").append(base.getFunctionName())
-                      .append(" at ").append(base.getAddress()).append("\n");
+                result.append("No matches found (all matches filtered out or none available)\n");
+                return result.toString(); // Early return for single function with no matches
             }
 
             // For single function query, paginate the matches
-            // For all functions query, paginate the functions (existing behavior)
+            // For all functions query, paginate the functions
             if (queryFunctionName != null) {
                 // Single function: paginate through similarity matches
                 int totalMatches = simResult.size();
@@ -2217,7 +2284,7 @@ public class GhidraMCPPlugin extends Plugin {
                     }
                     
                     result.append(String.format("  Function: %s\n", match.getFunctionName()));
-                    result.append(String.format("  Address: %s\n", match.getAddress()));
+                    result.append(String.format("  Address: %s\n", getAddressFromLong(match.getAddress())));
                     result.append(String.format("  Similarity: %.4f\n", note.getSimilarity()));
                     result.append(String.format("  Confidence: %.4f\n", note.getSignificance()));
                     
@@ -2248,13 +2315,16 @@ public class GhidraMCPPlugin extends Plugin {
                 } else {
                     result.append("\n");
                 }
-            } else {
+            } else {                
                 // All functions query: paginate by function (skip if before offset)
                 if (totalMatchCount < offset) {
                     totalMatchCount++;
                     continue;
                 }
                 
+                result.append("Function: ").append(base.getFunctionName())
+                        .append(" at ").append(getAddressFromLong(base.getAddress())).append("\n");
+            
                 // Stop if we've reached the limit
                 if (displayedMatchCount >= limit) {
                     break;
@@ -2271,25 +2341,11 @@ public class GhidraMCPPlugin extends Plugin {
 
                     result.append(String.format("Match %d:\n", matchNum));
                     
-                    if (exe != null) {
-                        result.append(String.format("  Executable: %s\n", exe.getNameExec()));
-                    }
-                    
+                    result.append(String.format("  Executable: %s\n", exe.getNameExec()));
                     result.append(String.format("  Function: %s\n", match.getFunctionName()));
-                    result.append(String.format("  Address: %s\n", match.getAddress()));
+                    result.append(String.format("  Address: %s\n", getAddressFromLong(match.getAddress())));
                     result.append(String.format("  Similarity: %.4f\n", note.getSimilarity()));
                     result.append(String.format("  Confidence: %.4f\n", note.getSignificance()));
-                    
-                    if (exe != null) {
-                        String arch = exe.getArchitecture();
-                        String compiler = exe.getNameCompiler();
-                        if (arch != null && !arch.isEmpty()) {
-                            result.append(String.format("  Architecture: %s\n", arch));
-                        }
-                        if (compiler != null && !compiler.isEmpty()) {
-                            result.append(String.format("  Compiler: %s\n", compiler));
-                        }
-                    }
                     
                     result.append("\n");
                     matchNum++;
