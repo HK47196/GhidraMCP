@@ -56,7 +56,8 @@ class FarPointerParsingTest {
     @DisplayName("Should handle regular pointer syntax")
     @ValueSource(strings = {"int *", "void *", "char *", "MyStruct *", "unsigned long *"})
     void testRegularPointerSyntax(String typeName) {
-        String[] parts = typeName.split("\\*");
+        // Use split with -1 limit to preserve trailing empty strings
+        String[] parts = typeName.split("\\*", -1);
         assertEquals(2, parts.length, "Should split into exactly 2 parts");
 
         String baseTypeName = parts[0].trim();
@@ -191,7 +192,8 @@ class FarPointerParsingTest {
     @DisplayName("Should handle pointer to pointer")
     void testPointerToPointer() {
         String typeName = "int **";
-        String[] parts = typeName.split("\\*");
+        // Use split with -1 limit to preserve trailing empty strings
+        String[] parts = typeName.split("\\*", -1);
 
         // Should split into 3 parts: "int ", "", ""
         assertTrue(parts.length >= 2, "Should split into multiple parts");
@@ -263,12 +265,13 @@ class FarPointerParsingTest {
     void testBackwardCompatibility() {
         // Regular pointers should still work
         String regularPtr = "int *";
-        String[] parts = regularPtr.split("\\*");
+        // Use split with -1 limit to preserve trailing empty strings
+        String[] parts = regularPtr.split("\\*", -1);
         assertEquals("", parts[1].trim(), "Regular pointer should have empty size");
 
         // Far pointers should be detected
         String farPtr = "int *32";
-        parts = farPtr.split("\\*");
+        parts = farPtr.split("\\*", -1);
         assertEquals("32", parts[1].trim(), "Far pointer should have size");
         assertTrue(parts[1].trim().matches("\\d+"), "Far pointer size should be numeric");
     }
