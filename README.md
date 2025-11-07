@@ -121,11 +121,13 @@ mvn clean package
 ```
 
 This will:
-1. Download Ghidra 11.4.2 (~435 MB) to `target/` directory
+1. Download Ghidra 11.4.2 (~435 MB) to `.ghidra-cache/` directory (first build only)
 2. Extract Ghidra and reference its JARs
 3. Download Apache Commons and database drivers from Maven Central
 4. Compile the plugin
 5. Generate `GhidraMCP-1.0-SNAPSHOT.zip` in the `target/` directory
+
+**Note:** The downloaded Ghidra is cached in `.ghidra-cache/` and persists across builds, so you only download it once.
 
 The generated zip file includes the built Ghidra plugin and its resources:
 - lib/GhidraMCP.jar
@@ -145,4 +147,6 @@ To build against a different Ghidra version, edit the properties in `pom.xml`:
 
 ## Offline/Containerized Builds
 
-The build works in containerized environments without a pre-installed Ghidra. The first build will download Ghidra, and subsequent builds will reuse the cached download in `target/ghidra.zip`.
+The build works in containerized environments without a pre-installed Ghidra. The first build will download Ghidra to `.ghidra-cache/`, and subsequent builds will reuse the cached download. The cache directory survives `mvn clean`, so you won't need to re-download Ghidra on every build.
+
+To force a fresh download, simply delete the `.ghidra-cache/` directory.

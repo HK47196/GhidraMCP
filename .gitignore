@@ -1,6 +1,9 @@
 # Maven target directory
 /target/
 
+# Ghidra build cache
+/.ghidra-cache/
+
 # Compiled class files
 *.class
 

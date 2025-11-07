@@ -14,7 +14,8 @@
     <ghidra.version>11.4.2</ghidra.version>
     <ghidra.release.date>20250826</ghidra.release.date>
     <ghidra.download.url>https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${ghidra.version}_build/ghidra_${ghidra.version}_PUBLIC_${ghidra.release.date}.zip</ghidra.download.url>
-    <ghidra.install.dir>${project.build.directory}/ghidra_${ghidra.version}_PUBLIC</ghidra.install.dir>
+    <ghidra.cache.dir>${project.basedir}/.ghidra-cache</ghidra.cache.dir>
+    <ghidra.install.dir>${ghidra.cache.dir}/ghidra_${ghidra.version}_PUBLIC</ghidra.install.dir>
   </properties>
 
   <dependencies>
@@ -131,15 +132,15 @@
         <executions>
           <execution>
             <id>download-ghidra</id>
-            <phase>initialize</phase>
+            <phase>validate</phase>
             <goals>
               <goal>wget</goal>
             </goals>
             <configuration>
               <url>${ghidra.download.url}</url>
-              <outputDirectory>${project.build.directory}</outputDirectory>
+              <outputDirectory>${ghidra.cache.dir}</outputDirectory>
               <outputFileName>ghidra.zip</outputFileName>
-              <skipCache>false</skipCache>
+              <skipCache>true</skipCache>
             </configuration>
           </execution>
         </executions>
@@ -153,14 +154,14 @@
         <executions>
           <execution>
             <id>unzip-ghidra</id>
-            <phase>generate-sources</phase>
+            <phase>initialize</phase>
             <goals>
               <goal>run</goal>
             </goals>
             <configuration>
               <target>
-                <echo message="Extracting Ghidra to ${project.build.directory}"/>
-                <unzip src="${project.build.directory}/ghidra.zip" dest="${project.build.directory}" overwrite="false"/>
+                <echo message="Extracting Ghidra to ${ghidra.cache.dir}"/>
+                <unzip src="${ghidra.cache.dir}/ghidra.zip" dest="${ghidra.cache.dir}" overwrite="false"/>
               </target>
             </configuration>
           </execution>
