@@ -45,7 +45,12 @@ public class SymbolManager {
                 try {
                     for (Function func : program.getFunctionManager().getFunctions(true)) {
                         if (func.getName().equals(oldName)) {
-                            func.setName(newName, SourceType.USER_DEFINED);
+                            // Handle namespace notation (A::B format)
+                            if (newName.contains("::")) {
+                                applyNamespaceAndName(program, func, newName);
+                            } else {
+                                func.setName(newName, SourceType.USER_DEFINED);
+                            }
                             successFlag.set(true);
                             break;
                         }
@@ -241,13 +246,54 @@ public class SymbolManager {
                 return;
             }
 
-            func.setName(newName, SourceType.USER_DEFINED);
+            // Handle namespace notation (A::B format)
+            if (newName.contains("::")) {
+                applyNamespaceAndName(program, func, newName);
+            } else {
+                func.setName(newName, SourceType.USER_DEFINED);
+            }
             success.set(true);
         } catch (Exception e) {
             Msg.error(this, "Error renaming function by address", e);
         } finally {
             program.endTransaction(tx, success.get());
         }
+    }
+
+    /**
+     * Apply namespace and name to a function when the name contains :: notation
+     * @param program The program
+     * @param func The function to rename
+     * @param fullName The full name including namespace (e.g., "A::B" or "A::B::C")
+     */
+    private void applyNamespaceAndName(Program program, Function func, String fullName) throws Exception {
+        SymbolTable symbolTable = program.getSymbolTable();
+
+        // Split by :: to separate namespace path from function name
+        String[] parts = fullName.split("::");
+        if (parts.length < 2) {
+            // No namespace, just set the name
+            func.setName(fullName, SourceType.USER_DEFINED);
+            return;
+        }
+
+        // Last part is the function name, everything before is namespace path
+        String functionName = parts[parts.length - 1];
+
+        // Build the namespace hierarchy
+        Namespace currentNamespace = program.getGlobalNamespace();
+        for (int i = 0; i < parts.length - 1; i++) {
+            currentNamespace = symbolTable.getOrCreateNameSpace(
+                currentNamespace,
+                parts[i],
+                SourceType.USER_DEFINED
+            );
+        }
+
+        // Get the function's symbol and update it
+        Symbol funcSymbol = func.getSymbol();
+        funcSymbol.setNamespace(currentNamespace);
+        funcSymbol.setName(functionName, SourceType.USER_DEFINED);
     }
 
     /**
