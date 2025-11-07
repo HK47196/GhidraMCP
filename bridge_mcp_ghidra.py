@@ -521,6 +521,227 @@ def bulk_operations(operations: list[dict]) -> str:
     except Exception as e:
         return f"Request failed: {str(e)}"
 
+# ==================== STRUCT OPERATIONS ====================
+
+@mcp.tool()
+def create_struct(name: str, size: int = 0, category_path: str = "") -> str:
+    """
+    Create a new empty struct with a given name and optional size.
+
+    Args:
+        name: Struct name
+        size: Initial size in bytes (0 for empty/auto-sized)
+        category_path: Category path like "/MyStructs" (default: "/")
+
+    Returns:
+        JSON string with struct details (name, size, category, path)
+    """
+    return safe_post("struct/create", {
+        "name": name,
+        "size": size,
+        "category_path": category_path
+    })
+
+@mcp.tool()
+def parse_c_struct(c_code: str, category_path: str = "") -> str:
+    """
+    Parse C struct definition from text and add to program.
+
+    Args:
+        c_code: C struct definition (e.g., "struct MyStruct { int field1; char field2; };")
+        category_path: Where to place the struct (default: "/")
+
+    Returns:
+        JSON string with parsed struct names and details
+
+    Note: C code must be preprocessed (no #includes, macros expanded).
+    Basic types must exist (int, char, void, etc.).
+    """
+    return safe_post("struct/parse_c", {
+        "c_code": c_code,
+        "category_path": category_path
+    })
+
+@mcp.tool()
+def add_struct_field(struct_name: str, field_type: str, field_name: str,
+                     length: int = -1, comment: str = "") -> str:
+    """
+    Add a field to an existing struct.
+
+    Args:
+        struct_name: Name of struct to modify
+        field_type: Data type name (e.g., "int", "char", "void*", "MyStruct")
+        field_name: Name of new field
+        length: Size in bytes (-1 for default based on type)
+        comment: Optional field comment
+
+    Returns:
+        JSON string with field details (offset, size, type, name)
+    """
+    return safe_post("struct/add_field", {
+        "struct_name": struct_name,
+        "field_type": field_type,
+        "field_name": field_name,
+        "length": length,
+        "comment": comment
+    })
+
+@mcp.tool()
+def insert_struct_field_at_offset(struct_name: str, offset: int, field_type: str,
+                                  field_name: str, length: int = -1, comment: str = "") -> str:
+    """
+    Insert a field at a specific offset in the struct.
+
+    Args:
+        struct_name: Name of struct
+        offset: Byte offset for insertion
+        field_type: Data type name
+        field_name: Name of field
+        length: Size in bytes (-1 for default)
+        comment: Optional field comment
+
+    Returns:
+        JSON string with field details
+    """
+    return safe_post("struct/insert_field", {
+        "struct_name": struct_name,
+        "offset": offset,
+        "field_type": field_type,
+        "field_name": field_name,
+        "length": length,
+        "comment": comment
+    })
+
+@mcp.tool()
+def replace_struct_field(struct_name: str, ordinal: int, field_type: str,
+                        field_name: str = "", length: int = -1, comment: str = "") -> str:
+    """
+    Replace an existing field at a given ordinal position.
+
+    Args:
+        struct_name: Name of struct
+        ordinal: Component index (0-based)
+        field_type: Data type name
+        field_name: Field name (empty to keep existing)
+        length: Size in bytes (-1 for default)
+        comment: Field comment (empty to keep existing)
+
+    Returns:
+        JSON string with field details
+    """
+    return safe_post("struct/replace_field", {
+        "struct_name": struct_name,
+        "ordinal": ordinal,
+        "field_type": field_type,
+        "field_name": field_name,
+        "length": length,
+        "comment": comment
+    })
+
+@mcp.tool()
+def delete_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) -> str:
+    """
+    Delete a field from a struct.
+
+    Args:
+        struct_name: Name of struct
+        ordinal: Component index (0-based, use -1 if using offset)
+        offset: Byte offset (use -1 if using ordinal)
+
+    Note: Must specify either ordinal OR offset, not both.
+
+    Returns:
+        JSON string with result
+    """
+    return safe_post("struct/delete_field", {
+        "struct_name": struct_name,
+        "ordinal": ordinal,
+        "offset": offset
+    })
+
+@mcp.tool()
+def clear_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) -> str:
+    """
+    Clear a field (keeps struct size, fills with undefined).
+
+    Args:
+        struct_name: Name of struct
+        ordinal: Component index (0-based, use -1 if using offset)
+        offset: Byte offset (use -1 if using ordinal)
+
+    Note: Must specify either ordinal OR offset, not both.
+
+    Returns:
+        JSON string with result
+    """
+    return safe_post("struct/clear_field", {
+        "struct_name": struct_name,
+        "ordinal": ordinal,
+        "offset": offset
+    })
+
+@mcp.tool()
+def get_struct_info(name: str) -> str:
+    """
+    Get detailed information about a struct.
+
+    Args:
+        name: Struct name
+
+    Returns:
+        JSON string with complete struct details including all fields
+        (name, path, size, numComponents, numDefined, isPacked, alignment, components)
+    """
+    return safe_get("struct/get_info", {"name": name})
+
+@mcp.tool()
+def list_structs(category_path: str = "", offset: int = 0, limit: int = 100) -> str:
+    """
+    List all struct types in the program.
+
+    Args:
+        category_path: Filter by category (empty for all)
+        offset: Pagination offset
+        limit: Max results
+
+    Returns:
+        JSON string with array of struct summaries
+    """
+    params = {"offset": offset, "limit": limit}
+    if category_path:
+        params["category_path"] = category_path
+    return safe_get("struct/list", params)
+
+@mcp.tool()
+def rename_struct(old_name: str, new_name: str) -> str:
+    """
+    Rename a struct.
+
+    Args:
+        old_name: Current struct name
+        new_name: New struct name
+
+    Returns:
+        JSON string with result
+    """
+    return safe_post("struct/rename", {
+        "old_name": old_name,
+        "new_name": new_name
+    })
+
+@mcp.tool()
+def delete_struct(name: str) -> str:
+    """
+    Delete a struct from the program.
+
+    Args:
+        name: Name of struct to delete
+
+    Returns:
+        JSON string with result
+    """
+    return safe_post("struct/delete", {"name": name})
+
 def main():
     parser = argparse.ArgumentParser(description="MCP server for Ghidra")
     parser.add_argument("--ghidra-server", type=str, default=DEFAULT_GHIDRA_SERVER,
