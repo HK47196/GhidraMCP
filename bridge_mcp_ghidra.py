@@ -208,6 +208,14 @@ def set_disassembly_comment(address: str, comment: str) -> str:
     return safe_post("set_disassembly_comment", {"address": address, "comment": comment})
 
 @mcp.tool()
+def set_plate_comment(address: str, comment: str) -> str:
+    """
+    Set a plate comment for a given address. Plate comments are multi-line bordered
+    comments typically displayed above functions or code sections in Ghidra's listing view.
+    """
+    return safe_post("set_plate_comment", {"address": address, "comment": comment})
+
+@mcp.tool()
 def rename_function_by_address(function_address: str, new_name: str) -> str:
     """
     Rename a function by its address.
