@@ -215,6 +215,147 @@ class TestMCPTools:
         mock_safe_post.assert_called_once_with("renameData",
                                                  {"address": "0x401000", "newName": "new_label"})
 
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_functions_by_segment_with_segment_name(self, mock_safe_get):
+        """Test list_functions_by_segment with segment_name parameter."""
+        mock_safe_get.return_value = [
+            "func1 @ CODE_70:001a (size: 42 bytes)",
+            "func2 @ CODE_70:003c (size: 28 bytes)"
+        ]
+
+        result = bridge_mcp_ghidra.list_functions_by_segment(
+            segment_name="CODE_70",
+            offset=0,
+            limit=100
+        )
+
+        assert len(result) == 2
+        assert "func1" in result[0]
+        assert "CODE_70:001a" in result[0]
+        mock_safe_get.assert_called_once_with("functions_by_segment", {
+            "segment_name": "CODE_70",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_functions_by_segment_with_address_range(self, mock_safe_get):
+        """Test list_functions_by_segment with address range."""
+        mock_safe_get.return_value = ["func1 @ 4592:000e (size: 100 bytes)"]
+
+        result = bridge_mcp_ghidra.list_functions_by_segment(
+            start_address="4592:000e",
+            end_address="4592:0399",
+            offset=0,
+            limit=50
+        )
+
+        assert len(result) == 1
+        mock_safe_get.assert_called_once_with("functions_by_segment", {
+            "start_address": "4592:000e",
+            "end_address": "4592:0399",
+            "offset": 0,
+            "limit": 50
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_functions_by_segment_missing_params(self, mock_safe_get):
+        """Test list_functions_by_segment with missing required parameters."""
+        result = bridge_mcp_ghidra.list_functions_by_segment()
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "segment_name or both start_address and end_address" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_functions_by_segment_with_pagination(self, mock_safe_get):
+        """Test list_functions_by_segment with custom pagination."""
+        mock_safe_get.return_value = ["func3 @ CODE_70:0100 (size: 64 bytes)"]
+
+        result = bridge_mcp_ghidra.list_functions_by_segment(
+            segment_name="CODE_70",
+            offset=10,
+            limit=20
+        )
+
+        mock_safe_get.assert_called_once_with("functions_by_segment", {
+            "segment_name": "CODE_70",
+            "offset": 10,
+            "limit": 20
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_data_by_segment_with_segment_name(self, mock_safe_get):
+        """Test list_data_by_segment with segment_name parameter."""
+        mock_safe_get.return_value = [
+            "label1 @ CODE_70:0020 [word] = 0x1234",
+            "label2 @ CODE_70:0022 [byte] = 0x42"
+        ]
+
+        result = bridge_mcp_ghidra.list_data_by_segment(
+            segment_name="CODE_70",
+            offset=0,
+            limit=100
+        )
+
+        assert len(result) == 2
+        assert "label1" in result[0]
+        assert "CODE_70:0020" in result[0]
+        assert "word" in result[0]
+        mock_safe_get.assert_called_once_with("data_by_segment", {
+            "segment_name": "CODE_70",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_data_by_segment_with_address_range(self, mock_safe_get):
+        """Test list_data_by_segment with address range."""
+        mock_safe_get.return_value = ["data1 @ 4592:0010 [dword] = 0xdeadbeef"]
+
+        result = bridge_mcp_ghidra.list_data_by_segment(
+            start_address="4592:0000",
+            end_address="4592:00ff",
+            offset=0,
+            limit=100
+        )
+
+        assert len(result) == 1
+        mock_safe_get.assert_called_once_with("data_by_segment", {
+            "start_address": "4592:0000",
+            "end_address": "4592:00ff",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_data_by_segment_missing_params(self, mock_safe_get):
+        """Test list_data_by_segment with missing required parameters."""
+        result = bridge_mcp_ghidra.list_data_by_segment()
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "segment_name or both start_address and end_address" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_data_by_segment_with_pagination(self, mock_safe_get):
+        """Test list_data_by_segment with custom pagination."""
+        mock_safe_get.return_value = ["data2 @ CODE_70:0050 [string] = \"test\""]
+
+        result = bridge_mcp_ghidra.list_data_by_segment(
+            segment_name="CODE_70",
+            offset=5,
+            limit=25
+        )
+
+        mock_safe_get.assert_called_once_with("data_by_segment", {
+            "segment_name": "CODE_70",
+            "offset": 5,
+            "limit": 25
+        })
+
 
 class TestGlobalConfiguration:
     """Test suite for global configuration variables."""

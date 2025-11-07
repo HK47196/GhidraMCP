@@ -176,7 +176,7 @@ def list_functions_by_segment(
     else:
         return ["Error: Either segment_name or both start_address and end_address must be provided"]
 
-    return safe_get("functions-by-segment", params)
+    return safe_get("functions_by_segment", params)
 
 @mcp.tool()
 def list_data_by_segment(
@@ -214,7 +214,7 @@ def list_data_by_segment(
     else:
         return ["Error: Either segment_name or both start_address and end_address must be provided"]
 
-    return safe_get("data-by-segment", params)
+    return safe_get("data_by_segment", params)
 
 @mcp.tool()
 def rename_variable(function_name: str, old_name: str, new_name: str) -> str:

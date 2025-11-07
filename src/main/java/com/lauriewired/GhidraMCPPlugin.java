@@ -206,7 +206,7 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, programAnalyzer.searchFunctionsByName(searchTerm, offset, limit));
         });
 
-        server.createContext("/functions-by-segment", exchange -> {
+        server.createContext("/functions_by_segment", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String segmentName = qparams.get("segment_name");
             String startAddress = qparams.get("start_address");
@@ -216,7 +216,7 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, programAnalyzer.listFunctionsBySegment(segmentName, startAddress, endAddress, offset, limit));
         });
 
-        server.createContext("/data-by-segment", exchange -> {
+        server.createContext("/data_by_segment", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String segmentName = qparams.get("segment_name");
             String startAddress = qparams.get("start_address");
@@ -685,7 +685,7 @@ public class GhidraMCPPlugin extends Plugin {
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100)
                     );
 
-                case "/functions-by-segment":
+                case "/functions_by_segment":
                     return programAnalyzer.listFunctionsBySegment(
                         params.get("segment_name"),
                         params.get("start_address"),
@@ -694,7 +694,7 @@ public class GhidraMCPPlugin extends Plugin {
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100)
                     );
 
-                case "/data-by-segment":
+                case "/data_by_segment":
                     return programAnalyzer.listDataBySegment(
                         params.get("segment_name"),
                         params.get("start_address"),
