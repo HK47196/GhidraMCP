@@ -104,28 +104,45 @@ Another MCP client that supports multiple models on the backend is [5ire](https:
 3. Command: `python /ABSOLUTE_PATH_TO/bridge_mcp_ghidra.py`
 
 # Building from Source
-1. Copy the following files from your Ghidra directory to this project's `lib/` directory:
-- `Ghidra/Features/Base/lib/Base.jar`
-- `Ghidra/Features/Decompiler/lib/Decompiler.jar`
-- `Ghidra/Framework/Docking/lib/Docking.jar`
-- `Ghidra/Framework/Generic/lib/Generic.jar`
-- `Ghidra/Framework/Project/lib/Project.jar`
-- `Ghidra/Framework/SoftwareModeling/lib/SoftwareModeling.jar`
-- `Ghidra/Framework/Utility/lib/Utility.jar`
-- `Ghidra/Framework/Gui/lib/Gui.jar`
-- `Ghidra/Features/BSim/lib/BSim.jar lib/BSim.jar`
-- `Ghidra/Features/BSim/lib/commons-dbcp2-2.9.0.jar lib/commons-dbcp2-2.9.0.jar`
-- `Ghidra/Features/BSim/lib/commons-logging-1.2.jar lib/commons-logging-1.2.jar`
-- `Ghidra/Features/BSim/lib/commons-pool2-2.11.1.jar lib/commons-pool2-2.11.1.jar`
-- `Ghidra/Features/BSim/lib/h2-2.2.220.jar lib/h2-2.2.220.jar`
-- `Ghidra/Features/BSim/lib/postgresql-42.7.6.jar lib/postgresql-42.7.6.jar`
 
-2. Build with Maven by running:
+## Prerequisites
+- Java 21 or higher
+- Maven 3.6 or higher
+- Internet connection (for downloading Ghidra and dependencies)
 
-`mvn clean package assembly:single`
+## Build Instructions
 
-The generated zip file includes the built Ghidra plugin and its resources. These files are required for Ghidra to recognize the new extension.
+The build process automatically downloads Ghidra 11.4.2 and all required dependencies. No manual file copying needed!
 
+Simply run:
+
+```bash
+mvn clean package
+```
+
+This will:
+1. Download Ghidra 11.4.2 (~435 MB) to `target/` directory
+2. Extract Ghidra and reference its JARs
+3. Download Apache Commons and database drivers from Maven Central
+4. Compile the plugin
+5. Generate `GhidraMCP-1.0-SNAPSHOT.zip` in the `target/` directory
+
+The generated zip file includes the built Ghidra plugin and its resources:
 - lib/GhidraMCP.jar
 - extensions.properties
 - Module.manifest
+
+## Changing Ghidra Version
+
+To build against a different Ghidra version, edit the properties in `pom.xml`:
+
+```xml
+<properties>
+  <ghidra.version>11.4.2</ghidra.version>
+  <ghidra.release.date>20250826</ghidra.release.date>
+</properties>
+```
+
+## Offline/Containerized Builds
+
+The build works in containerized environments without a pre-installed Ghidra. The first build will download Ghidra, and subsequent builds will reuse the cached download in `target/ghidra.zip`.

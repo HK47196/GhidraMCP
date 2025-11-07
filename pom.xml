@@ -10,107 +10,106 @@
   <name>GhidraMCP</name>
   <url>http://maven.apache.org</url>
 
+  <properties>
+    <ghidra.version>11.4.2</ghidra.version>
+    <ghidra.release.date>20250826</ghidra.release.date>
+    <ghidra.download.url>https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${ghidra.version}_build/ghidra_${ghidra.version}_PUBLIC_${ghidra.release.date}.zip</ghidra.download.url>
+    <ghidra.install.dir>${project.build.directory}/ghidra_${ghidra.version}_PUBLIC</ghidra.install.dir>
+  </properties>
+
   <dependencies>
     <!-- Ghidra JARs as system-scoped dependencies -->
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Generic</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Generic.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Framework/Generic/lib/Generic.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>SoftwareModeling</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/SoftwareModeling.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Framework/SoftwareModeling/lib/SoftwareModeling.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Project</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Project.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Framework/Project/lib/Project.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Docking</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Docking.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Framework/Docking/lib/Docking.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Decompiler</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Decompiler.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Features/Decompiler/lib/Decompiler.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Utility</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Utility.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Framework/Utility/lib/Utility.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Base</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Base.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Features/Base/lib/Base.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>Gui</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/Gui.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Framework/Gui/lib/Gui.jar</systemPath>
     </dependency>
 
     <!-- BSim dependencies -->
     <dependency>
       <groupId>ghidra</groupId>
       <artifactId>BSim</artifactId>
-      <version>11.4.2</version>
+      <version>${ghidra.version}</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/BSim.jar</systemPath>
+      <systemPath>${ghidra.install.dir}/Ghidra/Features/BSim/lib/BSim.jar</systemPath>
     </dependency>
+
+    <!-- Apache Commons and database drivers from Maven Central -->
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-dbcp2</artifactId>
       <version>2.9.0</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/lib/commons-dbcp2-2.9.0.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
       <version>1.2</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/lib/commons-logging-1.2.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-pool2</artifactId>
       <version>2.11.1</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/lib/commons-pool2-2.11.1.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
       <version>2.2.220</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/lib/h2-2.2.220.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <version>42.7.6</version>
-      <scope>system</scope>
-      <systemPath>${project.basedir}/lib/postgresql-42.7.6.jar</systemPath>
     </dependency>
 
     <!-- JUnit (test only) -->
@@ -124,15 +123,59 @@
 
   <build>
     <plugins>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.14.0</version>
+      <!-- Download Ghidra -->
+      <plugin>
+        <groupId>com.googlecode.maven-download-plugin</groupId>
+        <artifactId>download-maven-plugin</artifactId>
+        <version>1.9.0</version>
+        <executions>
+          <execution>
+            <id>download-ghidra</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>wget</goal>
+            </goals>
             <configuration>
-                <source>21</source>
-                <target>21</target>
+              <url>${ghidra.download.url}</url>
+              <outputDirectory>${project.build.directory}</outputDirectory>
+              <outputFileName>ghidra.zip</outputFileName>
+              <skipCache>false</skipCache>
             </configuration>
-        </plugin>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Extract Ghidra -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>unzip-ghidra</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <echo message="Extracting Ghidra to ${project.build.directory}"/>
+                <unzip src="${project.build.directory}/ghidra.zip" dest="${project.build.directory}" overwrite="false"/>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.0</version>
+        <configuration>
+          <source>21</source>
+          <target>21</target>
+        </configuration>
+      </plugin>
 
       <!-- Use custom MANIFEST.MF -->
       <plugin>
