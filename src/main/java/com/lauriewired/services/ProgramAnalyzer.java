@@ -284,4 +284,168 @@ public class ProgramAnalyzer {
         }
         return sb.toString();
     }
+
+    /**
+     * List functions within a segment or address range with pagination
+     * @param segmentName Name of the memory segment (e.g., "CODE_70")
+     * @param startAddress Start address of range (if segmentName is null)
+     * @param endAddress End address of range (if segmentName is null)
+     * @param offset Pagination offset
+     * @param limit Pagination limit
+     * @return Paginated list of functions with name, address (segment:offset format), and size
+     */
+    public String listFunctionsBySegment(String segmentName, String startAddress, String endAddress, int offset, int limit) {
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return "No program loaded";
+
+        MemoryBlock targetBlock = null;
+        ghidra.program.model.address.Address start = null;
+        ghidra.program.model.address.Address end = null;
+
+        // Determine the address range
+        if (segmentName != null && !segmentName.isEmpty()) {
+            // Find segment by name
+            for (MemoryBlock block : program.getMemory().getBlocks()) {
+                if (block.getName().equals(segmentName)) {
+                    targetBlock = block;
+                    start = block.getStart();
+                    end = block.getEnd();
+                    break;
+                }
+            }
+            if (targetBlock == null) {
+                return "Segment not found: " + segmentName;
+            }
+        } else if (startAddress != null && endAddress != null) {
+            // Use provided address range
+            try {
+                start = program.getAddressFactory().getAddress(startAddress);
+                end = program.getAddressFactory().getAddress(endAddress);
+            } catch (Exception e) {
+                return "Invalid address range: " + e.getMessage();
+            }
+        } else {
+            return "Either segment_name or start_address/end_address must be provided";
+        }
+
+        // Collect functions within the range
+        List<String> lines = new ArrayList<>();
+        for (Function func : program.getFunctionManager().getFunctions(true)) {
+            ghidra.program.model.address.Address entryPoint = func.getEntryPoint();
+            if (entryPoint.compareTo(start) >= 0 && entryPoint.compareTo(end) <= 0) {
+                // Find which segment this function is in for proper formatting
+                MemoryBlock funcBlock = program.getMemory().getBlock(entryPoint);
+                String segOffset = formatSegmentOffset(entryPoint, funcBlock);
+                long size = func.getBody().getNumAddresses();
+
+                lines.add(String.format("%s @ %s (size: %d bytes)",
+                    func.getName(),
+                    segOffset,
+                    size
+                ));
+            }
+        }
+
+        if (lines.isEmpty()) {
+            return segmentName != null ?
+                "No functions found in segment: " + segmentName :
+                "No functions found in address range";
+        }
+
+        return PluginUtils.paginateList(lines, offset, limit);
+    }
+
+    /**
+     * List data items within a segment or address range with pagination
+     * @param segmentName Name of the memory segment (e.g., "CODE_70")
+     * @param startAddress Start address of range (if segmentName is null)
+     * @param endAddress End address of range (if segmentName is null)
+     * @param offset Pagination offset
+     * @param limit Pagination limit
+     * @return Paginated list of data items with label, address (segment:offset format), type, and value
+     */
+    public String listDataBySegment(String segmentName, String startAddress, String endAddress, int offset, int limit) {
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return "No program loaded";
+
+        MemoryBlock targetBlock = null;
+        ghidra.program.model.address.Address start = null;
+        ghidra.program.model.address.Address end = null;
+
+        // Determine the address range
+        if (segmentName != null && !segmentName.isEmpty()) {
+            // Find segment by name
+            for (MemoryBlock block : program.getMemory().getBlocks()) {
+                if (block.getName().equals(segmentName)) {
+                    targetBlock = block;
+                    start = block.getStart();
+                    end = block.getEnd();
+                    break;
+                }
+            }
+            if (targetBlock == null) {
+                return "Segment not found: " + segmentName;
+            }
+        } else if (startAddress != null && endAddress != null) {
+            // Use provided address range
+            try {
+                start = program.getAddressFactory().getAddress(startAddress);
+                end = program.getAddressFactory().getAddress(endAddress);
+            } catch (Exception e) {
+                return "Invalid address range: " + e.getMessage();
+            }
+        } else {
+            return "Either segment_name or start_address/end_address must be provided";
+        }
+
+        // Collect data items within the range
+        List<String> lines = new ArrayList<>();
+        DataIterator dataIt = program.getListing().getDefinedData(start, true);
+
+        while (dataIt.hasNext()) {
+            Data data = dataIt.next();
+            ghidra.program.model.address.Address addr = data.getAddress();
+
+            // Check if within range
+            if (addr.compareTo(start) >= 0 && addr.compareTo(end) <= 0) {
+                // Find which segment this data is in for proper formatting
+                MemoryBlock dataBlock = program.getMemory().getBlock(addr);
+                String segOffset = formatSegmentOffset(addr, dataBlock);
+
+                String label = data.getLabel() != null ? data.getLabel() : "(unnamed)";
+                String typeName = data.getDataType() != null ? data.getDataType().getName() : "undefined";
+                String value = data.getDefaultValueRepresentation();
+
+                lines.add(String.format("%s @ %s [%s] = %s",
+                    PluginUtils.escapeNonAscii(label),
+                    segOffset,
+                    typeName,
+                    PluginUtils.escapeNonAscii(value)
+                ));
+            }
+        }
+
+        if (lines.isEmpty()) {
+            return segmentName != null ?
+                "No data items found in segment: " + segmentName :
+                "No data items found in address range";
+        }
+
+        return PluginUtils.paginateList(lines, offset, limit);
+    }
+
+    /**
+     * Format an address as segment:offset
+     * @param addr Address to format
+     * @param block Memory block containing the address
+     * @return Formatted address string
+     */
+    private String formatSegmentOffset(ghidra.program.model.address.Address addr, MemoryBlock block) {
+        if (block == null) {
+            return addr.toString();
+        }
+
+        long offset = addr.subtract(block.getStart());
+        return String.format("%s:%04x", block.getName(), offset);
+    }
 }

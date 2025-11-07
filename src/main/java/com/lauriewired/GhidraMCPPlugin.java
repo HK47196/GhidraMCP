@@ -206,6 +206,26 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, programAnalyzer.searchFunctionsByName(searchTerm, offset, limit));
         });
 
+        server.createContext("/functions_by_segment", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String segmentName = qparams.get("segment_name");
+            String startAddress = qparams.get("start_address");
+            String endAddress = qparams.get("end_address");
+            int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
+            int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
+            sendResponse(exchange, programAnalyzer.listFunctionsBySegment(segmentName, startAddress, endAddress, offset, limit));
+        });
+
+        server.createContext("/data_by_segment", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String segmentName = qparams.get("segment_name");
+            String startAddress = qparams.get("start_address");
+            String endAddress = qparams.get("end_address");
+            int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
+            int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
+            sendResponse(exchange, programAnalyzer.listDataBySegment(segmentName, startAddress, endAddress, offset, limit));
+        });
+
         // New API endpoints based on requirements
 
         server.createContext("/get_function_by_address", exchange -> {
@@ -661,6 +681,24 @@ public class GhidraMCPPlugin extends Plugin {
                 case "/searchFunctions":
                     return programAnalyzer.searchFunctionsByName(
                         params.get("query"),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), 0),
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/functions_by_segment":
+                    return programAnalyzer.listFunctionsBySegment(
+                        params.get("segment_name"),
+                        params.get("start_address"),
+                        params.get("end_address"),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), 0),
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/data_by_segment":
+                    return programAnalyzer.listDataBySegment(
+                        params.get("segment_name"),
+                        params.get("start_address"),
+                        params.get("end_address"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100)
                     );
