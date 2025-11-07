@@ -145,7 +145,10 @@ public class GhidraMCPPlugin extends Plugin {
 
         server.createContext("/renameData", exchange -> {
             Map<String, String> params = PluginUtils.parsePostParams(exchange);
-            symbolManager.renameDataAtAddress(params.get("address"), params.get("newName"));
+            symbolManager.renameDataAtAddress(
+                params.get("address"),
+                PluginUtils.getParamFlexible(params, "newName", "new_name")
+            );
             sendResponse(exchange, "Rename data attempted");
         });
 
@@ -500,7 +503,10 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/renameData":
                 case "/rename_data":
-                    symbolManager.renameDataAtAddress(params.get("address"), params.get("newName"));
+                    symbolManager.renameDataAtAddress(
+                        params.get("address"),
+                        PluginUtils.getParamFlexible(params, "newName", "new_name")
+                    );
                     return "Rename data attempted";
 
                 case "/renameVariable":
