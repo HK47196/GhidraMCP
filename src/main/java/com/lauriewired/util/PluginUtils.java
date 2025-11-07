@@ -187,4 +187,21 @@ public class PluginUtils {
         }
         return sb.toString();
     }
+
+    /**
+     * Get parameter value by checking both camelCase and snake_case variants.
+     * This supports flexible parameter naming for API compatibility.
+     *
+     * @param params Map of parameters
+     * @param camelCaseName Parameter name in camelCase (e.g., "newName")
+     * @param snakeCaseName Parameter name in snake_case (e.g., "new_name")
+     * @return The parameter value, or null if not found
+     */
+    public static String getParamFlexible(Map<String, String> params, String camelCaseName, String snakeCaseName) {
+        String value = params.get(camelCaseName);
+        if (value != null) {
+            return value;
+        }
+        return params.get(snakeCaseName);
+    }
 }
