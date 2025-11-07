@@ -405,6 +405,18 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, getBSimMatchDecompile(executablePath, functionName, functionAddress));
         });
 
+        // Bulk operations endpoint
+        server.createContext("/bulk", exchange -> {
+            try {
+                byte[] body = exchange.getRequestBody().readAllBytes();
+                String bodyStr = new String(body, StandardCharsets.UTF_8);
+                String result = processBulkOperations(bodyStr);
+                sendResponse(exchange, result);
+            } catch (Exception e) {
+                sendResponse(exchange, "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}");
+            }
+        });
+
         server.setExecutor(null);
         new Thread(() -> {
             try {
@@ -1691,6 +1703,468 @@ public class GhidraMCPPlugin extends Plugin {
             }
         }
         return sb.toString();
+    }
+
+    // ----------------------------------------------------------------------------------
+    // Bulk operations support
+    // ----------------------------------------------------------------------------------
+
+    /**
+     * Process bulk operations from JSON input.
+     * Expected format: {"operations": [{"endpoint": "/methods", "method": "GET", "params": {...}}, ...]}
+     */
+    private String processBulkOperations(String jsonInput) {
+        try {
+            // Parse the JSON input manually (simple parsing for our specific format)
+            List<BulkOperation> operations = parseBulkOperationsJson(jsonInput);
+
+            StringBuilder jsonResponse = new StringBuilder();
+            jsonResponse.append("{\"results\": [");
+
+            boolean first = true;
+            for (BulkOperation op : operations) {
+                if (!first) {
+                    jsonResponse.append(", ");
+                }
+                first = false;
+
+                String result = executeBulkOperation(op);
+                jsonResponse.append("{\"success\": true, \"result\": \"");
+                jsonResponse.append(escapeJson(result));
+                jsonResponse.append("\"}");
+            }
+
+            jsonResponse.append("]}");
+            return jsonResponse.toString();
+
+        } catch (Exception e) {
+            return "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}";
+        }
+    }
+
+    /**
+     * Execute a single bulk operation
+     */
+    private String executeBulkOperation(BulkOperation op) {
+        try {
+            String endpoint = op.endpoint;
+            Map<String, String> params = op.params;
+
+            // Route to appropriate handler based on endpoint
+            switch (endpoint) {
+                case "/methods":
+                    return getAllFunctionNames(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/classes":
+                    return getAllClassNames(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/decompile":
+                    return decompileFunctionByName(params.get("name"));
+
+                case "/renameFunction":
+                    return renameFunction(params.get("oldName"), params.get("newName"))
+                        ? "Renamed successfully" : "Rename failed";
+
+                case "/renameData":
+                    renameDataAtAddress(params.get("address"), params.get("newName"));
+                    return "Rename data attempted";
+
+                case "/renameVariable":
+                    return renameVariableInFunction(
+                        params.get("functionName"),
+                        params.get("oldName"),
+                        params.get("newName")
+                    );
+
+                case "/segments":
+                    return listSegments(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/imports":
+                    return listImports(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/exports":
+                    return listExports(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/namespaces":
+                    return listNamespaces(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/data":
+                    return listDefinedData(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/searchFunctions":
+                    return searchFunctionsByName(
+                        params.get("query"),
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/get_function_by_address":
+                    return getFunctionByAddress(params.get("address"));
+
+                case "/get_current_address":
+                    return getCurrentAddress();
+
+                case "/get_current_function":
+                    return getCurrentFunction();
+
+                case "/list_functions":
+                    return listFunctions();
+
+                case "/decompile_function":
+                    return decompileFunctionByAddress(params.get("address"));
+
+                case "/disassemble_function":
+                    return disassembleFunction(params.get("address"));
+
+                case "/set_decompiler_comment":
+                    return setDecompilerComment(params.get("address"), params.get("comment"))
+                        ? "Comment set successfully" : "Failed to set comment";
+
+                case "/set_disassembly_comment":
+                    return setDisassemblyComment(params.get("address"), params.get("comment"))
+                        ? "Comment set successfully" : "Failed to set comment";
+
+                case "/set_plate_comment":
+                    return setPlateComment(params.get("address"), params.get("comment"))
+                        ? "Comment set successfully" : "Failed to set comment";
+
+                case "/rename_function_by_address":
+                    return renameFunctionByAddress(params.get("function_address"), params.get("new_name"))
+                        ? "Function renamed successfully" : "Failed to rename function";
+
+                case "/set_function_prototype":
+                    PrototypeResult result = setFunctionPrototype(
+                        params.get("function_address"),
+                        params.get("prototype")
+                    );
+                    if (result.isSuccess()) {
+                        String successMsg = "Function prototype set successfully";
+                        if (!result.getErrorMessage().isEmpty()) {
+                            successMsg += "\n\nWarnings/Debug Info:\n" + result.getErrorMessage();
+                        }
+                        return successMsg;
+                    } else {
+                        return "Failed to set function prototype: " + result.getErrorMessage();
+                    }
+
+                case "/set_local_variable_type":
+                    StringBuilder responseMsg = new StringBuilder();
+                    responseMsg.append("Setting variable type: ").append(params.get("variable_name"))
+                              .append(" to ").append(params.get("new_type"))
+                              .append(" in function at ").append(params.get("function_address")).append("\n\n");
+
+                    Program program = getCurrentProgram();
+                    if (program != null) {
+                        DataTypeManager dtm = program.getDataTypeManager();
+                        String newType = params.get("new_type");
+                        DataType directType = findDataTypeByNameInAllCategories(dtm, newType);
+                        if (directType != null) {
+                            responseMsg.append("Found type: ").append(directType.getPathName()).append("\n");
+                        } else if (newType.startsWith("P") && newType.length() > 1) {
+                            String baseTypeName = newType.substring(1);
+                            DataType baseType = findDataTypeByNameInAllCategories(dtm, baseTypeName);
+                            if (baseType != null) {
+                                responseMsg.append("Found base type for pointer: ").append(baseType.getPathName()).append("\n");
+                            } else {
+                                responseMsg.append("Base type not found for pointer: ").append(baseTypeName).append("\n");
+                            }
+                        } else {
+                            responseMsg.append("Type not found directly: ").append(newType).append("\n");
+                        }
+                    }
+
+                    boolean success = setLocalVariableType(
+                        params.get("function_address"),
+                        params.get("variable_name"),
+                        params.get("new_type")
+                    );
+                    responseMsg.append("\nResult: ").append(success ? "Variable type set successfully" : "Failed to set variable type");
+                    return responseMsg.toString();
+
+                case "/xrefs_to":
+                    return getXrefsTo(
+                        params.get("address"),
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/xrefs_from":
+                    return getXrefsFrom(
+                        params.get("address"),
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/function_xrefs":
+                    return getFunctionXrefs(
+                        params.get("name"),
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/strings":
+                    return listDefinedStrings(
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100),
+                        params.get("filter")
+                    );
+
+                case "/bsim/select_database":
+                    return selectBSimDatabase(params.get("database_path"));
+
+                case "/bsim/query_function":
+                    return queryBSimFunction(
+                        params.get("function_address"),
+                        parseIntOrDefault(params.get("max_matches"), 10),
+                        parseDoubleOrDefault(params.get("similarity_threshold"), "0.7"),
+                        parseDoubleOrDefault(params.get("confidence_threshold"), "0.0"),
+                        parseDoubleOrDefault(params.get("max_similarity"), String.valueOf(Double.POSITIVE_INFINITY)),
+                        parseDoubleOrDefault(params.get("max_confidence"), String.valueOf(Double.POSITIVE_INFINITY)),
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/bsim/query_all_functions":
+                    return queryAllBSimFunctions(
+                        parseIntOrDefault(params.get("max_matches_per_function"), 5),
+                        parseDoubleOrDefault(params.get("similarity_threshold"), "0.7"),
+                        parseDoubleOrDefault(params.get("confidence_threshold"), "0.0"),
+                        parseDoubleOrDefault(params.get("max_similarity"), String.valueOf(Double.POSITIVE_INFINITY)),
+                        parseDoubleOrDefault(params.get("max_confidence"), String.valueOf(Double.POSITIVE_INFINITY)),
+                        parseIntOrDefault(params.get("offset"), 0),
+                        parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/bsim/disconnect":
+                    return disconnectBSimDatabase();
+
+                case "/bsim/status":
+                    return getBSimStatus();
+
+                case "/bsim/get_match_disassembly":
+                    return getBSimMatchDisassembly(
+                        params.get("executable_path"),
+                        params.get("function_name"),
+                        params.get("function_address")
+                    );
+
+                case "/bsim/get_match_decompile":
+                    return getBSimMatchDecompile(
+                        params.get("executable_path"),
+                        params.get("function_name"),
+                        params.get("function_address")
+                    );
+
+                default:
+                    return "Error: Unknown endpoint: " + endpoint;
+            }
+        } catch (Exception e) {
+            return "Error executing operation: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Parse bulk operations JSON (simple manual parsing)
+     */
+    private List<BulkOperation> parseBulkOperationsJson(String json) {
+        List<BulkOperation> operations = new ArrayList<>();
+
+        // Find the operations array
+        int opsStart = json.indexOf("\"operations\"");
+        if (opsStart == -1) {
+            throw new RuntimeException("Missing 'operations' field in JSON");
+        }
+
+        int arrayStart = json.indexOf("[", opsStart);
+        int arrayEnd = json.lastIndexOf("]");
+
+        if (arrayStart == -1 || arrayEnd == -1) {
+            throw new RuntimeException("Invalid operations array format");
+        }
+
+        String opsContent = json.substring(arrayStart + 1, arrayEnd);
+
+        // Parse each operation object
+        int depth = 0;
+        int objStart = -1;
+
+        for (int i = 0; i < opsContent.length(); i++) {
+            char c = opsContent.charAt(i);
+
+            if (c == '{') {
+                if (depth == 0) {
+                    objStart = i;
+                }
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0 && objStart != -1) {
+                    String objStr = opsContent.substring(objStart, i + 1);
+                    operations.add(parseSingleOperation(objStr));
+                    objStart = -1;
+                }
+            }
+        }
+
+        return operations;
+    }
+
+    /**
+     * Parse a single operation object
+     */
+    private BulkOperation parseSingleOperation(String json) {
+        BulkOperation op = new BulkOperation();
+        op.params = new HashMap<>();
+
+        // Extract endpoint
+        op.endpoint = extractJsonValue(json, "endpoint");
+
+        // Extract params object
+        int paramsStart = json.indexOf("\"params\"");
+        if (paramsStart != -1) {
+            int objStart = json.indexOf("{", paramsStart);
+            int objEnd = json.lastIndexOf("}");
+
+            if (objStart != -1 && objEnd != -1 && objStart < objEnd) {
+                String paramsJson = json.substring(objStart + 1, objEnd);
+
+                // Parse key-value pairs
+                String[] pairs = paramsJson.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+                for (String pair : pairs) {
+                    int colonIdx = pair.indexOf(":");
+                    if (colonIdx != -1) {
+                        String key = pair.substring(0, colonIdx).trim();
+                        String value = pair.substring(colonIdx + 1).trim();
+
+                        // Remove quotes
+                        key = key.replaceAll("^\"|\"$", "");
+                        value = value.replaceAll("^\"|\"$", "");
+
+                        op.params.put(key, value);
+                    }
+                }
+            }
+        }
+
+        return op;
+    }
+
+    /**
+     * Extract a simple string value from JSON
+     */
+    private String extractJsonValue(String json, String key) {
+        String searchKey = "\"" + key + "\"";
+        int keyIndex = json.indexOf(searchKey);
+        if (keyIndex == -1) {
+            return null;
+        }
+
+        int colonIndex = json.indexOf(":", keyIndex);
+        if (colonIndex == -1) {
+            return null;
+        }
+
+        int valueStart = colonIndex + 1;
+        while (valueStart < json.length() && (json.charAt(valueStart) == ' ' || json.charAt(valueStart) == '\t')) {
+            valueStart++;
+        }
+
+        if (valueStart >= json.length()) {
+            return null;
+        }
+
+        int valueEnd;
+        if (json.charAt(valueStart) == '"') {
+            // String value
+            valueStart++;
+            valueEnd = valueStart;
+            while (valueEnd < json.length() && json.charAt(valueEnd) != '"') {
+                if (json.charAt(valueEnd) == '\\') {
+                    valueEnd++; // Skip escaped character
+                }
+                valueEnd++;
+            }
+        } else {
+            // Non-string value
+            valueEnd = valueStart;
+            while (valueEnd < json.length() && json.charAt(valueEnd) != ',' && json.charAt(valueEnd) != '}') {
+                valueEnd++;
+            }
+        }
+
+        return json.substring(valueStart, valueEnd).trim();
+    }
+
+    /**
+     * Escape special characters for JSON string
+     */
+    private String escapeJson(String input) {
+        if (input == null) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            switch (c) {
+                case '"':
+                    sb.append("\\\"");
+                    break;
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '\b':
+                    sb.append("\\b");
+                    break;
+                case '\f':
+                    sb.append("\\f");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                default:
+                    if (c < 32 || c > 126) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Inner class to represent a bulk operation
+     */
+    private static class BulkOperation {
+        String endpoint;
+        Map<String, String> params;
     }
 
     // ----------------------------------------------------------------------------------
