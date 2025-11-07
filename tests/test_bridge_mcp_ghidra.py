@@ -798,6 +798,132 @@ class TestCommentTools:
 
         assert result == "Success"
 
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_exact_success_response(self, mock_safe_post):
+        """Test set_plate_comment with exact Ghidra server success response.
+
+        This test verifies that the exact success message from Ghidra server
+        is correctly handled and not misinterpreted as a failure.
+        """
+        mock_safe_post.return_value = "Comment set successfully"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+
+        assert result == "Comment set successfully"
+        assert "Failed" not in result
+        assert "Error" not in result
+        mock_safe_post.assert_called_once_with("set_plate_comment",
+                                                {"address": "0x401000", "comment": "Test comment"})
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_exact_failure_response(self, mock_safe_post):
+        """Test set_plate_comment with exact Ghidra server failure response.
+
+        This test verifies that the exact failure message from Ghidra server
+        is correctly recognized as a failure.
+        """
+        mock_safe_post.return_value = "Failed to set comment"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+
+        assert result == "Failed to set comment"
+        assert "Failed" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_with_http_200_and_failure_message(self, mock_safe_post):
+        """Test that failure messages are detected even with HTTP 200 status.
+
+        The Ghidra server always returns HTTP 200, using response text to indicate
+        success/failure. This test ensures we can distinguish between the two.
+        """
+        mock_safe_post.return_value = "Failed to set comment"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+
+        # The result should contain the failure message
+        assert "Failed" in result
+        # Verify the function returns the error message, not a success indicator
+        assert result != "Comment set successfully"
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_set_plate_comment_response_parsing(self, mock_post):
+        """Test that response text is correctly parsed and returned.
+
+        This test bypasses safe_post to verify the response parsing at a lower level.
+        """
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "Comment set successfully"
+        mock_response.encoding = 'utf-8'
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+
+        # The result should be the exact response text
+        assert result == "Comment set successfully"
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_set_plate_comment_response_with_whitespace(self, mock_post):
+        """Test response handling with leading/trailing whitespace.
+
+        Ghidra server responses might have whitespace that needs to be stripped.
+        """
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "  Comment set successfully  \n"
+        mock_response.encoding = 'utf-8'
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+
+        # safe_post should strip whitespace
+        assert result == "Comment set successfully"
+        assert not result.startswith(" ")
+        assert not result.endswith(" ")
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_set_plate_comment_transaction_failure_response(self, mock_post):
+        """Test response when Ghidra transaction fails but HTTP succeeds.
+
+        This simulates the scenario where the HTTP request succeeds (200),
+        but the Ghidra transaction fails and returns a failure message.
+        """
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "Failed to set comment"
+        mock_response.encoding = 'utf-8'
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+
+        # Should return the failure message as-is
+        assert result == "Failed to set comment"
+        assert "Failed" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_decompiler_comment_success_response(self, mock_safe_post):
+        """Test set_decompiler_comment with exact success response.
+
+        Compare with plate comment to see if the issue is specific to plate comments.
+        """
+        mock_safe_post.return_value = "Comment set successfully"
+
+        result = bridge_mcp_ghidra.set_decompiler_comment("0x401000", "Test comment")
+
+        assert result == "Comment set successfully"
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_disassembly_comment_success_response(self, mock_safe_post):
+        """Test set_disassembly_comment with exact success response.
+
+        Compare with plate comment to see if the issue is specific to plate comments.
+        """
+        mock_safe_post.return_value = "Comment set successfully"
+
+        result = bridge_mcp_ghidra.set_disassembly_comment("0x401000", "Test comment")
+
+        assert result == "Comment set successfully"
+
 
 class TestRenamingAndTypeTools:
     """Test suite for renaming and type setting tools."""
