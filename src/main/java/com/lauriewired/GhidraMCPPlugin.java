@@ -2044,30 +2044,75 @@ public class GhidraMCPPlugin extends Plugin {
         int paramsStart = json.indexOf("\"params\"");
         if (paramsStart != -1) {
             int objStart = json.indexOf("{", paramsStart);
-            int objEnd = json.lastIndexOf("}");
 
-            if (objStart != -1 && objEnd != -1 && objStart < objEnd) {
-                String paramsJson = json.substring(objStart + 1, objEnd);
+            if (objStart != -1) {
+                // Find matching closing brace by counting depth
+                int objEnd = findMatchingBrace(json, objStart);
 
-                // Parse key-value pairs
-                String[] pairs = paramsJson.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
-                for (String pair : pairs) {
-                    int colonIdx = pair.indexOf(":");
-                    if (colonIdx != -1) {
-                        String key = pair.substring(0, colonIdx).trim();
-                        String value = pair.substring(colonIdx + 1).trim();
+                if (objEnd != -1 && objStart < objEnd) {
+                    String paramsJson = json.substring(objStart + 1, objEnd);
 
-                        // Remove quotes
-                        key = key.replaceAll("^\"|\"$", "");
-                        value = value.replaceAll("^\"|\"$", "");
+                    // Parse key-value pairs
+                    String[] pairs = paramsJson.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+                    for (String pair : pairs) {
+                        int colonIdx = pair.indexOf(":");
+                        if (colonIdx != -1) {
+                            String key = pair.substring(0, colonIdx).trim();
+                            String value = pair.substring(colonIdx + 1).trim();
 
-                        op.params.put(key, value);
+                            // Remove quotes
+                            key = key.replaceAll("^\"|\"$", "");
+                            value = value.replaceAll("^\"|\"$", "");
+
+                            op.params.put(key, value);
+                        }
                     }
                 }
             }
         }
 
         return op;
+    }
+
+    /**
+     * Find the matching closing brace for an opening brace at the given position
+     */
+    private int findMatchingBrace(String json, int openBracePos) {
+        int depth = 0;
+        boolean inString = false;
+        boolean escapeNext = false;
+
+        for (int i = openBracePos; i < json.length(); i++) {
+            char c = json.charAt(i);
+
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+
+            if (c == '\\') {
+                escapeNext = true;
+                continue;
+            }
+
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString) {
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        return i;
+                    }
+                }
+            }
+        }
+
+        return -1; // No matching brace found
     }
 
     /**
