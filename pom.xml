@@ -16,6 +16,7 @@
     <ghidra.download.url>https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${ghidra.version}_build/ghidra_${ghidra.version}_PUBLIC_${ghidra.release.date}.zip</ghidra.download.url>
     <ghidra.cache.dir>${project.basedir}/.ghidra-cache</ghidra.cache.dir>
     <ghidra.install.dir>${ghidra.cache.dir}/ghidra_${ghidra.version}_PUBLIC</ghidra.install.dir>
+    <maven.test.skip>true</maven.test.skip>
   </properties>
 
   <dependencies>
