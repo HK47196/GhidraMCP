@@ -467,6 +467,46 @@ def bsim_get_match_decompile(
         "function_address": function_address,
     })
 
+@mcp.tool()
+def bulk_operations(operations: list[dict]) -> str:
+    """
+    Execute multiple operations in a single request. This is more efficient than
+    making multiple individual requests.
+
+    Args:
+        operations: List of operations to execute. Each operation is a dict with:
+            - endpoint: The API endpoint path (e.g., "/methods", "/decompile")
+            - params: Dict of parameters for that endpoint (e.g., {"name": "main"})
+
+    Example:
+        operations = [
+            {"endpoint": "/methods", "params": {"offset": 0, "limit": 10}},
+            {"endpoint": "/decompile", "params": {"name": "main"}},
+            {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x401000", "new_name": "initialize"}}
+        ]
+
+    Returns:
+        JSON string containing results array with the response for each operation.
+    """
+    import json
+
+    try:
+        # Build JSON payload
+        payload = {
+            "operations": operations
+        }
+
+        url = urljoin(ghidra_server_url, "bulk")
+        response = requests.post(url, json=payload, timeout=ghidra_request_timeout)
+        response.encoding = 'utf-8'
+
+        if response.ok:
+            return response.text
+        else:
+            return f"Error {response.status_code}: {response.text}"
+    except Exception as e:
+        return f"Request failed: {str(e)}"
+
 def main():
     parser = argparse.ArgumentParser(description="MCP server for Ghidra")
     parser.add_argument("--ghidra-server", type=str, default=DEFAULT_GHIDRA_SERVER,
