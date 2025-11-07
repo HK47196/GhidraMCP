@@ -82,8 +82,9 @@ All existing GhidraMCP endpoints are supported in bulk operations:
 - `/strings` - List strings
 
 ### Code Modification
-- `/rename_data` - Rename data label
-- `/rename_variable` - Rename local variable
+- `/rename_function` (or `/renameFunction`) - Rename function by name
+- `/rename_data` (or `/renameData`) - Rename data label
+- `/rename_variable` (or `/renameVariable`) - Rename local variable
 - `/set_local_variable_type` - Set variable type
 - `/set_decompiler_comment` - Add decompiler comment
 - `/set_disassembly_comment` - Add disassembly comment
@@ -173,7 +174,16 @@ operations = [
 ]
 ```
 
-### 2. Analyze Multiple Functions
+### 2. Batch Rename Data Labels
+```python
+operations = [
+    {"endpoint": "/rename_data", "params": {"address": "0x405000", "newName": "g_config_table"}},
+    {"endpoint": "/rename_data", "params": {"address": "0x405100", "newName": "g_user_data"}},
+    {"endpoint": "/rename_data", "params": {"address": "0x405200", "newName": "g_error_messages"}}
+]
+```
+
+### 3. Analyze Multiple Functions
 ```python
 operations = [
     {"endpoint": "/decompile_function", "params": {"address": "0x401000"}},
@@ -182,7 +192,7 @@ operations = [
 ]
 ```
 
-### 3. Set Multiple Comments
+### 4. Set Multiple Comments
 ```python
 operations = [
     {"endpoint": "/set_decompiler_comment", "params": {"address": "0x401000", "comment": "Entry point"}},

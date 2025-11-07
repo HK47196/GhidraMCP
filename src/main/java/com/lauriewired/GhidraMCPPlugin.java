@@ -1768,14 +1768,17 @@ public class GhidraMCPPlugin extends Plugin {
                     return decompileFunctionByName(params.get("name"));
 
                 case "/renameFunction":
+                case "/rename_function":
                     return renameFunction(params.get("oldName"), params.get("newName"))
                         ? "Renamed successfully" : "Rename failed";
 
                 case "/renameData":
+                case "/rename_data":
                     renameDataAtAddress(params.get("address"), params.get("newName"));
                     return "Rename data attempted";
 
                 case "/renameVariable":
+                case "/rename_variable":
                     return renameVariableInFunction(
                         params.get("functionName"),
                         params.get("oldName"),
