@@ -114,32 +114,21 @@ Another MCP client that supports multiple models on the backend is [5ire](https:
 
 The build process automatically downloads Ghidra 11.4.2 and all required dependencies. No manual file copying needed!
 
-### First-time build:
-
-```bash
-mvn initialize && mvn package
-```
-
-This two-step process:
-1. **First command** (`mvn initialize`):
-   - Downloads Ghidra 11.4.2 (~435 MB) to `.ghidra-cache/` directory
-   - Extracts Ghidra
-   - Installs Ghidra JARs to your local Maven repository (~/.m2/repository)
-
-2. **Second command** (`mvn package`):
-   - Compiles the plugin using the installed Ghidra JARs
-   - Downloads Apache Commons and database drivers from Maven Central
-   - Generates `GhidraMCP-1.0-SNAPSHOT.zip` in the `target/` directory
-
-### Subsequent builds:
-
-Once Ghidra JARs are in your local Maven repository, you can build normally:
+Simply run:
 
 ```bash
 mvn clean package
 ```
 
-**Note:** The downloaded Ghidra is cached in `.ghidra-cache/` and the JARs remain in your local Maven repository, so you only download once.
+This will:
+1. Download Ghidra 11.4.2 (~435 MB) to `.ghidra-cache/` directory (first build only)
+2. Extract Ghidra
+3. Add Ghidra JARs to the compilation classpath
+4. Download Apache Commons and database drivers from Maven Central
+5. Compile the plugin
+6. Generate `GhidraMCP-1.0-SNAPSHOT.zip` in the `target/` directory
+
+**Note:** The downloaded Ghidra is cached in `.ghidra-cache/` and persists across builds, so you only download it once.
 
 The generated zip file includes the built Ghidra plugin and its resources:
 - lib/GhidraMCP.jar
@@ -159,14 +148,9 @@ To build against a different Ghidra version, edit the properties in `pom.xml`:
 
 ## Offline/Containerized Builds
 
-The build works in containerized environments without a pre-installed Ghidra. On first build:
-- Ghidra is downloaded to `.ghidra-cache/` (survives `mvn clean`)
-- Ghidra JARs are installed to Maven's local repository
-
-Both are reused on subsequent builds, so you only download Ghidra once per environment.
+The build works in containerized environments without a pre-installed Ghidra. Ghidra is downloaded to `.ghidra-cache/` (survives `mvn clean`) and reused on subsequent builds.
 
 To force a fresh download:
 ```bash
 rm -rf .ghidra-cache/
-rm -rf ~/.m2/repository/ghidra/
 ```
