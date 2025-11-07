@@ -77,7 +77,7 @@ public class PluginUtils {
      */
     public static String paginateList(List<String> items, int offset, int limit) {
         int start = Math.max(0, offset);
-        int end   = Math.min(items.size(), offset + limit);
+        int end   = Math.min(items.size(), start + limit);
 
         if (start >= items.size()) {
             return ""; // no items in range

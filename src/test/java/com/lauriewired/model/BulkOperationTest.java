@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Test suite for BulkOperation model class.
@@ -13,121 +13,95 @@ import java.util.Collections;
 class BulkOperationTest {
 
     @Test
-    @DisplayName("BulkOperation should store and retrieve operations list")
-    void testBulkOperationGetOperations() {
+    @DisplayName("BulkOperation should store and retrieve endpoint")
+    void testBulkOperationGetSetEndpoint() {
         BulkOperation bulkOp = new BulkOperation();
-        BulkOperation.Operation op1 = new BulkOperation.Operation();
-        op1.setType("rename_function");
+        bulkOp.setEndpoint("/decompile");
 
-        bulkOp.setOperations(Arrays.asList(op1));
-
-        assertNotNull(bulkOp.getOperations());
-        assertEquals(1, bulkOp.getOperations().size());
-        assertEquals("rename_function", bulkOp.getOperations().get(0).getType());
+        assertEquals("/decompile", bulkOp.getEndpoint());
     }
 
     @Test
-    @DisplayName("Operation should store and retrieve type")
-    void testOperationGetSetType() {
-        BulkOperation.Operation op = new BulkOperation.Operation();
-        op.setType("decompile");
-
-        assertEquals("decompile", op.getType());
-    }
-
-    @Test
-    @DisplayName("Operation should store and retrieve params")
-    void testOperationGetSetParams() {
-        BulkOperation.Operation op = new BulkOperation.Operation();
-        BulkOperation.Params params = new BulkOperation.Params();
-        params.setName("testFunction");
-
-        op.setParams(params);
-
-        assertNotNull(op.getParams());
-        assertEquals("testFunction", op.getParams().getName());
-    }
-
-    @Test
-    @DisplayName("Params should store and retrieve name")
-    void testParamsGetSetName() {
-        BulkOperation.Params params = new BulkOperation.Params();
-        params.setName("functionName");
-
-        assertEquals("functionName", params.getName());
-    }
-
-    @Test
-    @DisplayName("Params should store and retrieve oldName")
-    void testParamsGetSetOldName() {
-        BulkOperation.Params params = new BulkOperation.Params();
-        params.setOldName("oldFunctionName");
-
-        assertEquals("oldFunctionName", params.getOldName());
-    }
-
-    @Test
-    @DisplayName("Params should store and retrieve newName")
-    void testParamsGetSetNewName() {
-        BulkOperation.Params params = new BulkOperation.Params();
-        params.setNewName("newFunctionName");
-
-        assertEquals("newFunctionName", params.getNewName());
-    }
-
-    @Test
-    @DisplayName("Params should store and retrieve address")
-    void testParamsGetSetAddress() {
-        BulkOperation.Params params = new BulkOperation.Params();
-        params.setAddress("0x401000");
-
-        assertEquals("0x401000", params.getAddress());
-    }
-
-    @Test
-    @DisplayName("BulkOperation should handle empty operations list")
-    void testBulkOperationEmptyList() {
+    @DisplayName("BulkOperation should store and retrieve params map")
+    void testBulkOperationGetSetParams() {
         BulkOperation bulkOp = new BulkOperation();
-        bulkOp.setOperations(Collections.emptyList());
+        Map<String, String> params = new HashMap<>();
+        params.put("name", "testFunction");
+        params.put("address", "0x401000");
 
-        assertNotNull(bulkOp.getOperations());
-        assertEquals(0, bulkOp.getOperations().size());
+        bulkOp.setParams(params);
+
+        assertNotNull(bulkOp.getParams());
+        assertEquals(2, bulkOp.getParams().size());
+        assertEquals("testFunction", bulkOp.getParams().get("name"));
+        assertEquals("0x401000", bulkOp.getParams().get("address"));
     }
 
     @Test
-    @DisplayName("BulkOperation should handle multiple operations")
-    void testBulkOperationMultipleOperations() {
+    @DisplayName("BulkOperation constructor should initialize fields")
+    void testBulkOperationConstructor() {
+        Map<String, String> params = new HashMap<>();
+        params.put("oldName", "oldFunc");
+        params.put("newName", "newFunc");
+
+        BulkOperation bulkOp = new BulkOperation("/rename_function", params);
+
+        assertEquals("/rename_function", bulkOp.getEndpoint());
+        assertNotNull(bulkOp.getParams());
+        assertEquals("oldFunc", bulkOp.getParams().get("oldName"));
+        assertEquals("newFunc", bulkOp.getParams().get("newName"));
+    }
+
+    @Test
+    @DisplayName("BulkOperation should handle empty params")
+    void testBulkOperationEmptyParams() {
+        BulkOperation bulkOp = new BulkOperation();
+        bulkOp.setEndpoint("/list_functions");
+        bulkOp.setParams(new HashMap<>());
+
+        assertEquals("/list_functions", bulkOp.getEndpoint());
+        assertNotNull(bulkOp.getParams());
+        assertTrue(bulkOp.getParams().isEmpty());
+    }
+
+    @Test
+    @DisplayName("BulkOperation should handle null params")
+    void testBulkOperationNullParams() {
+        BulkOperation bulkOp = new BulkOperation();
+        bulkOp.setEndpoint("/test");
+        bulkOp.setParams(null);
+
+        assertEquals("/test", bulkOp.getEndpoint());
+        assertNull(bulkOp.getParams());
+    }
+
+    @Test
+    @DisplayName("BulkOperation default constructor should work")
+    void testBulkOperationDefaultConstructor() {
         BulkOperation bulkOp = new BulkOperation();
 
-        BulkOperation.Operation op1 = new BulkOperation.Operation();
-        op1.setType("rename_function");
-        BulkOperation.Params params1 = new BulkOperation.Params();
-        params1.setOldName("func1");
-        params1.setNewName("newFunc1");
-        op1.setParams(params1);
-
-        BulkOperation.Operation op2 = new BulkOperation.Operation();
-        op2.setType("decompile");
-        BulkOperation.Params params2 = new BulkOperation.Params();
-        params2.setName("func2");
-        op2.setParams(params2);
-
-        bulkOp.setOperations(Arrays.asList(op1, op2));
-
-        assertEquals(2, bulkOp.getOperations().size());
-        assertEquals("rename_function", bulkOp.getOperations().get(0).getType());
-        assertEquals("decompile", bulkOp.getOperations().get(1).getType());
+        assertNull(bulkOp.getEndpoint());
+        assertNull(bulkOp.getParams());
     }
 
     @Test
-    @DisplayName("Params should handle null values gracefully")
-    void testParamsNullValues() {
-        BulkOperation.Params params = new BulkOperation.Params();
+    @DisplayName("BulkOperation should support multiple param keys")
+    void testBulkOperationMultipleParams() {
+        BulkOperation bulkOp = new BulkOperation();
+        Map<String, String> params = new HashMap<>();
+        params.put("name", "func1");
+        params.put("address", "0x401000");
+        params.put("type", "void");
+        params.put("comment", "Test function");
 
-        // Should not throw exceptions
-        assertNull(params.getName());
-        assertNull(params.getOldName());
-        assertNull(params.getNewName());
-        assertNull(params.getAddress());
+        bulkOp.setEndpoint("/set_function_signature");
+        bulkOp.setParams(params);
+
+        assertEquals("/set_function_signature", bulkOp.getEndpoint());
+        assertEquals(4, bulkOp.getParams().size());
+        assertEquals("func1", bulkOp.getParams().get("name"));
+        assertEquals("0x401000", bulkOp.getParams().get("address"));
+        assertEquals("void", bulkOp.getParams().get("type"));
+        assertEquals("Test function", bulkOp.getParams().get("comment"));
     }
 }

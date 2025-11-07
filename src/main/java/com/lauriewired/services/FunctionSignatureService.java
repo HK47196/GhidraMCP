@@ -8,6 +8,7 @@ import ghidra.app.services.DataTypeManagerService;
 import ghidra.app.util.parser.FunctionSignatureParser;
 import ghidra.framework.plugintool.PluginTool;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.data.ArrayDataType;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.DataTypeManager;
 import ghidra.program.model.data.FunctionDefinitionDataType;
@@ -23,7 +24,9 @@ import ghidra.util.task.ConsoleTaskMonitor;
 
 import javax.swing.SwingUtilities;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -379,6 +382,60 @@ public class FunctionSignatureService {
         if (dataType != null) {
             Msg.info(this, "Found exact data type match: " + dataType.getPathName());
             return dataType;
+        }
+
+        // Check for array types (e.g., "int[10]", "char[256]", "int[10][20]")
+        if (typeName.contains("[") && typeName.endsWith("]")) {
+            int openBracket = typeName.indexOf('[');
+
+            if (openBracket > 0) {
+                String baseTypeName = typeName.substring(0, openBracket).trim();
+                String dimensionsStr = typeName.substring(openBracket);
+
+                // Parse all array dimensions from right to left for proper nesting
+                // e.g., "int[10][20]" becomes ArrayDataType(ArrayDataType(int, 20), 10)
+                List<Integer> dimensions = new ArrayList<>();
+                int pos = 0;
+                while (pos < dimensionsStr.length()) {
+                    if (dimensionsStr.charAt(pos) == '[') {
+                        int closeBracket = dimensionsStr.indexOf(']', pos);
+                        if (closeBracket == -1) {
+                            Msg.warn(this, "Malformed array type: " + typeName);
+                            return null;
+                        }
+                        String sizeStr = dimensionsStr.substring(pos + 1, closeBracket).trim();
+                        try {
+                            int size = Integer.parseInt(sizeStr);
+                            if (size <= 0) {
+                                Msg.warn(this, "Invalid array size in type: " + typeName);
+                                return null;
+                            }
+                            dimensions.add(size);
+                        } catch (NumberFormatException e) {
+                            Msg.warn(this, "Invalid array size in type: " + typeName);
+                            return null;
+                        }
+                        pos = closeBracket + 1;
+                    } else {
+                        pos++;
+                    }
+                }
+
+                if (!dimensions.isEmpty()) {
+                    // Resolve base type
+                    DataType baseType = resolveDataType(dtm, baseTypeName);
+                    if (baseType == null) {
+                        return null;
+                    }
+
+                    // Build array from innermost (rightmost) to outermost (leftmost)
+                    DataType currentType = baseType;
+                    for (int i = dimensions.size() - 1; i >= 0; i--) {
+                        currentType = new ArrayDataType(currentType, dimensions.get(i), currentType.getLength());
+                    }
+                    return currentType;
+                }
+            }
         }
 
         // Check for Windows-style pointer types (PXXX)
