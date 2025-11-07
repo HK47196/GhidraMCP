@@ -437,15 +437,12 @@ public class ProgramAnalyzer {
     /**
      * Format an address as segment:offset
      * @param addr Address to format
-     * @param block Memory block containing the address
+     * @param block Memory block containing the address (unused, kept for compatibility)
      * @return Formatted address string
      */
     private String formatSegmentOffset(ghidra.program.model.address.Address addr, MemoryBlock block) {
-        if (block == null) {
-            return addr.toString();
-        }
-
-        long offset = addr.subtract(block.getStart());
-        return String.format("%s:%04x", block.getName(), offset);
+        // Return the address in Ghidra's native format (e.g., "4608:000e")
+        // This matches the actual binary segment:offset addressing
+        return addr.toString();
     }
 }
