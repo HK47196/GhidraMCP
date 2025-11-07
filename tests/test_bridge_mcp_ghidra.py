@@ -623,6 +623,181 @@ class TestCommentTools:
         call_args = mock_safe_post.call_args[0]
         assert call_args[1]["comment"] == multiline_comment
 
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_address_without_prefix(self, mock_safe_post):
+        """Test set_plate_comment with address missing 0x prefix."""
+        mock_safe_post.return_value = "Error: Invalid address format"
+
+        result = bridge_mcp_ghidra.set_plate_comment("401000", "Comment")
+
+        assert "Error" in result
+        # Verify the address was passed as-is
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["address"] == "401000"
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_invalid_address_chars(self, mock_safe_post):
+        """Test set_plate_comment with invalid hex characters in address."""
+        mock_safe_post.return_value = "Error: Invalid address"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0xGHIJKL", "Comment")
+
+        assert "Error" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_address_out_of_range(self, mock_safe_post):
+        """Test set_plate_comment with address outside program range."""
+        mock_safe_post.return_value = "Error: Address not found in program"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0xFFFFFFFFFFFFFFFF", "Comment")
+
+        assert "Error" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_empty_address(self, mock_safe_post):
+        """Test set_plate_comment with empty address string."""
+        mock_safe_post.return_value = "Error: Address cannot be empty"
+
+        result = bridge_mcp_ghidra.set_plate_comment("", "Comment")
+
+        assert "Error" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_empty_comment(self, mock_safe_post):
+        """Test set_plate_comment with empty comment (should clear plate comment)."""
+        mock_safe_post.return_value = "Plate comment cleared"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "")
+
+        assert "cleared" in result.lower() or result == "Plate comment cleared"
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_very_long(self, mock_safe_post):
+        """Test set_plate_comment with very long comment."""
+        mock_safe_post.return_value = "Success"
+        long_comment = "A" * 10000  # 10K characters
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", long_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert len(call_args[1]["comment"]) == 10000
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_special_characters(self, mock_safe_post):
+        """Test set_plate_comment with special characters."""
+        mock_safe_post.return_value = "Success"
+        special_comment = "Special chars: <>&\"'\t\r\n[]{}|\\@#$%^&*()"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", special_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["comment"] == special_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_unicode(self, mock_safe_post):
+        """Test set_plate_comment with unicode characters."""
+        mock_safe_post.return_value = "Success"
+        unicode_comment = "Unicode: 你好世界 🚀 Émile café"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", unicode_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["comment"] == unicode_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_multiple_newlines(self, mock_safe_post):
+        """Test set_plate_comment with multiple consecutive newlines."""
+        mock_safe_post.return_value = "Success"
+        multiline_comment = "Line 1\n\n\nLine 2\n\nLine 3"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", multiline_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["comment"] == multiline_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_tabs_and_spaces(self, mock_safe_post):
+        """Test set_plate_comment with tabs and various whitespace."""
+        mock_safe_post.return_value = "Success"
+        whitespace_comment = "Line with\ttabs\n    Indented line\n\tTab indent"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", whitespace_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["comment"] == whitespace_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_address_not_at_instruction(self, mock_safe_post):
+        """Test set_plate_comment at address that's not an instruction boundary."""
+        mock_safe_post.return_value = "Error: Address must be at instruction boundary"
+
+        # Typically instructions are aligned, 0x401001 might be middle of instruction
+        result = bridge_mcp_ghidra.set_plate_comment("0x401001", "Comment")
+
+        # May succeed or fail depending on Ghidra's handling
+        assert result is not None
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_windows_newlines(self, mock_safe_post):
+        """Test set_plate_comment with Windows-style CRLF newlines."""
+        mock_safe_post.return_value = "Success"
+        windows_comment = "Line 1\r\nLine 2\r\nLine 3"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", windows_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["comment"] == windows_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_mixed_newlines(self, mock_safe_post):
+        """Test set_plate_comment with mixed newline styles."""
+        mock_safe_post.return_value = "Success"
+        mixed_comment = "Line 1\nLine 2\r\nLine 3\rLine 4"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", mixed_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[1]["comment"] == mixed_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_null_bytes(self, mock_safe_post):
+        """Test set_plate_comment with null bytes (should be handled or rejected)."""
+        mock_safe_post.return_value = "Error: Invalid characters in comment"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Text\x00with\x00nulls")
+
+        # Should either work or return an error
+        assert result is not None
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_leading_trailing_whitespace(self, mock_safe_post):
+        """Test set_plate_comment with leading and trailing whitespace."""
+        mock_safe_post.return_value = "Success"
+        padded_comment = "   Leading and trailing spaces   "
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", padded_comment)
+
+        assert result == "Success"
+        call_args = mock_safe_post.call_args[0]
+        # Should preserve whitespace
+        assert call_args[1]["comment"] == padded_comment
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_set_plate_comment_only_whitespace(self, mock_safe_post):
+        """Test set_plate_comment with only whitespace."""
+        mock_safe_post.return_value = "Success"
+
+        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "   \n\t\n   ")
+
+        assert result == "Success"
+
 
 class TestRenamingAndTypeTools:
     """Test suite for renaming and type setting tools."""
