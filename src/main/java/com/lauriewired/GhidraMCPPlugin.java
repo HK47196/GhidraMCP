@@ -67,6 +67,7 @@ public class GhidraMCPPlugin extends Plugin {
     private ProgramAnalyzer programAnalyzer;
     private SymbolManager symbolManager;
     private FunctionSignatureService functionSignatureService;
+    private StructService structService;
 
     public GhidraMCPPlugin(PluginTool tool) {
         super(tool);
@@ -113,6 +114,7 @@ public class GhidraMCPPlugin extends Plugin {
         programAnalyzer = new ProgramAnalyzer(functionNavigator);
         symbolManager = new SymbolManager(functionNavigator, decompileTimeout);
         functionSignatureService = new FunctionSignatureService(functionNavigator, decompilationService, tool, decompileTimeout);
+        structService = new StructService(functionNavigator);
 
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -428,6 +430,97 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, getBSimMatchDecompile(executablePath, functionName, functionAddress));
         });
 
+        // Struct operations endpoints
+        server.createContext("/struct/create", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String name = params.get("name");
+            int size = PluginUtils.parseIntOrDefault(params.get("size"), 0);
+            String categoryPath = params.get("category_path");
+            sendResponse(exchange, structService.createStruct(name, size, categoryPath));
+        });
+
+        server.createContext("/struct/parse_c", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String cCode = params.get("c_code");
+            String categoryPath = params.get("category_path");
+            sendResponse(exchange, structService.parseCStruct(cCode, categoryPath));
+        });
+
+        server.createContext("/struct/add_field", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String structName = params.get("struct_name");
+            String fieldType = params.get("field_type");
+            String fieldName = params.get("field_name");
+            int length = PluginUtils.parseIntOrDefault(params.get("length"), -1);
+            String comment = params.get("comment");
+            sendResponse(exchange, structService.addStructField(structName, fieldType, fieldName, length, comment));
+        });
+
+        server.createContext("/struct/insert_field", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String structName = params.get("struct_name");
+            int offset = PluginUtils.parseIntOrDefault(params.get("offset"), 0);
+            String fieldType = params.get("field_type");
+            String fieldName = params.get("field_name");
+            int length = PluginUtils.parseIntOrDefault(params.get("length"), -1);
+            String comment = params.get("comment");
+            sendResponse(exchange, structService.insertStructFieldAtOffset(structName, offset, fieldType, fieldName, length, comment));
+        });
+
+        server.createContext("/struct/replace_field", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String structName = params.get("struct_name");
+            int ordinal = PluginUtils.parseIntOrDefault(params.get("ordinal"), 0);
+            String fieldType = params.get("field_type");
+            String fieldName = params.get("field_name");
+            int length = PluginUtils.parseIntOrDefault(params.get("length"), -1);
+            String comment = params.get("comment");
+            sendResponse(exchange, structService.replaceStructField(structName, ordinal, fieldType, fieldName, length, comment));
+        });
+
+        server.createContext("/struct/delete_field", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String structName = params.get("struct_name");
+            int ordinal = PluginUtils.parseIntOrDefault(params.get("ordinal"), -1);
+            int offset = PluginUtils.parseIntOrDefault(params.get("offset"), -1);
+            sendResponse(exchange, structService.deleteStructField(structName, ordinal, offset));
+        });
+
+        server.createContext("/struct/clear_field", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String structName = params.get("struct_name");
+            int ordinal = PluginUtils.parseIntOrDefault(params.get("ordinal"), -1);
+            int offset = PluginUtils.parseIntOrDefault(params.get("offset"), -1);
+            sendResponse(exchange, structService.clearStructField(structName, ordinal, offset));
+        });
+
+        server.createContext("/struct/get_info", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String structName = qparams.get("name");
+            sendResponse(exchange, structService.getStructInfo(structName));
+        });
+
+        server.createContext("/struct/list", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String categoryPath = qparams.get("category_path");
+            int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
+            int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
+            sendResponse(exchange, structService.listStructs(categoryPath, offset, limit));
+        });
+
+        server.createContext("/struct/rename", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String oldName = params.get("old_name");
+            String newName = params.get("new_name");
+            sendResponse(exchange, structService.renameStruct(oldName, newName));
+        });
+
+        server.createContext("/struct/delete", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String structName = params.get("name");
+            sendResponse(exchange, structService.deleteStruct(structName));
+        });
+
         // Bulk operations endpoint
         server.createContext("/bulk", exchange -> {
             try {
@@ -733,6 +826,82 @@ public class GhidraMCPPlugin extends Plugin {
                         params.get("function_name"),
                         params.get("function_address")
                     );
+
+                // Struct operations
+                case "/struct/create":
+                    return structService.createStruct(
+                        params.get("name"),
+                        PluginUtils.parseIntOrDefault(params.get("size"), 0),
+                        params.get("category_path")
+                    );
+
+                case "/struct/parse_c":
+                    return structService.parseCStruct(
+                        params.get("c_code"),
+                        params.get("category_path")
+                    );
+
+                case "/struct/add_field":
+                    return structService.addStructField(
+                        params.get("struct_name"),
+                        params.get("field_type"),
+                        params.get("field_name"),
+                        PluginUtils.parseIntOrDefault(params.get("length"), -1),
+                        params.get("comment")
+                    );
+
+                case "/struct/insert_field":
+                    return structService.insertStructFieldAtOffset(
+                        params.get("struct_name"),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), 0),
+                        params.get("field_type"),
+                        params.get("field_name"),
+                        PluginUtils.parseIntOrDefault(params.get("length"), -1),
+                        params.get("comment")
+                    );
+
+                case "/struct/replace_field":
+                    return structService.replaceStructField(
+                        params.get("struct_name"),
+                        PluginUtils.parseIntOrDefault(params.get("ordinal"), 0),
+                        params.get("field_type"),
+                        params.get("field_name"),
+                        PluginUtils.parseIntOrDefault(params.get("length"), -1),
+                        params.get("comment")
+                    );
+
+                case "/struct/delete_field":
+                    return structService.deleteStructField(
+                        params.get("struct_name"),
+                        PluginUtils.parseIntOrDefault(params.get("ordinal"), -1),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), -1)
+                    );
+
+                case "/struct/clear_field":
+                    return structService.clearStructField(
+                        params.get("struct_name"),
+                        PluginUtils.parseIntOrDefault(params.get("ordinal"), -1),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), -1)
+                    );
+
+                case "/struct/get_info":
+                    return structService.getStructInfo(params.get("name"));
+
+                case "/struct/list":
+                    return structService.listStructs(
+                        params.get("category_path"),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), 0),
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/struct/rename":
+                    return structService.renameStruct(
+                        params.get("old_name"),
+                        params.get("new_name")
+                    );
+
+                case "/struct/delete":
+                    return structService.deleteStruct(params.get("name"));
 
                 default:
                     return "Error: Unknown endpoint: " + endpoint;
