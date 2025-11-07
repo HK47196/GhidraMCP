@@ -1,0 +1,284 @@
+"""
+Test suite for the GhidraMCP bridge.
+
+Tests the MCP server bridge functionality, HTTP client helpers,
+and tool implementations.
+"""
+
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+import sys
+import os
+
+# Add parent directory to path to import bridge_mcp_ghidra
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import bridge_mcp_ghidra
+
+
+class TestSafeGet:
+    """Test suite for the safe_get helper function."""
+
+    @patch('bridge_mcp_ghidra.requests.get')
+    def test_safe_get_success(self, mock_get):
+        """Test successful GET request with text response."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "line1\nline2\nline3"
+        mock_get.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_get("test_endpoint")
+
+        assert result == ["line1", "line2", "line3"]
+        mock_get.assert_called_once()
+
+    @patch('bridge_mcp_ghidra.requests.get')
+    def test_safe_get_with_params(self, mock_get):
+        """Test GET request with query parameters."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "result"
+        mock_get.return_value = mock_response
+
+        params = {"offset": 10, "limit": 50}
+        result = bridge_mcp_ghidra.safe_get("test_endpoint", params)
+
+        mock_get.assert_called_once()
+        call_args = mock_get.call_args
+        assert call_args[1]['params'] == params
+
+    @patch('bridge_mcp_ghidra.requests.get')
+    def test_safe_get_error_response(self, mock_get):
+        """Test GET request with error status code."""
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 404
+        mock_response.text = "Not Found"
+        mock_get.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_get("test_endpoint")
+
+        assert len(result) == 1
+        assert "Error 404" in result[0]
+        assert "Not Found" in result[0]
+
+    @patch('bridge_mcp_ghidra.requests.get')
+    def test_safe_get_exception(self, mock_get):
+        """Test GET request that raises an exception."""
+        mock_get.side_effect = Exception("Connection timeout")
+
+        result = bridge_mcp_ghidra.safe_get("test_endpoint")
+
+        assert len(result) == 1
+        assert "Request failed" in result[0]
+        assert "Connection timeout" in result[0]
+
+    @patch('bridge_mcp_ghidra.requests.get')
+    def test_safe_get_timeout(self, mock_get):
+        """Test GET request with timeout."""
+        mock_get.side_effect = Exception("Timeout")
+
+        result = bridge_mcp_ghidra.safe_get("test_endpoint")
+
+        assert len(result) == 1
+        assert "Request failed" in result[0]
+
+
+class TestSafePost:
+    """Test suite for the safe_post helper function."""
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_success_with_string(self, mock_post):
+        """Test successful POST request with string data."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "  Success result  "
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_post("test_endpoint", "test_data")
+
+        assert result == "Success result"
+        mock_post.assert_called_once()
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_success_with_dict(self, mock_post):
+        """Test successful POST request with dict data."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "Success"
+        mock_post.return_value = mock_response
+
+        data = {"key": "value"}
+        result = bridge_mcp_ghidra.safe_post("test_endpoint", data)
+
+        assert result == "Success"
+        call_args = mock_post.call_args
+        assert call_args[1]['data'] == data
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_error_response(self, mock_post):
+        """Test POST request with error status code."""
+        mock_response = Mock()
+        mock_response.ok = False
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_post("test_endpoint", "data")
+
+        assert "Error 500" in result
+        assert "Internal Server Error" in result
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_exception(self, mock_post):
+        """Test POST request that raises an exception."""
+        mock_post.side_effect = Exception("Network error")
+
+        result = bridge_mcp_ghidra.safe_post("test_endpoint", "data")
+
+        assert "Request failed" in result
+        assert "Network error" in result
+
+
+class TestMCPTools:
+    """Test suite for MCP tool implementations."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_methods(self, mock_safe_get):
+        """Test list_methods tool."""
+        mock_safe_get.return_value = ["method1", "method2", "method3"]
+
+        result = bridge_mcp_ghidra.list_methods(offset=0, limit=100)
+
+        assert result == ["method1", "method2", "method3"]
+        mock_safe_get.assert_called_once_with("methods", {"offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_methods_with_pagination(self, mock_safe_get):
+        """Test list_methods with custom pagination."""
+        mock_safe_get.return_value = ["method4", "method5"]
+
+        result = bridge_mcp_ghidra.list_methods(offset=10, limit=2)
+
+        assert result == ["method4", "method5"]
+        mock_safe_get.assert_called_once_with("methods", {"offset": 10, "limit": 2})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_classes(self, mock_safe_get):
+        """Test list_classes tool."""
+        mock_safe_get.return_value = ["ClassA", "ClassB"]
+
+        result = bridge_mcp_ghidra.list_classes(offset=0, limit=100)
+
+        assert result == ["ClassA", "ClassB"]
+        mock_safe_get.assert_called_once_with("classes", {"offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_segments(self, mock_safe_get):
+        """Test list_segments tool."""
+        mock_safe_get.return_value = [".text", ".data", ".bss"]
+
+        result = bridge_mcp_ghidra.list_segments(offset=0, limit=100)
+
+        assert result == [".text", ".data", ".bss"]
+        mock_safe_get.assert_called_once_with("segments", {"offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_decompile_function(self, mock_safe_post):
+        """Test decompile_function tool."""
+        mock_safe_post.return_value = "int main() { return 0; }"
+
+        result = bridge_mcp_ghidra.decompile_function("main")
+
+        assert result == "int main() { return 0; }"
+        mock_safe_post.assert_called_once_with("decompile", "main")
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_rename_function(self, mock_safe_post):
+        """Test rename_function tool."""
+        mock_safe_post.return_value = "Success"
+
+        result = bridge_mcp_ghidra.rename_function("old_func", "new_func")
+
+        assert result == "Success"
+        mock_safe_post.assert_called_once_with("renameFunction",
+                                                 {"oldName": "old_func", "newName": "new_func"})
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_rename_data(self, mock_safe_post):
+        """Test rename_data tool."""
+        mock_safe_post.return_value = "Success"
+
+        result = bridge_mcp_ghidra.rename_data("0x401000", "new_label")
+
+        assert result == "Success"
+        mock_safe_post.assert_called_once_with("renameData",
+                                                 {"address": "0x401000", "newName": "new_label"})
+
+
+class TestGlobalConfiguration:
+    """Test suite for global configuration variables."""
+
+    def test_default_ghidra_server_url(self):
+        """Test that default Ghidra server URL is set correctly."""
+        assert bridge_mcp_ghidra.DEFAULT_GHIDRA_SERVER == "http://127.0.0.1:8080/"
+        assert bridge_mcp_ghidra.ghidra_server_url == "http://127.0.0.1:8080/"
+
+    def test_default_request_timeout(self):
+        """Test that default request timeout is set correctly."""
+        assert bridge_mcp_ghidra.DEFAULT_REQUEST_TIMEOUT == 5
+        assert bridge_mcp_ghidra.ghidra_request_timeout == 5
+
+    def test_mcp_server_name(self):
+        """Test that MCP server has correct name."""
+        assert bridge_mcp_ghidra.mcp.name == "ghidra-mcp"
+
+
+class TestEdgeCases:
+    """Test suite for edge cases and error conditions."""
+
+    @patch('bridge_mcp_ghidra.requests.get')
+    def test_safe_get_empty_response(self, mock_get):
+        """Test GET request with empty response."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = ""
+        mock_get.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_get("test_endpoint")
+
+        assert result == []
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_empty_string_data(self, mock_post):
+        """Test POST request with empty string."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "OK"
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_post("test_endpoint", "")
+
+        assert result == "OK"
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_empty_dict_data(self, mock_post):
+        """Test POST request with empty dict."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "OK"
+        mock_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.safe_post("test_endpoint", {})
+
+        assert result == "OK"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_methods_with_zero_limit(self, mock_safe_get):
+        """Test list_methods with limit of 0."""
+        mock_safe_get.return_value = []
+
+        result = bridge_mcp_ghidra.list_methods(offset=0, limit=0)
+
+        assert result == []
+        mock_safe_get.assert_called_once_with("methods", {"offset": 0, "limit": 0})
