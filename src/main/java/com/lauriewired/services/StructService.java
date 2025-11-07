@@ -7,7 +7,6 @@ import ghidra.util.Msg;
 import ghidra.util.task.TaskMonitor;
 
 import javax.swing.SwingUtilities;
-import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,7 +112,7 @@ public class StructService {
                     CParser parser = new CParser(dtm);
 
                     // Parse the code
-                    parser.parse(new StringReader(cCode));
+                    parser.parse(cCode);
 
                     // Retrieve parsed composites
                     Map<String, DataType> composites = parser.getComposites();
