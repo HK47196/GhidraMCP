@@ -55,11 +55,21 @@ def safe_post(endpoint: str, data: dict | str) -> str:
             response = requests.post(url, data=data.encode("utf-8"), timeout=ghidra_request_timeout)
         response.encoding = 'utf-8'
         if response.ok:
-            return response.text.strip()
+            result = response.text.strip()
+            # Ghidra server always returns HTTP 200, but uses response text to indicate failure
+            # Raise exception if the response indicates a failure so MCP correctly reports success=false
+            if result.startswith("Failed to ") or result.startswith("Error"):
+                raise Exception(result)
+            return result
         else:
-            return f"Error {response.status_code}: {response.text.strip()}"
+            raise Exception(f"Error {response.status_code}: {response.text.strip()}")
     except Exception as e:
-        return f"Request failed: {str(e)}"
+        # If it's already our formatted exception, re-raise as-is
+        error_msg = str(e)
+        if error_msg.startswith("Failed to ") or error_msg.startswith("Error"):
+            raise
+        # Otherwise, wrap it as a request failure
+        raise Exception(f"Request failed: {error_msg}")
 
 @mcp.tool()
 def list_methods(offset: int = 0, limit: int = 100) -> list:

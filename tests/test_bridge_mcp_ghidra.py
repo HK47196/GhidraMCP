@@ -124,20 +124,48 @@ class TestSafePost:
         mock_response.text = "Internal Server Error"
         mock_post.return_value = mock_response
 
-        result = bridge_mcp_ghidra.safe_post("test_endpoint", "data")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.safe_post("test_endpoint", "data")
 
-        assert "Error 500" in result
-        assert "Internal Server Error" in result
+        assert "Error 500" in str(exc_info.value)
+        assert "Internal Server Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.requests.post')
     def test_safe_post_exception(self, mock_post):
         """Test POST request that raises an exception."""
         mock_post.side_effect = Exception("Network error")
 
-        result = bridge_mcp_ghidra.safe_post("test_endpoint", "data")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.safe_post("test_endpoint", "data")
 
-        assert "Request failed" in result
-        assert "Network error" in result
+        assert "Request failed" in str(exc_info.value)
+        assert "Network error" in str(exc_info.value)
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_failed_operation(self, mock_post):
+        """Test POST request where Ghidra operation fails."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "Failed to set comment"
+        mock_post.return_value = mock_response
+
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.safe_post("test_endpoint", "data")
+
+        assert "Failed to set comment" in str(exc_info.value)
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_safe_post_error_in_response(self, mock_post):
+        """Test POST request with Error prefix in response."""
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = "Error: Invalid address format"
+        mock_post.return_value = mock_response
+
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.safe_post("test_endpoint", "data")
+
+        assert "Error: Invalid address format" in str(exc_info.value)
 
 
 class TestMCPTools:
@@ -626,11 +654,11 @@ class TestCommentTools:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_address_without_prefix(self, mock_safe_post):
         """Test set_plate_comment with address missing 0x prefix."""
-        mock_safe_post.return_value = "Error: Invalid address format"
+        mock_safe_post.side_effect = Exception("Error: Invalid address format")
 
-        result = bridge_mcp_ghidra.set_plate_comment("401000", "Comment")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("401000", "Comment")
+        assert "Error" in str(exc_info.value)
         # Verify the address was passed as-is
         call_args = mock_safe_post.call_args[0]
         assert call_args[1]["address"] == "401000"
@@ -638,29 +666,29 @@ class TestCommentTools:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_invalid_address_chars(self, mock_safe_post):
         """Test set_plate_comment with invalid hex characters in address."""
-        mock_safe_post.return_value = "Error: Invalid address"
+        mock_safe_post.side_effect = Exception("Error: Invalid address")
 
-        result = bridge_mcp_ghidra.set_plate_comment("0xGHIJKL", "Comment")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0xGHIJKL", "Comment")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_address_out_of_range(self, mock_safe_post):
         """Test set_plate_comment with address outside program range."""
-        mock_safe_post.return_value = "Error: Address not found in program"
+        mock_safe_post.side_effect = Exception("Error: Address not found in program")
 
-        result = bridge_mcp_ghidra.set_plate_comment("0xFFFFFFFFFFFFFFFF", "Comment")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0xFFFFFFFFFFFFFFFF", "Comment")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_empty_address(self, mock_safe_post):
         """Test set_plate_comment with empty address string."""
-        mock_safe_post.return_value = "Error: Address cannot be empty"
+        mock_safe_post.side_effect = Exception("Error: Address cannot be empty")
 
-        result = bridge_mcp_ghidra.set_plate_comment("", "Comment")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("", "Comment")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_empty_comment(self, mock_safe_post):
@@ -734,13 +762,12 @@ class TestCommentTools:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_address_not_at_instruction(self, mock_safe_post):
         """Test set_plate_comment at address that's not an instruction boundary."""
-        mock_safe_post.return_value = "Error: Address must be at instruction boundary"
+        mock_safe_post.side_effect = Exception("Error: Address must be at instruction boundary")
 
-        # Typically instructions are aligned, 0x401001 might be middle of instruction
-        result = bridge_mcp_ghidra.set_plate_comment("0x401001", "Comment")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0x401001", "Comment")
 
-        # May succeed or fail depending on Ghidra's handling
-        assert result is not None
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_windows_newlines(self, mock_safe_post):
@@ -769,12 +796,12 @@ class TestCommentTools:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_null_bytes(self, mock_safe_post):
         """Test set_plate_comment with null bytes (should be handled or rejected)."""
-        mock_safe_post.return_value = "Error: Invalid characters in comment"
+        mock_safe_post.side_effect = Exception("Error: Invalid characters in comment")
 
-        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Text\x00with\x00nulls")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0x401000", "Text\x00with\x00nulls")
 
-        # Should either work or return an error
-        assert result is not None
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_leading_trailing_whitespace(self, mock_safe_post):
@@ -820,30 +847,29 @@ class TestCommentTools:
         """Test set_plate_comment with exact Ghidra server failure response.
 
         This test verifies that the exact failure message from Ghidra server
-        is correctly recognized as a failure.
+        is correctly recognized as a failure and raises an exception.
         """
-        mock_safe_post.return_value = "Failed to set comment"
+        mock_safe_post.side_effect = Exception("Failed to set comment")
 
-        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
 
-        assert result == "Failed to set comment"
-        assert "Failed" in result
+        assert "Failed to set comment" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_plate_comment_with_http_200_and_failure_message(self, mock_safe_post):
         """Test that failure messages are detected even with HTTP 200 status.
 
         The Ghidra server always returns HTTP 200, using response text to indicate
-        success/failure. This test ensures we can distinguish between the two.
+        success/failure. This test ensures we correctly raise an exception for failures.
         """
-        mock_safe_post.return_value = "Failed to set comment"
+        mock_safe_post.side_effect = Exception("Failed to set comment")
 
-        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
 
-        # The result should contain the failure message
-        assert "Failed" in result
-        # Verify the function returns the error message, not a success indicator
-        assert result != "Comment set successfully"
+        # The exception should contain the failure message
+        assert "Failed to set comment" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.requests.post')
     def test_set_plate_comment_response_parsing(self, mock_post):
@@ -887,6 +913,7 @@ class TestCommentTools:
 
         This simulates the scenario where the HTTP request succeeds (200),
         but the Ghidra transaction fails and returns a failure message.
+        The tool should raise an exception so MCP reports success=false.
         """
         mock_response = Mock()
         mock_response.ok = True
@@ -894,11 +921,11 @@ class TestCommentTools:
         mock_response.encoding = 'utf-8'
         mock_post.return_value = mock_response
 
-        result = bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.set_plate_comment("0x401000", "Test comment")
 
-        # Should return the failure message as-is
-        assert result == "Failed to set comment"
-        assert "Failed" in result
+        # Should raise exception with the failure message
+        assert "Failed to set comment" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_set_decompiler_comment_success_response(self, mock_safe_post):
@@ -942,11 +969,11 @@ class TestRenamingAndTypeTools:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_rename_variable_error(self, mock_safe_post):
         """Test rename_variable when variable doesn't exist."""
-        mock_safe_post.return_value = "Error: Variable not found"
+        mock_safe_post.side_effect = Exception("Error: Variable not found")
 
-        result = bridge_mcp_ghidra.rename_variable("main", "nonexistent", "newname")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.rename_variable("main", "nonexistent", "newname")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_rename_function_by_address(self, mock_safe_post):
@@ -1204,11 +1231,11 @@ class TestBSimDatabaseOperations:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_bsim_select_database_error(self, mock_safe_post):
         """Test bsim_select_database with invalid path."""
-        mock_safe_post.return_value = "Error: Database not found"
+        mock_safe_post.side_effect = Exception("Error: Database not found")
 
-        result = bridge_mcp_ghidra.bsim_select_database("/invalid/path.bsim")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.bsim_select_database("/invalid/path.bsim")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_bsim_status_connected(self, mock_safe_get):
@@ -1399,15 +1426,15 @@ class TestBSimMatchRetrieval:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_bsim_get_match_disassembly_not_found(self, mock_safe_post):
         """Test bsim_get_match_disassembly when program is not in project."""
-        mock_safe_post.return_value = "Error: Program not found in project"
+        mock_safe_post.side_effect = Exception("Error: Program not found in project")
 
-        result = bridge_mcp_ghidra.bsim_get_match_disassembly(
-            "/nonexistent/binary",
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.bsim_get_match_disassembly(            "/nonexistent/binary",
             "func",
             "0x401000"
         )
 
-        assert "Error" in result
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_bsim_get_match_decompile(self, mock_safe_post):
@@ -1430,28 +1457,28 @@ class TestBSimMatchRetrieval:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_bsim_get_match_decompile_not_found(self, mock_safe_post):
         """Test bsim_get_match_decompile when program is not in project."""
-        mock_safe_post.return_value = "Error: Program not found in project"
+        mock_safe_post.side_effect = Exception("Error: Program not found in project")
 
-        result = bridge_mcp_ghidra.bsim_get_match_decompile(
-            "/nonexistent/binary",
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.bsim_get_match_decompile(            "/nonexistent/binary",
             "func",
             "0x401000"
         )
 
-        assert "Error" in result
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_bsim_get_match_decompile_function_not_found(self, mock_safe_post):
         """Test bsim_get_match_decompile when function doesn't exist."""
-        mock_safe_post.return_value = "Error: Function not found at address"
+        mock_safe_post.side_effect = Exception("Error: Function not found at address")
 
-        result = bridge_mcp_ghidra.bsim_get_match_decompile(
-            "/path/to/binary",
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.bsim_get_match_decompile(            "/path/to/binary",
             "invalid_func",
             "0xFFFFFFFF"
         )
 
-        assert "Error" in result
+        assert "Error" in str(exc_info.value)
 
 
 class TestBulkOperations:
@@ -1577,11 +1604,11 @@ class TestStructCreationAndParsing:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_create_struct_error(self, mock_safe_post):
         """Test create_struct when struct already exists."""
-        mock_safe_post.return_value = "Error: Struct already exists"
+        mock_safe_post.side_effect = Exception("Error: Struct already exists")
 
-        result = bridge_mcp_ghidra.create_struct("ExistingStruct")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.create_struct("ExistingStruct")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_parse_c_struct_basic(self, mock_safe_post):
@@ -1622,12 +1649,13 @@ class TestStructCreationAndParsing:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_parse_c_struct_error(self, mock_safe_post):
         """Test parse_c_struct with invalid C code."""
-        mock_safe_post.return_value = "Error: Parse error at line 1"
+        mock_safe_post.side_effect = Exception("Error: Parse error at line 1")
 
         c_code = "struct Invalid { unknowntype field; };"
-        result = bridge_mcp_ghidra.parse_c_struct(c_code)
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.parse_c_struct(c_code)
 
-        assert "Error" in result
+        assert "Error" in str(exc_info.value)
 
 
 class TestStructFieldManipulation:
@@ -1836,11 +1864,11 @@ class TestStructFieldDeletion:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_clear_struct_field_error(self, mock_safe_post):
         """Test clear_struct_field when field doesn't exist."""
-        mock_safe_post.return_value = "Error: Field not found"
+        mock_safe_post.side_effect = Exception("Error: Field not found")
 
-        result = bridge_mcp_ghidra.clear_struct_field("MyStruct", ordinal=99)
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.clear_struct_field("MyStruct", ordinal=99)
+        assert "Error" in str(exc_info.value)
 
 
 class TestStructInformationAndListing:
@@ -1957,20 +1985,20 @@ class TestStructRenamingAndDeletion:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_rename_struct_error_not_found(self, mock_safe_post):
         """Test rename_struct when struct doesn't exist."""
-        mock_safe_post.return_value = "Error: Struct not found"
+        mock_safe_post.side_effect = Exception("Error: Struct not found")
 
-        result = bridge_mcp_ghidra.rename_struct("NonexistentStruct", "NewName")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.rename_struct("NonexistentStruct", "NewName")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_rename_struct_error_duplicate(self, mock_safe_post):
         """Test rename_struct when new name already exists."""
-        mock_safe_post.return_value = "Error: Struct with new name already exists"
+        mock_safe_post.side_effect = Exception("Error: Struct with new name already exists")
 
-        result = bridge_mcp_ghidra.rename_struct("Struct1", "ExistingStruct")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.rename_struct("Struct1", "ExistingStruct")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_delete_struct_basic(self, mock_safe_post):
@@ -1985,17 +2013,17 @@ class TestStructRenamingAndDeletion:
     @patch('bridge_mcp_ghidra.safe_post')
     def test_delete_struct_not_found(self, mock_safe_post):
         """Test delete_struct when struct doesn't exist."""
-        mock_safe_post.return_value = "Error: Struct not found"
+        mock_safe_post.side_effect = Exception("Error: Struct not found")
 
-        result = bridge_mcp_ghidra.delete_struct("NonexistentStruct")
-
-        assert "Error" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.delete_struct("NonexistentStruct")
+        assert "Error" in str(exc_info.value)
 
     @patch('bridge_mcp_ghidra.safe_post')
     def test_delete_struct_in_use(self, mock_safe_post):
         """Test delete_struct when struct is referenced by other types."""
-        mock_safe_post.return_value = "Error: Cannot delete struct, it is referenced by other types"
+        mock_safe_post.side_effect = Exception("Error: Cannot delete struct, it is referenced by other types")
 
-        result = bridge_mcp_ghidra.delete_struct("ReferencedStruct")
-
-        assert "Error" in result or "referenced" in result
+        with pytest.raises(Exception) as exc_info:
+            bridge_mcp_ghidra.delete_struct("ReferencedStruct")
+        assert "Error" in str(exc_info.value)

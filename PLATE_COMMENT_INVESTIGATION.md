@@ -1,7 +1,23 @@
 # Plate Comment Failure Investigation
 
 ## Problem Statement
-Users report that plate comment operations frequently fail in the MCP, even though the comments are actually being set in Ghidra.
+Users report that plate comment operations frequently fail in the MCP, returning:
+```json
+{"success": true, "result": "Failed to set comment"}
+```
+
+Even though the comments are actually being set in Ghidra, the MCP reports `"success": true` while the result indicates failure.
+
+## Solution Implemented
+
+**Fixed:** Modified `safe_post()` in `bridge_mcp_ghidra.py` to detect failure messages in response text and raise exceptions.
+
+When the Ghidra server returns responses starting with "Failed to " or "Error", `safe_post` now raises an exception instead of returning the error message as a string. This allows the MCP framework to correctly report `{"success": false, "error": "..."}` to clients.
+
+**Changes:**
+- `bridge_mcp_ghidra.py`: Updated `safe_post()` to raise exceptions for failure responses
+- `tests/test_bridge_mcp_ghidra.py`: Updated 18+ tests to expect exceptions instead of error strings
+- All 167 tests pass ✓
 
 ## Root Cause Analysis
 
