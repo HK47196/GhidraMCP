@@ -237,6 +237,20 @@ def set_local_variable_type(function_address: str, variable_name: str, new_type:
     return safe_post("set_local_variable_type", {"function_address": function_address, "variable_name": variable_name, "new_type": new_type})
 
 @mcp.tool()
+def set_data_type(address: str, type_name: str) -> str:
+    """
+    Set the data type at a specific address in the Ghidra program.
+
+    Args:
+        address: Memory address in hex format (e.g. "0x1400010a0")
+        type_name: Name of the data type to set (e.g. "int", "dword", "byte[20]", "PCHAR")
+
+    Returns:
+        Success or error message
+    """
+    return safe_post("set_data_type", {"address": address, "type_name": type_name})
+
+@mcp.tool()
 def get_xrefs_to(address: str, offset: int = 0, limit: int = 100) -> list:
     """
     Get all references to the specified address (xref to).
