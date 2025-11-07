@@ -141,6 +141,82 @@ def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> l
     return safe_get("searchFunctions", {"query": query, "offset": offset, "limit": limit})
 
 @mcp.tool()
+def list_functions_by_segment(
+    segment_name: str = None,
+    start_address: str = None,
+    end_address: str = None,
+    offset: int = 0,
+    limit: int = 100
+) -> list:
+    """
+    List functions within a specific memory segment or address range.
+
+    Either provide segment_name OR both start_address and end_address.
+
+    Args:
+        segment_name: Name of the memory segment (e.g., "CODE_70")
+        start_address: Start address of range (e.g., "4592:000e")
+        end_address: End address of range (e.g., "4592:0399")
+        offset: Pagination offset (default: 0)
+        limit: Maximum number of results (default: 100)
+
+    Returns:
+        List of functions with name, address (segment:offset format), and size.
+
+    Example:
+        list_functions_by_segment(segment_name="CODE_70", offset=0, limit=100)
+    """
+    params = {"offset": offset, "limit": limit}
+
+    if segment_name:
+        params["segment_name"] = segment_name
+    elif start_address and end_address:
+        params["start_address"] = start_address
+        params["end_address"] = end_address
+    else:
+        return ["Error: Either segment_name or both start_address and end_address must be provided"]
+
+    return safe_get("functions-by-segment", params)
+
+@mcp.tool()
+def list_data_by_segment(
+    segment_name: str = None,
+    start_address: str = None,
+    end_address: str = None,
+    offset: int = 0,
+    limit: int = 100
+) -> list:
+    """
+    List defined data items within a specific memory segment or address range.
+
+    Either provide segment_name OR both start_address and end_address.
+
+    Args:
+        segment_name: Name of the memory segment (e.g., "CODE_70")
+        start_address: Start address of range (e.g., "4592:000e")
+        end_address: End address of range (e.g., "4592:0399")
+        offset: Pagination offset (default: 0)
+        limit: Maximum number of results (default: 100)
+
+    Returns:
+        List of data items with label, address (segment:offset format), type, and value.
+
+    Example:
+        list_data_by_segment(segment_name="CODE_70", offset=0, limit=100)
+    """
+    params = {"offset": offset, "limit": limit}
+
+    if segment_name:
+        params["segment_name"] = segment_name
+    elif start_address and end_address:
+        params["start_address"] = start_address
+        params["end_address"] = end_address
+    else:
+        return ["Error: Either segment_name or both start_address and end_address must be provided"]
+
+    return safe_get("data-by-segment", params)
+
+@mcp.tool()
 def rename_variable(function_name: str, old_name: str, new_name: str) -> str:
     """
     Rename a local variable within a function.
