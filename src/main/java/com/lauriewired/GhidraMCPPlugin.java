@@ -322,6 +322,24 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, responseMsg.toString());
         });
 
+        server.createContext("/set_data_type", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String address = params.get("address");
+            String typeName = params.get("type_name");
+
+            if (address == null || address.isEmpty() || typeName == null || typeName.isEmpty()) {
+                sendResponse(exchange, "Error: Both 'address' and 'type_name' parameters are required");
+                return;
+            }
+
+            boolean success = functionSignatureService.setDataType(address, typeName);
+            String successMsg = success ?
+                "Data type '" + typeName + "' set successfully at address " + address :
+                "Failed to set data type at address " + address;
+
+            sendResponse(exchange, successMsg);
+        });
+
         server.createContext("/xrefs_to", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String address = qparams.get("address");
@@ -628,6 +646,19 @@ public class GhidraMCPPlugin extends Plugin {
                     );
                     responseMsg.append("\nResult: ").append(success ? "Variable type set successfully" : "Failed to set variable type");
                     return responseMsg.toString();
+
+                case "/set_data_type":
+                    String address = params.get("address");
+                    String typeName = params.get("type_name");
+
+                    if (address == null || address.isEmpty() || typeName == null || typeName.isEmpty()) {
+                        return "Error: Both 'address' and 'type_name' parameters are required";
+                    }
+
+                    boolean dataTypeSuccess = functionSignatureService.setDataType(address, typeName);
+                    return dataTypeSuccess ?
+                        "Data type '" + typeName + "' set successfully at address " + address :
+                        "Failed to set data type at address " + address;
 
                 case "/xrefs_to":
                     return crossReferenceAnalyzer.getXrefsTo(

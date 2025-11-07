@@ -14,6 +14,7 @@ import ghidra.program.model.data.FunctionDefinitionDataType;
 import ghidra.program.model.data.PointerDataType;
 import ghidra.program.model.listing.CodeUnit;
 import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.pcode.*;
 import ghidra.program.model.symbol.SourceType;
@@ -98,6 +99,33 @@ public class FunctionSignatureService {
                 applyVariableType(program, functionAddrStr, variableName, newType, success));
         } catch (InterruptedException | InvocationTargetException e) {
             Msg.error(this, "Failed to execute set variable type on Swing thread", e);
+        }
+
+        return success.get();
+    }
+
+    /**
+     * Set data type at a specific address
+     * @param addressStr Address as string
+     * @param typeName Type name (e.g., "int", "dword", "byte[20]")
+     * @return true if successful
+     */
+    public boolean setDataType(String addressStr, String typeName) {
+        // Input validation
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return false;
+        if (addressStr == null || addressStr.isEmpty() ||
+            typeName == null || typeName.isEmpty()) {
+            return false;
+        }
+
+        AtomicBoolean success = new AtomicBoolean(false);
+
+        try {
+            SwingUtilities.invokeAndWait(() ->
+                applyDataType(program, addressStr, typeName, success));
+        } catch (InterruptedException | InvocationTargetException e) {
+            Msg.error(this, "Failed to execute set data type on Swing thread", e);
         }
 
         return success.get();
@@ -296,6 +324,47 @@ public class FunctionSignatureService {
             Msg.info(this, "Successfully set variable type using HighFunctionDBUtil");
         } catch (Exception e) {
             Msg.error(this, "Error setting variable type: " + e.getMessage());
+        } finally {
+            program.endTransaction(tx, success.get());
+        }
+    }
+
+    /**
+     * Apply data type change at address
+     */
+    private void applyDataType(Program program, String addressStr, String typeName, AtomicBoolean success) {
+        int tx = program.startTransaction("Set data type");
+        try {
+            // Parse the address
+            Address addr = program.getAddressFactory().getAddress(addressStr);
+            if (addr == null) {
+                Msg.error(this, "Invalid address: " + addressStr);
+                return;
+            }
+
+            // Resolve the data type
+            DataTypeManager dtm = program.getDataTypeManager();
+            DataType dataType = resolveDataType(dtm, typeName);
+
+            if (dataType == null) {
+                Msg.error(this, "Could not resolve data type: " + typeName);
+                return;
+            }
+
+            Msg.info(this, "Setting data type " + dataType.getName() + " at address " + addressStr);
+
+            // Clear any existing code units at this address
+            Listing listing = program.getListing();
+            listing.clearCodeUnits(addr, addr.add(dataType.getLength() - 1), false);
+
+            // Create the data with the specified type
+            listing.createData(addr, dataType);
+
+            success.set(true);
+            Msg.info(this, "Successfully set data type at address " + addressStr);
+
+        } catch (Exception e) {
+            Msg.error(this, "Error setting data type: " + e.getMessage(), e);
         } finally {
             program.endTransaction(tx, success.get());
         }
