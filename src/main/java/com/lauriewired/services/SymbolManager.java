@@ -1,6 +1,7 @@
 package com.lauriewired.services;
 
 import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
@@ -148,6 +149,9 @@ public class SymbolManager {
         if (program == null) return "No program loaded";
 
         DecompInterface decomp = new DecompInterface();
+        DecompileOptions options = new DecompileOptions();
+        options.setInferConstPtr(false);
+        decomp.setOptions(options);
         decomp.openProgram(program);
 
         Function func = null;
