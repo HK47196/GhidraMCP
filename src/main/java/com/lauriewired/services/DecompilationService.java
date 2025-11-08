@@ -34,6 +34,7 @@ public class DecompilationService {
             if (func.getName().equals(name)) {
                 DecompileResults result =
                     decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
+                decomp.flushCache();
                 if (result != null && result.decompileCompleted()) {
                     return result.getDecompiledFunction().getC();
                 } else {
@@ -100,6 +101,7 @@ public class DecompilationService {
             DecompInterface decomp = new DecompInterface();
             decomp.openProgram(program);
             DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
+            decomp.flushCache();
 
             if (result != null && result.decompileCompleted()) {
                 return result.getDecompiledFunction().getC();
@@ -158,6 +160,7 @@ public class DecompilationService {
 
         // Decompile the function
         DecompileResults results = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
+        decomp.flushCache();
 
         if (!results.decompileCompleted()) {
             Msg.error(this, "Could not decompile function: " + results.getErrorMessage());
