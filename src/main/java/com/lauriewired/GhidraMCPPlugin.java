@@ -1151,7 +1151,7 @@ public class GhidraMCPPlugin extends Plugin {
                     case '"': result.append('"'); i++; break;
                     case '\\': result.append('\\'); i++; break;
                     case '/': result.append('/'); i++; break;
-                    case 'u': // Unicode escape \uXXXX
+                    case 'u': // Unicode escape (backslash-u followed by 4 hex digits)
                         if (i + 5 < str.length()) {
                             String hex = str.substring(i + 2, i + 6);
                             try {
