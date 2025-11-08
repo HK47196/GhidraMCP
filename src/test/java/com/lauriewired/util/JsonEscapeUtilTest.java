@@ -38,7 +38,7 @@ class JsonEscapeUtilTest {
                     case '"': result.append('"'); i++; break;
                     case '\\': result.append('\\'); i++; break;
                     case '/': result.append('/'); i++; break;
-                    case 'u': // Unicode escape \uXXXX
+                    case 'u': // Unicode escape (backslash-u followed by 4 hex digits)
                         if (i + 5 < str.length()) {
                             String hex = str.substring(i + 2, i + 6);
                             try {
@@ -136,9 +136,10 @@ class JsonEscapeUtilTest {
     }
 
     @Test
-    @DisplayName("Should handle Unicode escape sequences \\uXXXX")
+    @DisplayName("Should handle Unicode escape sequences (backslash-u + 4 hex digits)")
     void testUnicodeEscape() {
-        String input = "Copyright \\u00A9 2024";
+        // Use string concatenation to avoid Java compiler processing the unicode escape
+        String input = "Copyright " + "\\u" + "00A9 2024";
         String expected = "Copyright © 2024";
 
         assertEquals(expected, unescapeJsonString(input));
@@ -147,7 +148,9 @@ class JsonEscapeUtilTest {
     @Test
     @DisplayName("Should handle multiple Unicode escapes")
     void testMultipleUnicodeEscapes() {
-        String input = "\\u0048\\u0065\\u006C\\u006C\\u006F"; // "Hello"
+        // Use string concatenation to avoid Java compiler processing unicode escapes
+        // This represents: \u0048\u0065\u006C\u006C\u006F which spells "Hello"
+        String input = "\\u" + "0048" + "\\u" + "0065" + "\\u" + "006C" + "\\u" + "006C" + "\\u" + "006F";
         String expected = "Hello";
 
         assertEquals(expected, unescapeJsonString(input));
@@ -156,7 +159,8 @@ class JsonEscapeUtilTest {
     @Test
     @DisplayName("Should handle invalid Unicode escape gracefully")
     void testInvalidUnicodeEscape() {
-        String input = "Test \\uGGGG value";
+        // Use string concatenation to avoid Java compiler processing the unicode escape
+        String input = "Test " + "\\u" + "GGGG value";
 
         // Should keep the backslash when Unicode escape is invalid
         String result = unescapeJsonString(input);
