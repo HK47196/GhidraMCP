@@ -163,6 +163,7 @@ public class SymbolManager {
         }
 
         DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
+        decomp.flushCache();
         if (result == null || !result.decompileCompleted()) {
             return "Decompilation failed";
         }
