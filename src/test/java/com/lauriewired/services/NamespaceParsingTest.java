@@ -101,10 +101,13 @@ class NamespaceParsingTest {
         String nameWithTrailing = "MyNamespace::";
         String[] parts = nameWithTrailing.split("::");
 
-        // Split will create ["MyNamespace", ""]
-        assertEquals(2, parts.length, "Should create two parts");
+        // Java's split() removes trailing empty strings by default
+        // So "MyNamespace::" splits to ["MyNamespace"] not ["MyNamespace", ""]
+        assertEquals(1, parts.length, "Should create one part (trailing empty removed)");
         assertEquals("MyNamespace", parts[0]);
-        assertEquals("", parts[1], "Last part should be empty");
+
+        // This would be treated as a simple name without namespace
+        assertTrue(parts.length < 2, "Should be flagged as needing global namespace");
     }
 
     /**
