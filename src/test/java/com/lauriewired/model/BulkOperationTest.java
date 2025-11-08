@@ -104,4 +104,84 @@ class BulkOperationTest {
         assertEquals("void", bulkOp.getParams().get("type"));
         assertEquals("Test function", bulkOp.getParams().get("comment"));
     }
+
+    @Test
+    @DisplayName("BulkOperation should store comments with actual newlines")
+    void testBulkOperationWithNewlines() {
+        // After parsing, the comment should contain actual newline characters,
+        // not the literal string "\n"
+        BulkOperation bulkOp = new BulkOperation();
+        Map<String, String> params = new HashMap<>();
+        params.put("address", "0x401000");
+        params.put("comment", "Line 1\nLine 2\nLine 3");
+
+        bulkOp.setEndpoint("/set_plate_comment");
+        bulkOp.setParams(params);
+
+        String comment = bulkOp.getParams().get("comment");
+        assertNotNull(comment);
+        assertTrue(comment.contains("\n"), "Comment should contain actual newline characters");
+        assertFalse(comment.contains("\\n"), "Comment should not contain literal \\n");
+
+        // Verify we can split by actual newlines
+        String[] lines = comment.split("\n");
+        assertEquals(3, lines.length);
+        assertEquals("Line 1", lines[0]);
+        assertEquals("Line 2", lines[1]);
+        assertEquals("Line 3", lines[2]);
+    }
+
+    @Test
+    @DisplayName("BulkOperation should handle comments with tabs and newlines")
+    void testBulkOperationWithMixedEscapes() {
+        BulkOperation bulkOp = new BulkOperation();
+        Map<String, String> params = new HashMap<>();
+        params.put("address", "0x402000");
+        params.put("comment", "Function: ProcessData\nParameters:\n\t- input: char*\n\t- size: int");
+
+        bulkOp.setEndpoint("/set_plate_comment");
+        bulkOp.setParams(params);
+
+        String comment = bulkOp.getParams().get("comment");
+        assertTrue(comment.contains("\n"), "Should contain newlines");
+        assertTrue(comment.contains("\t"), "Should contain tabs");
+
+        // Verify structure
+        String[] lines = comment.split("\n");
+        assertEquals(4, lines.length);
+        assertEquals("Function: ProcessData", lines[0]);
+        assertTrue(lines[2].startsWith("\t"), "Line should start with tab");
+    }
+
+    @Test
+    @DisplayName("BulkOperation should preserve backslashes in paths")
+    void testBulkOperationWithBackslashes() {
+        BulkOperation bulkOp = new BulkOperation();
+        Map<String, String> params = new HashMap<>();
+        // After unescaping \\, we should get a single backslash
+        params.put("path", "C:\\Users\\test\\file.txt");
+
+        bulkOp.setParams(params);
+
+        String path = bulkOp.getParams().get("path");
+        // Single backslashes in the actual path
+        assertTrue(path.contains("\\"));
+        // Count backslashes - should be 3 single backslashes
+        long backslashCount = path.chars().filter(ch -> ch == '\\').count();
+        assertEquals(3, backslashCount);
+    }
+
+    @Test
+    @DisplayName("BulkOperation should handle Unicode characters in comments")
+    void testBulkOperationWithUnicode() {
+        BulkOperation bulkOp = new BulkOperation();
+        Map<String, String> params = new HashMap<>();
+        params.put("comment", "Copyright © 2024");
+
+        bulkOp.setEndpoint("/set_plate_comment");
+        bulkOp.setParams(params);
+
+        String comment = bulkOp.getParams().get("comment");
+        assertTrue(comment.contains("©"), "Should contain copyright symbol");
+    }
 }

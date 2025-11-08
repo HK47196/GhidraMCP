@@ -1026,9 +1026,10 @@ public class GhidraMCPPlugin extends Plugin {
                             String key = pair.substring(0, colonIdx).trim();
                             String value = pair.substring(colonIdx + 1).trim();
 
-                            // Remove quotes
+                            // Remove quotes and unescape JSON strings
                             key = key.replaceAll("^\"|\"$", "");
                             value = value.replaceAll("^\"|\"$", "");
+                            value = unescapeJsonString(value);
 
                             params.put(key, value);
                         }
@@ -1126,6 +1127,51 @@ public class GhidraMCPPlugin extends Plugin {
         }
 
         return json.substring(valueStart, valueEnd).trim();
+    }
+
+    /**
+     * Unescape JSON string escape sequences like \n, \t, \", \\, etc.
+     */
+    private String unescapeJsonString(String str) {
+        if (str == null) {
+            return null;
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            if (c == '\\' && i + 1 < str.length()) {
+                char next = str.charAt(i + 1);
+                switch (next) {
+                    case 'n': result.append('\n'); i++; break;
+                    case 't': result.append('\t'); i++; break;
+                    case 'r': result.append('\r'); i++; break;
+                    case 'b': result.append('\b'); i++; break;
+                    case 'f': result.append('\f'); i++; break;
+                    case '"': result.append('"'); i++; break;
+                    case '\\': result.append('\\'); i++; break;
+                    case '/': result.append('/'); i++; break;
+                    case 'u': // Unicode escape (backslash-u followed by 4 hex digits)
+                        if (i + 5 < str.length()) {
+                            String hex = str.substring(i + 2, i + 6);
+                            try {
+                                result.append((char) Integer.parseInt(hex, 16));
+                                i += 5;
+                            } catch (NumberFormatException e) {
+                                result.append(c); // Keep original if invalid
+                            }
+                        } else {
+                            result.append(c);
+                        }
+                        break;
+                    default:
+                        result.append(c); // Keep the backslash for unknown escapes
+                }
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 
     // ----------------------------------------------------------------------------------
