@@ -46,12 +46,8 @@ public class SymbolManager {
                 try {
                     for (Function func : program.getFunctionManager().getFunctions(true)) {
                         if (func.getName().equals(oldName)) {
-                            // Handle namespace notation (A::B format)
-                            if (newName.contains("::")) {
-                                applyNamespaceAndName(program, func, newName);
-                            } else {
-                                func.setName(newName, SourceType.USER_DEFINED);
-                            }
+                            // Always use applyNamespaceAndName to handle namespace correctly
+                            applyNamespaceAndName(program, func, newName);
                             successFlag.set(true);
                             break;
                         }
@@ -251,12 +247,8 @@ public class SymbolManager {
                 return;
             }
 
-            // Handle namespace notation (A::B format)
-            if (newName.contains("::")) {
-                applyNamespaceAndName(program, func, newName);
-            } else {
-                func.setName(newName, SourceType.USER_DEFINED);
-            }
+            // Always use applyNamespaceAndName to handle namespace correctly
+            applyNamespaceAndName(program, func, newName);
             success.set(true);
         } catch (Exception e) {
             Msg.error(this, "Error renaming function by address", e);
@@ -277,8 +269,10 @@ public class SymbolManager {
         // Split by :: to separate namespace path from function name
         String[] parts = fullName.split("::");
         if (parts.length < 2) {
-            // No namespace, just set the name
-            func.setName(fullName, SourceType.USER_DEFINED);
+            // No namespace qualifier, move to global namespace
+            Symbol funcSymbol = func.getSymbol();
+            funcSymbol.setNamespace(program.getGlobalNamespace());
+            funcSymbol.setName(fullName, SourceType.USER_DEFINED);
             return;
         }
 
