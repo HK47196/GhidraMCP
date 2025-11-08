@@ -7,6 +7,7 @@ import com.lauriewired.util.PluginUtils;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.plugin.PluginCategoryNames;
 import ghidra.app.services.ProgramManager;
@@ -1620,6 +1621,9 @@ public class GhidraMCPPlugin extends Plugin {
     private String decompileFunctionInProgram(Function func, Program program) {
         try {
             DecompInterface decomp = new DecompInterface();
+            DecompileOptions options = new DecompileOptions();
+            options.setInferConstPtr(false);
+            decomp.setOptions(options);
             decomp.openProgram(program);
             DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
             decomp.flushCache();
