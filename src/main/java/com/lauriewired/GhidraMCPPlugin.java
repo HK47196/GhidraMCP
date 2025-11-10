@@ -69,6 +69,7 @@ public class GhidraMCPPlugin extends Plugin {
     private SymbolManager symbolManager;
     private FunctionSignatureService functionSignatureService;
     private StructService structService;
+    private DecompiledTextSearchService decompiledTextSearchService;
 
     public GhidraMCPPlugin(PluginTool tool) {
         super(tool);
@@ -116,6 +117,7 @@ public class GhidraMCPPlugin extends Plugin {
         symbolManager = new SymbolManager(functionNavigator, decompileTimeout);
         functionSignatureService = new FunctionSignatureService(functionNavigator, decompilationService, tool, decompileTimeout);
         structService = new StructService(functionNavigator);
+        decompiledTextSearchService = new DecompiledTextSearchService(functionNavigator, decompileTimeout);
 
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -407,6 +409,29 @@ public class GhidraMCPPlugin extends Plugin {
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
             String filter = qparams.get("filter");
             sendResponse(exchange, programAnalyzer.listDefinedStrings(offset, limit, filter));
+        });
+
+        server.createContext("/search_decompiled_text", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String pattern = params.get("pattern");
+            boolean isRegex = Boolean.parseBoolean(params.getOrDefault("is_regex", "true"));
+            boolean caseSensitive = Boolean.parseBoolean(params.getOrDefault("case_sensitive", "true"));
+            boolean multiline = Boolean.parseBoolean(params.getOrDefault("multiline", "false"));
+            int maxResults = PluginUtils.parseIntOrDefault(params.get("max_results"), 0);
+            int offset = PluginUtils.parseIntOrDefault(params.get("offset"), 0);
+            int limit = PluginUtils.parseIntOrDefault(params.get("limit"), 100);
+
+            // Parse function names if provided
+            List<String> functionNames = null;
+            String functionNamesStr = params.get("function_names");
+            if (functionNamesStr != null && !functionNamesStr.isEmpty()) {
+                functionNames = parseFunctionNamesList(functionNamesStr);
+            }
+
+            String result = decompiledTextSearchService.searchDecompiledText(
+                pattern, isRegex, caseSensitive, multiline, functionNames, maxResults, offset, limit
+            );
+            sendResponse(exchange, result);
         });
 
         // BSim endpoints
@@ -842,6 +867,25 @@ public class GhidraMCPPlugin extends Plugin {
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100),
                         params.get("filter")
+                    );
+
+                case "/search_decompiled_text":
+                    String pattern = params.get("pattern");
+                    boolean isRegex = Boolean.parseBoolean(params.getOrDefault("is_regex", "true"));
+                    boolean caseSensitive = Boolean.parseBoolean(params.getOrDefault("case_sensitive", "true"));
+                    boolean multiline = Boolean.parseBoolean(params.getOrDefault("multiline", "false"));
+                    int maxResults = PluginUtils.parseIntOrDefault(params.get("max_results"), 0);
+                    int searchOffset = PluginUtils.parseIntOrDefault(params.get("offset"), 0);
+                    int searchLimit = PluginUtils.parseIntOrDefault(params.get("limit"), 100);
+
+                    List<String> funcNames = null;
+                    String funcNamesStr = params.get("function_names");
+                    if (funcNamesStr != null && !funcNamesStr.isEmpty()) {
+                        funcNames = parseFunctionNamesList(funcNamesStr);
+                    }
+
+                    return decompiledTextSearchService.searchDecompiledText(
+                        pattern, isRegex, caseSensitive, multiline, funcNames, maxResults, searchOffset, searchLimit
                     );
 
                 case "/bsim/select_database":
@@ -1891,6 +1935,23 @@ public class GhidraMCPPlugin extends Plugin {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(bytes);
         }
+    }
+
+    /**
+     * Parse a comma-separated list of function names
+     */
+    private List<String> parseFunctionNamesList(String functionNamesStr) {
+        List<String> functionNames = new ArrayList<>();
+        if (functionNamesStr != null && !functionNamesStr.isEmpty()) {
+            String[] parts = functionNamesStr.split(",");
+            for (String part : parts) {
+                String trimmed = part.trim();
+                if (!trimmed.isEmpty()) {
+                    functionNames.add(trimmed);
+                }
+            }
+        }
+        return functionNames;
     }
 
     @Override
