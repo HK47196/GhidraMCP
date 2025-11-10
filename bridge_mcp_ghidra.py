@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 from mcp.server.fastmcp import FastMCP
 
 DEFAULT_GHIDRA_SERVER = "http://127.0.0.1:8080/"
-DEFAULT_REQUEST_TIMEOUT = 5
+DEFAULT_REQUEST_TIMEOUT = 60
 
 logger = logging.getLogger(__name__)
 
