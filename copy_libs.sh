@@ -23,6 +23,7 @@ mkdir -p "$LIB_DIR"
 declare -a FILES=(
     "Ghidra/Features/Base/lib/Base.jar:Base.jar"
     "Ghidra/Features/Decompiler/lib/Decompiler.jar:Decompiler.jar"
+		"Ghidra/Features/DecompilerDependent/lib/DecompilerDependent.jar:DecompilerDependent.jar"
     "Ghidra/Framework/Docking/lib/Docking.jar:Docking.jar"
     "Ghidra/Framework/Generic/lib/Generic.jar:Generic.jar"
     "Ghidra/Framework/Project/lib/Project.jar:Project.jar"

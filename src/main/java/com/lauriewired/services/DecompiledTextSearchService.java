@@ -84,6 +84,7 @@ public class DecompiledTextSearchService {
 
                 // Decompile the function
                 DecompileResults results = decomp.decompileFunction(func, decompileTimeout, new ConsoleTaskMonitor());
+                decomp.flushCache();
 
                 if (results == null || !results.decompileCompleted()) {
                     continue;
