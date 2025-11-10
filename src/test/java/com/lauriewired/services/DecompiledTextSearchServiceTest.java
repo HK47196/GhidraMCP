@@ -61,19 +61,31 @@ class DecompiledTextSearchServiceTest {
     }
 
     @ParameterizedTest
-    @DisplayName("Should support various regex flags")
+    @DisplayName("Should support case-insensitive flag")
     @CsvSource({
-        "HELLO, hello, false",  // Case sensitive, should not match
-        "HELLO, hello, true"    // Case insensitive, should match
+        "HELLO, hello",
+        "WORLD, world",
+        "MaLlOc, malloc"
     })
-    void testCaseSensitivityFlag(String pattern, String text, boolean shouldMatch) {
+    void testCaseInsensitivityFlag(String pattern, String text) {
         Pattern caseInsensitive = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE);
         Pattern caseSensitive = Pattern.compile(pattern);
 
-        assertEquals(shouldMatch, caseInsensitive.matcher(text).find(),
-            "Case insensitive pattern behavior");
+        assertTrue(caseInsensitive.matcher(text).find(),
+            "Case insensitive pattern should match different case");
         assertFalse(caseSensitive.matcher(text).find(),
             "Case sensitive pattern should not match different case");
+    }
+
+    @Test
+    @DisplayName("Should support case-sensitive matching by default")
+    void testCaseSensitiveDefault() {
+        Pattern pattern = Pattern.compile("HELLO");
+
+        assertTrue(pattern.matcher("HELLO").find(),
+            "Should match same case");
+        assertFalse(pattern.matcher("hello").find(),
+            "Should not match different case");
     }
 
     @Test
