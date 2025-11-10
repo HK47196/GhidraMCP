@@ -216,6 +216,42 @@ class TestMCPTools:
                                                  {"address": "0x401000", "newName": "new_label"})
 
     @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_by_address(self, mock_safe_get):
+        """Test get_data_by_address tool."""
+        mock_safe_get.return_value = [
+            "Address: 5356:3cd8",
+            "Name: g_EventQueue_ErrorCode",
+            "Type: word",
+            "Value: 0x1234",
+            "Size: 2 bytes"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_by_address("5356:3cd8")
+
+        assert "Address: 5356:3cd8" in result
+        assert "Name: g_EventQueue_ErrorCode" in result
+        assert "Type: word" in result
+        assert "Value: 0x1234" in result
+        mock_safe_get.assert_called_once_with("get_data_by_address", {"address": "5356:3cd8"})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_by_address_hex_format(self, mock_safe_get):
+        """Test get_data_by_address with hex address format."""
+        mock_safe_get.return_value = [
+            "Address: 0x1400010a0",
+            "Name: data_label",
+            "Type: dword",
+            "Value: 0xdeadbeef",
+            "Size: 4 bytes"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_by_address("0x1400010a0")
+
+        assert "0x1400010a0" in result
+        assert "data_label" in result
+        mock_safe_get.assert_called_once_with("get_data_by_address", {"address": "0x1400010a0"})
+
+    @patch('bridge_mcp_ghidra.safe_get')
     def test_list_functions_by_segment_with_segment_name(self, mock_safe_get):
         """Test list_functions_by_segment with segment_name parameter."""
         mock_safe_get.return_value = [

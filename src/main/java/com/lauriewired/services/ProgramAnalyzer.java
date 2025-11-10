@@ -445,4 +445,68 @@ public class ProgramAnalyzer {
         // This matches the actual binary segment:offset addressing
         return addr.toString();
     }
+
+    /**
+     * Get data information at a specific address
+     * @param addressStr Address string (e.g., "5356:3cd8" or "0x1400010a0")
+     * @return Data information including name, type, and value
+     */
+    public String getDataByAddress(String addressStr) {
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return "No program loaded";
+
+        if (addressStr == null || addressStr.isEmpty()) {
+            return "Error: Address is required";
+        }
+
+        try {
+            // Parse the address
+            ghidra.program.model.address.Address addr = program.getAddressFactory().getAddress(addressStr);
+            if (addr == null) {
+                return "Error: Invalid address format: " + addressStr;
+            }
+
+            // Get the data at this address
+            Data data = program.getListing().getDataAt(addr);
+            if (data == null) {
+                return "Error: No data defined at address " + addressStr;
+            }
+
+            // Build the result
+            StringBuilder result = new StringBuilder();
+            result.append("Address: ").append(addr.toString()).append("\n");
+
+            // Get the name/label
+            String label = data.getLabel();
+            if (label != null && !label.isEmpty()) {
+                result.append("Name: ").append(PluginUtils.escapeNonAscii(label)).append("\n");
+            } else {
+                result.append("Name: (unnamed)\n");
+            }
+
+            // Get the type
+            DataType dataType = data.getDataType();
+            if (dataType != null) {
+                result.append("Type: ").append(dataType.getDisplayName()).append("\n");
+            } else {
+                result.append("Type: undefined\n");
+            }
+
+            // Get the value
+            String value = data.getDefaultValueRepresentation();
+            if (value != null && !value.isEmpty()) {
+                result.append("Value: ").append(PluginUtils.escapeNonAscii(value)).append("\n");
+            } else {
+                result.append("Value: (no value)\n");
+            }
+
+            // Get the size
+            result.append("Size: ").append(data.getLength()).append(" bytes\n");
+
+            return result.toString();
+
+        } catch (Exception e) {
+            return "Error getting data at address " + addressStr + ": " + e.getMessage();
+        }
+    }
 }
