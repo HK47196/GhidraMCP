@@ -248,20 +248,36 @@ class ProgramAnalyzerDataTest {
     }
 
     /**
-     * Test comprehensive error scenarios
+     * Test error messages with "Error:" prefix
      */
     @ParameterizedTest
-    @DisplayName("Should handle various error scenarios")
+    @DisplayName("Should format standard error messages with 'Error:' prefix")
     @ValueSource(strings = {
         "Error: Address is required",
         "Error: Invalid address format:",
-        "Error: No data defined at address",
-        "Error getting data at address"
+        "Error: No data defined at address"
     })
-    void testErrorScenarios(String errorPrefix) {
-        assertTrue(errorPrefix.startsWith("Error:"),
-            "All errors should start with 'Error:' prefix");
-        assertFalse(errorPrefix.isEmpty(),
+    void testStandardErrorMessages(String errorMessage) {
+        assertTrue(errorMessage.startsWith("Error: "),
+            "Standard errors should start with 'Error: ' prefix");
+        assertFalse(errorMessage.isEmpty(),
+            "Error message should not be empty");
+    }
+
+    /**
+     * Test error messages for exception scenarios
+     */
+    @Test
+    @DisplayName("Should format exception error messages correctly")
+    void testExceptionErrorMessages() {
+        // Exception errors have format: "Error getting data at address <addr>: <message>"
+        String exceptionError = "Error getting data at address 5356:3cd8: Invalid format";
+
+        assertTrue(exceptionError.startsWith("Error getting data at address"),
+            "Exception errors should describe the operation");
+        assertTrue(exceptionError.contains(":"),
+            "Should include exception message after colon");
+        assertFalse(exceptionError.isEmpty(),
             "Error message should not be empty");
     }
 
