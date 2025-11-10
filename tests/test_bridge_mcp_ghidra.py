@@ -459,3 +459,129 @@ class TestEdgeCases:
 
         assert result == []
         mock_safe_get.assert_called_once_with("methods", {"offset": 0, "limit": 0})
+
+
+class TestNumericSearchQueries:
+    """Test suite for search functions with numeric query strings."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_string(self, mock_safe_get):
+        """Test search_functions_by_name with regular string query."""
+        mock_safe_get.return_value = ["function_test1", "function_test2"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("test", offset=0, limit=100)
+
+        assert result == ["function_test1", "function_test2"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "test", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_numeric_string(self, mock_safe_get):
+        """Test search_functions_by_name with numeric string query (e.g., '4140')."""
+        mock_safe_get.return_value = ["function_4140", "sub_4140"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("4140", offset=0, limit=100)
+
+        assert result == ["function_4140", "sub_4140"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "4140", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_integer(self, mock_safe_get):
+        """Test search_functions_by_name with integer query (handles JSON parsing as int)."""
+        mock_safe_get.return_value = ["FUN_00004140"]
+
+        # Simulate MCP client sending an integer due to JSON parsing
+        result = bridge_mcp_ghidra.search_functions_by_name(4140, offset=0, limit=20)
+
+        assert result == ["FUN_00004140"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "4140", "offset": 0, "limit": 20})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_hex_string(self, mock_safe_get):
+        """Test search_functions_by_name with hexadecimal string."""
+        mock_safe_get.return_value = ["function_0x1234"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("0x1234", offset=0, limit=50)
+
+        assert result == ["function_0x1234"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "0x1234", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_empty_string(self, mock_safe_get):
+        """Test search_functions_by_name with empty string returns error."""
+        result = bridge_mcp_ghidra.search_functions_by_name("", offset=0, limit=100)
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "query string is required" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_zero_integer(self, mock_safe_get):
+        """Test search_functions_by_name with zero (edge case for falsy value)."""
+        mock_safe_get.return_value = ["function_0"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name(0, offset=0, limit=100)
+
+        assert result == ["function_0"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "0", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_string(self, mock_safe_get):
+        """Test search_data_by_name with regular string query."""
+        mock_safe_get.return_value = ["data_label1", "data_label2"]
+
+        result = bridge_mcp_ghidra.search_data_by_name("label", offset=0, limit=100)
+
+        assert result == ["data_label1", "data_label2"]
+        mock_safe_get.assert_called_once_with("searchData", {"query": "label", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_numeric_string(self, mock_safe_get):
+        """Test search_data_by_name with numeric string query."""
+        mock_safe_get.return_value = ["DAT_00004140"]
+
+        result = bridge_mcp_ghidra.search_data_by_name("4140", offset=0, limit=100)
+
+        assert result == ["DAT_00004140"]
+        mock_safe_get.assert_called_once_with("searchData", {"query": "4140", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_integer(self, mock_safe_get):
+        """Test search_data_by_name with integer query (handles JSON parsing as int)."""
+        mock_safe_get.return_value = ["data_8080"]
+
+        # Simulate MCP client sending an integer due to JSON parsing
+        result = bridge_mcp_ghidra.search_data_by_name(8080, offset=0, limit=50)
+
+        assert result == ["data_8080"]
+        mock_safe_get.assert_called_once_with("searchData", {"query": "8080", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_empty_string(self, mock_safe_get):
+        """Test search_data_by_name with empty string returns error."""
+        result = bridge_mcp_ghidra.search_data_by_name("", offset=0, limit=100)
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "query string is required" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_negative_integer(self, mock_safe_get):
+        """Test search_data_by_name with negative integer."""
+        mock_safe_get.return_value = []
+
+        result = bridge_mcp_ghidra.search_data_by_name(-1, offset=0, limit=100)
+
+        assert result == []
+        mock_safe_get.assert_called_once_with("searchData", {"query": "-1", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_large_integer(self, mock_safe_get):
+        """Test search_functions_by_name with large integer value."""
+        mock_safe_get.return_value = ["FUN_deadbeef"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name(3735928559, offset=0, limit=100)  # 0xdeadbeef
+
+        assert result == ["FUN_deadbeef"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "3735928559", "offset": 0, "limit": 100})

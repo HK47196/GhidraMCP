@@ -145,23 +145,29 @@ def get_data_by_address(address: str) -> str:
     return "\n".join(safe_get("get_data_by_address", {"address": address}))
 
 @mcp.tool()
-def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> list:
+def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
     """
     Search for functions whose name contains the given substring.
     """
-    if not query:
+    # Convert query to string to handle numeric inputs (e.g., "4140" parsed as int 4140)
+    # Use 'is not None' check instead of truthiness to handle zero and empty strings correctly
+    query_str = str(query) if query is not None else ""
+    if not query_str:
         return ["Error: query string is required"]
-    return safe_get("searchFunctions", {"query": query, "offset": offset, "limit": limit})
+    return safe_get("searchFunctions", {"query": query_str, "offset": offset, "limit": limit})
 
 @mcp.tool()
-def search_data_by_name(query: str, offset: int = 0, limit: int = 100) -> list:
+def search_data_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
     """
     Search for data variables whose label/name contains the given substring.
     Returns all data variables (globals, etc.) containing the query string.
     """
-    if not query:
+    # Convert query to string to handle numeric inputs (e.g., "4140" parsed as int 4140)
+    # Use 'is not None' check instead of truthiness to handle zero and empty strings correctly
+    query_str = str(query) if query is not None else ""
+    if not query_str:
         return ["Error: query string is required"]
-    return safe_get("searchData", {"query": query, "offset": offset, "limit": limit})
+    return safe_get("searchData", {"query": query_str, "offset": offset, "limit": limit})
 
 @mcp.tool()
 def list_functions_by_segment(
