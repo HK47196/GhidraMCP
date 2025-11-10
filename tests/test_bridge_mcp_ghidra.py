@@ -403,8 +403,8 @@ class TestGlobalConfiguration:
 
     def test_default_request_timeout(self):
         """Test that default request timeout is set correctly."""
-        assert bridge_mcp_ghidra.DEFAULT_REQUEST_TIMEOUT == 5
-        assert bridge_mcp_ghidra.ghidra_request_timeout == 5
+        assert bridge_mcp_ghidra.DEFAULT_REQUEST_TIMEOUT == 60
+        assert bridge_mcp_ghidra.ghidra_request_timeout == 60
 
     def test_mcp_server_name(self):
         """Test that MCP server has correct name."""
