@@ -132,6 +132,19 @@ def list_data_items(offset: int = 0, limit: int = 100) -> list:
     return safe_get("data", {"offset": offset, "limit": limit})
 
 @mcp.tool()
+def get_data_by_address(address: str) -> str:
+    """
+    Get information about data at a specific address.
+
+    Args:
+        address: Memory address in hex or segment:offset format (e.g., "5356:3cd8" or "0x1400010a0")
+
+    Returns:
+        Data information including name, type, value, and size
+    """
+    return "\n".join(safe_get("get_data_by_address", {"address": address}))
+
+@mcp.tool()
 def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> list:
     """
     Search for functions whose name contains the given substring.

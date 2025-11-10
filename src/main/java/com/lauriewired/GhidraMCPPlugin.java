@@ -199,6 +199,12 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, programAnalyzer.listDefinedData(offset, limit));
         });
 
+        server.createContext("/get_data_by_address", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String address = qparams.get("address");
+            sendResponse(exchange, programAnalyzer.getDataByAddress(address));
+        });
+
         server.createContext("/searchFunctions", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String searchTerm = qparams.get("query");
@@ -678,6 +684,9 @@ public class GhidraMCPPlugin extends Plugin {
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100)
                     );
+
+                case "/get_data_by_address":
+                    return programAnalyzer.getDataByAddress(params.get("address"));
 
                 case "/searchFunctions":
                     return programAnalyzer.searchFunctionsByName(
