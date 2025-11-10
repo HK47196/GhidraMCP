@@ -898,3 +898,35 @@ class TestSearchDecompiledText:
 
         assert result == mock_response
         assert "error" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_scientific_notation_pattern(self, mock_safe_post):
+        """Test search_decompiled_text with pattern that looks like scientific notation."""
+        mock_response = '{"matches": [{"function_name": "func_5e20", "matched_text": "5e20", "line_number": 10}], "count": 1}'
+        mock_safe_post.return_value = mock_response
+
+        # "5e20" should be treated as a literal string pattern, not as 5×10^20
+        result = bridge_mcp_ghidra.search_decompiled_text("5e20", is_regex=False)
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["pattern"] == "5e20"
+        assert data["is_regex"] is False
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_scientific_notation_variants(self, mock_safe_post):
+        """Test search_decompiled_text with various scientific notation-like patterns."""
+        test_cases = ["1e10", "3e5", "2e-3", "9e+2", "0x5e20"]
+
+        for pattern in test_cases:
+            mock_safe_post.reset_mock()
+            mock_response = f'{{"matches": [{{"matched_text": "{pattern}"}}], "count": 1}}'
+            mock_safe_post.return_value = mock_response
+
+            result = bridge_mcp_ghidra.search_decompiled_text(pattern, is_regex=False)
+
+            assert result == mock_response
+            call_args = mock_safe_post.call_args[0]
+            data = call_args[1]
+            assert data["pattern"] == pattern
