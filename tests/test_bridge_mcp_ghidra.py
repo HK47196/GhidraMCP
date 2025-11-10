@@ -585,3 +585,266 @@ class TestNumericSearchQueries:
 
         assert result == ["FUN_deadbeef"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "3735928559", "offset": 0, "limit": 100})
+
+
+class TestSearchDecompiledText:
+    """Test suite for the search_decompiled_text MCP tool."""
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_basic_regex(self, mock_safe_post):
+        """Test basic regex search in decompiled text."""
+        mock_response = '{"matches": [{"function_name": "main", "matched_text": "malloc", "line_number": 10}], "count": 1}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text("malloc\\s*\\(")
+
+        assert result == mock_response
+        mock_safe_post.assert_called_once()
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[0] == "search_decompiled_text"
+        data = call_args[1]
+        assert data["pattern"] == "malloc\\s*\\("
+        assert data["is_regex"] is True
+        assert data["case_sensitive"] is True
+        assert data["multiline"] is False
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_literal_string(self, mock_safe_post):
+        """Test literal string search."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "strcpy",
+            is_regex=False,
+            case_sensitive=False
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["pattern"] == "strcpy"
+        assert data["is_regex"] is False
+        assert data["case_sensitive"] is False
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_multiline(self, mock_safe_post):
+        """Test multiline search."""
+        mock_response = '{"matches": [{"function_name": "test", "is_multiline": true}], "count": 1}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "if\\s*\\([^)]*\\)\\s*\\{",
+            multiline=True
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["multiline"] is True
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_function_names(self, mock_safe_post):
+        """Test search filtered by specific function names."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "password",
+            is_regex=False,
+            function_names=["authenticate", "login", "verify_user"]
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["function_names"] == "authenticate,login,verify_user"
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_empty_function_names(self, mock_safe_post):
+        """Test search with empty function names list (search all)."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "test",
+            function_names=[]
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert "function_names" not in data
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_max_results(self, mock_safe_post):
+        """Test search with max_results parameter."""
+        mock_response = '{"matches": [], "count": 0, "total_count": 50}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "malloc",
+            max_results=50
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["max_results"] == 50
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_pagination(self, mock_safe_post):
+        """Test search with pagination parameters."""
+        mock_response = '{"matches": [], "count": 10, "offset": 20, "limit": 10}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "test",
+            offset=20,
+            limit=10
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["offset"] == 20
+        assert data["limit"] == 10
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_default_parameters(self, mock_safe_post):
+        """Test search with default parameters."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text("test_pattern")
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        # Verify defaults
+        assert data["is_regex"] is True
+        assert data["case_sensitive"] is True
+        assert data["multiline"] is False
+        assert data["max_results"] == 100
+        assert data["offset"] == 0
+        assert data["limit"] == 100
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_security_patterns(self, mock_safe_post):
+        """Test search for security-relevant patterns."""
+        mock_response = '{"matches": [{"function_name": "vulnerable", "matched_text": "gets"}], "count": 1}'
+        mock_safe_post.return_value = mock_response
+
+        # Common dangerous function pattern
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "(gets|strcpy|sprintf|strcat)\\s*\\("
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert "(gets|strcpy|sprintf|strcat)\\s*\\(" in data["pattern"]
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_case_insensitive(self, mock_safe_post):
+        """Test case-insensitive search."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "MALLOC",
+            case_sensitive=False
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["case_sensitive"] is False
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_complex_regex(self, mock_safe_post):
+        """Test complex regex pattern."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        # Pattern to find buffer allocation with size
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "malloc\\s*\\(\\s*[0-9]+\\s*\\)"
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert "malloc" in data["pattern"]
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_with_special_chars(self, mock_safe_post):
+        """Test search with special regex characters."""
+        mock_response = '{"matches": [], "count": 0}'
+        mock_safe_post.return_value = mock_response
+
+        # Pattern with brackets and parentheses
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "array\\[.*?\\]\\s*=\\s*.*?;"
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        assert call_args[0] == "search_decompiled_text"
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_unlimited_results(self, mock_safe_post):
+        """Test search with unlimited results (max_results=0)."""
+        mock_response = '{"matches": [], "count": 0, "total_count": 1000}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text(
+            "test",
+            max_results=0  # Unlimited
+        )
+
+        assert result == mock_response
+        call_args = mock_safe_post.call_args[0]
+        data = call_args[1]
+        assert data["max_results"] == 0
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_response_format(self, mock_safe_post):
+        """Test that response has expected JSON format."""
+        mock_response = '''{
+            "matches": [
+                {
+                    "function_name": "main",
+                    "function_address": "0x401000",
+                    "line_number": 42,
+                    "matched_text": "malloc",
+                    "context": "ptr = [[malloc]](100);",
+                    "is_multiline": false
+                }
+            ],
+            "count": 1,
+            "total_count": 1,
+            "offset": 0,
+            "limit": 100
+        }'''
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text("malloc")
+
+        assert result == mock_response
+        assert "matches" in result
+        assert "count" in result
+        assert "function_name" in result
+        assert "line_number" in result
+        assert "context" in result
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_search_decompiled_text_error_response(self, mock_safe_post):
+        """Test handling of error responses."""
+        mock_response = '{"error": "Invalid regex pattern: Unclosed bracket"}'
+        mock_safe_post.return_value = mock_response
+
+        result = bridge_mcp_ghidra.search_decompiled_text("[invalid")
+
+        assert result == mock_response
+        assert "error" in result

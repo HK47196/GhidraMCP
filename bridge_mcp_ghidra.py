@@ -404,12 +404,12 @@ def get_function_xrefs(name: str, offset: int = 0, limit: int = 100) -> list:
 def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list:
     """
     List all defined strings in the program with their addresses.
-    
+
     Args:
         offset: Pagination offset (default: 0)
         limit: Maximum number of strings to return (default: 2000)
         filter: Optional filter to match within string content
-        
+
     Returns:
         List of strings with their addresses
     """
@@ -417,6 +417,71 @@ def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list
     if filter:
         params["filter"] = filter
     return safe_get("strings", params)
+
+@mcp.tool()
+def search_decompiled_text(
+    pattern: str,
+    is_regex: bool = True,
+    case_sensitive: bool = True,
+    multiline: bool = False,
+    function_names: list[str] | None = None,
+    max_results: int = 100,
+    offset: int = 0,
+    limit: int = 100
+) -> str:
+    """
+    Search for text patterns in decompiled function code using regex.
+
+    This tool searches through the decompiled C code of functions (similar to the
+    Decompiler Text Finder in Ghidra's UI). It's useful for finding specific code
+    patterns, function calls, variable usage, or security-relevant constructs.
+
+    Args:
+        pattern: Search pattern (regex if is_regex=true, otherwise literal string)
+        is_regex: Whether pattern is regex (true) or literal string (false) (default: true)
+        case_sensitive: Whether search is case-sensitive (default: true)
+        multiline: Whether pattern can match across multiple lines (default: false)
+        function_names: Optional list of specific function names to search (empty = search all)
+        max_results: Maximum number of total results to return (0 = unlimited) (default: 100)
+        offset: Pagination offset for results (default: 0)
+        limit: Maximum number of results per page (default: 100)
+
+    Returns:
+        JSON string with search results including:
+        - matches: Array of match objects with function_name, function_address, line_number,
+                  matched_text, context, and is_multiline
+        - count: Number of matches returned
+        - total_count: Total number of matches found
+        - offset: Current pagination offset
+        - limit: Current pagination limit
+
+    Examples:
+        # Find all malloc calls
+        search_decompiled_text("malloc\\s*\\(", is_regex=True)
+
+        # Find strcpy calls (case-insensitive literal search)
+        search_decompiled_text("strcpy", is_regex=False, case_sensitive=False)
+
+        # Find multi-line if statements with specific pattern
+        search_decompiled_text("if\\s*\\([^)]*\\)\\s*\\{", is_regex=True, multiline=True)
+
+        # Search only in specific functions
+        search_decompiled_text("password", is_regex=False, function_names=["authenticate", "login"])
+    """
+    data = {
+        "pattern": pattern,
+        "is_regex": is_regex,
+        "case_sensitive": case_sensitive,
+        "multiline": multiline,
+        "max_results": max_results,
+        "offset": offset,
+        "limit": limit
+    }
+
+    if function_names:
+        data["function_names"] = ",".join(function_names)
+
+    return safe_post("search_decompiled_text", data)
 
 @mcp.tool()
 def bsim_select_database(database_path: str) -> str:
