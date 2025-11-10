@@ -154,6 +154,16 @@ def search_functions_by_name(query: str, offset: int = 0, limit: int = 100) -> l
     return safe_get("searchFunctions", {"query": query, "offset": offset, "limit": limit})
 
 @mcp.tool()
+def search_data_by_name(query: str, offset: int = 0, limit: int = 100) -> list:
+    """
+    Search for data variables whose label/name contains the given substring.
+    Returns all data variables (globals, etc.) containing the query string.
+    """
+    if not query:
+        return ["Error: query string is required"]
+    return safe_get("searchData", {"query": query, "offset": offset, "limit": limit})
+
+@mcp.tool()
 def list_functions_by_segment(
     segment_name: str = None,
     start_address: str = None,

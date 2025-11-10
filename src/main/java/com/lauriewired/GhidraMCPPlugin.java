@@ -213,6 +213,14 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, programAnalyzer.searchFunctionsByName(searchTerm, offset, limit));
         });
 
+        server.createContext("/searchData", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String searchTerm = qparams.get("query");
+            int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
+            int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
+            sendResponse(exchange, programAnalyzer.searchDataByName(searchTerm, offset, limit));
+        });
+
         server.createContext("/functions_by_segment", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String segmentName = qparams.get("segment_name");
@@ -690,6 +698,13 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/searchFunctions":
                     return programAnalyzer.searchFunctionsByName(
+                        params.get("query"),
+                        PluginUtils.parseIntOrDefault(params.get("offset"), 0),
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                    );
+
+                case "/searchData":
+                    return programAnalyzer.searchDataByName(
                         params.get("query"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100)

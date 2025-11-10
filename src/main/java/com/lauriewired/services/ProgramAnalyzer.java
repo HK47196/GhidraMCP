@@ -217,6 +217,40 @@ public class ProgramAnalyzer {
     }
 
     /**
+     * Search for data by label/name
+     * @param searchTerm Search term (substring match)
+     * @param offset Pagination offset
+     * @param limit Pagination limit
+     * @return Paginated list of matching data variables
+     */
+    public String searchDataByName(String searchTerm, int offset, int limit) {
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return "No program loaded";
+        if (searchTerm == null || searchTerm.isEmpty()) return "Search term is required";
+
+        List<String> matches = new ArrayList<>();
+        DataIterator dataIt = program.getListing().getDefinedData(true);
+
+        while (dataIt.hasNext()) {
+            Data data = dataIt.next();
+            if (data == null) continue;
+
+            String label = data.getLabel();
+            if (label != null && label.toLowerCase().contains(searchTerm.toLowerCase())) {
+                String typeName = data.getDataType() != null ? data.getDataType().getDisplayName() : "undefined";
+                matches.add(String.format("%s @ %s (type: %s)", label, data.getAddress(), typeName));
+            }
+        }
+
+        Collections.sort(matches);
+
+        if (matches.isEmpty()) {
+            return "No data variables matching '" + searchTerm + "'";
+        }
+        return PluginUtils.paginateList(matches, offset, limit);
+    }
+
+    /**
      * List defined strings with optional filtering
      * @param offset Pagination offset
      * @param limit Pagination limit
