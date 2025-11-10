@@ -577,6 +577,31 @@ class TestNumericSearchQueries:
         mock_safe_get.assert_called_once_with("searchData", {"query": "-1", "offset": 0, "limit": 100})
 
     @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_scientific_notation_string(self, mock_safe_get):
+        """Test search_data_by_name with string that looks like scientific notation."""
+        mock_safe_get.return_value = ["DAT_5e20", "data_5e20"]
+
+        # "5e20" should be treated as a literal string, not as 5×10^20
+        result = bridge_mcp_ghidra.search_data_by_name("5e20", offset=0, limit=50)
+
+        assert result == ["DAT_5e20", "data_5e20"]
+        mock_safe_get.assert_called_once_with("searchData", {"query": "5e20", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_data_by_name_with_scientific_notation_variants(self, mock_safe_get):
+        """Test search_data_by_name with various scientific notation-like strings."""
+        test_cases = ["1e10", "3e5", "2e-3", "9e+2"]
+
+        for query in test_cases:
+            mock_safe_get.reset_mock()
+            mock_safe_get.return_value = [f"data_{query}"]
+
+            result = bridge_mcp_ghidra.search_data_by_name(query, offset=0, limit=100)
+
+            assert result == [f"data_{query}"]
+            mock_safe_get.assert_called_once_with("searchData", {"query": query, "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
     def test_search_functions_by_name_with_large_integer(self, mock_safe_get):
         """Test search_functions_by_name with large integer value."""
         mock_safe_get.return_value = ["FUN_deadbeef"]
@@ -585,6 +610,31 @@ class TestNumericSearchQueries:
 
         assert result == ["FUN_deadbeef"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "3735928559", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_scientific_notation_string(self, mock_safe_get):
+        """Test search_functions_by_name with string that looks like scientific notation."""
+        mock_safe_get.return_value = ["function_5e20", "sub_5e20"]
+
+        # "5e20" should be treated as a literal string, not as 5×10^20
+        result = bridge_mcp_ghidra.search_functions_by_name("5e20", offset=0, limit=50)
+
+        assert result == ["function_5e20", "sub_5e20"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {"query": "5e20", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_functions_by_name_with_scientific_notation_variants(self, mock_safe_get):
+        """Test search_functions_by_name with various scientific notation-like strings."""
+        test_cases = ["1e10", "3e5", "2e-3", "9e+2"]
+
+        for query in test_cases:
+            mock_safe_get.reset_mock()
+            mock_safe_get.return_value = [f"function_{query}"]
+
+            result = bridge_mcp_ghidra.search_functions_by_name(query, offset=0, limit=100)
+
+            assert result == [f"function_{query}"]
+            mock_safe_get.assert_called_once_with("searchFunctions", {"query": query, "offset": 0, "limit": 100})
 
 
 class TestSearchDecompiledText:
