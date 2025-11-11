@@ -5,8 +5,13 @@ import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
+import ghidra.program.model.pcode.*;
+import ghidra.program.model.symbol.*;
 import ghidra.util.Msg;
 import ghidra.util.task.ConsoleTaskMonitor;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Service for decompilation and disassembly operations
@@ -120,37 +125,341 @@ public class DecompilationService {
     }
 
     /**
-     * Disassemble a function within a program
+     * Disassemble a function within a program with comprehensive Ghidra-style information
      * @param func Function to disassemble
      * @param program Program containing the function
-     * @return Disassembly or null
+     * @return Enhanced disassembly or null
      */
     public String disassembleFunctionInProgram(Function func, Program program) {
         try {
             StringBuilder result = new StringBuilder();
             Listing listing = program.getListing();
-            Address start = func.getEntryPoint();
+            Address entryPoint = func.getEntryPoint();
             Address end = func.getBody().getMaxAddress();
 
-            InstructionIterator instructions = listing.getInstructions(start, true);
-            while (instructions.hasNext()) {
-                Instruction instr = instructions.next();
-                if (instr.getAddress().compareTo(end) > 0) {
-                    break;
-                }
-                String comment = listing.getComment(CodeUnit.EOL_COMMENT, instr.getAddress());
-                comment = (comment != null) ? "; " + comment : "";
+            // 1. Add PLATE comment (function documentation box)
+            appendPlateComment(result, listing, entryPoint);
 
-                result.append(String.format("%s: %s %s\n",
-                    instr.getAddress(),
-                    instr.toString(),
-                    comment));
-            }
+            // 2. Add function signature with calling convention and parameters
+            appendFunctionSignature(result, func, program);
+
+            // 3. Add local variables table with XREFs
+            appendLocalVariables(result, func, program);
+
+            // 4. Add function label with XREFs showing callers
+            appendFunctionLabel(result, func, program);
+
+            // 5. Add disassembly with enhanced annotations
+            appendEnhancedDisassembly(result, func, program, listing, entryPoint, end);
+
             return result.toString();
         } catch (Exception e) {
             Msg.error(this, "Error disassembling function in external program", e);
         }
         return null;
+    }
+
+    /**
+     * Append PLATE comment (function documentation box)
+     */
+    private void appendPlateComment(StringBuilder result, Listing listing, Address entryPoint) {
+        String plateComment = listing.getComment(CodeUnit.PLATE_COMMENT, entryPoint);
+        if (plateComment != null && !plateComment.isEmpty()) {
+            String[] lines = plateComment.split("\n");
+            int maxLength = Arrays.stream(lines).mapToInt(String::length).max().orElse(60);
+            maxLength = Math.max(maxLength, 60);
+
+            result.append("                             ");
+            result.append("*".repeat(maxLength + 4)).append("\n");
+
+            for (String line : lines) {
+                result.append("                             * ");
+                result.append(String.format("%-" + maxLength + "s", line));
+                result.append(" *\n");
+            }
+
+            result.append("                             ");
+            result.append("*".repeat(maxLength + 4)).append("\n");
+        }
+    }
+
+    /**
+     * Append function signature with return type, calling convention, and parameters
+     */
+    private void appendFunctionSignature(StringBuilder result, Function func, Program program) {
+        result.append("                             ");
+        result.append(func.getReturnType().getName());
+        result.append(" ");
+
+        String callingConvention = func.getCallingConventionName();
+        if (callingConvention != null && !callingConvention.equals("default")) {
+            result.append("__").append(callingConvention).append(" ");
+        }
+
+        // Add namespace if not global
+        Namespace namespace = func.getParentNamespace();
+        if (namespace != null && !namespace.isGlobal()) {
+            result.append(namespace.getName()).append("::");
+        }
+
+        result.append(func.getName()).append("(");
+
+        Parameter[] params = func.getParameters();
+        for (int i = 0; i < params.length; i++) {
+            if (i > 0) result.append(", ");
+            result.append(params[i].getDataType().getName()).append(" ").append(params[i].getName());
+        }
+        result.append(")\n");
+    }
+
+    /**
+     * Append local variables table with types and XREFs
+     */
+    private void appendLocalVariables(StringBuilder result, Function func, Program program) {
+        try {
+            // Decompile to get high-level variable information
+            DecompInterface decomp = new DecompInterface();
+            decomp.openProgram(program);
+            DecompileResults decompResults = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
+            decomp.flushCache();
+
+            if (decompResults != null && decompResults.decompileCompleted()) {
+                HighFunction highFunc = decompResults.getHighFunction();
+                if (highFunc != null) {
+                    LocalSymbolMap symbolMap = highFunc.getLocalSymbolMap();
+                    Iterator<HighSymbol> symbols = symbolMap.getSymbols();
+
+                    Map<String, VariableInfo> varInfoMap = new TreeMap<>();
+                    while (symbols.hasNext()) {
+                        HighSymbol symbol = symbols.next();
+                        HighVariable highVar = symbol.getHighVariable();
+                        if (highVar != null) {
+                            String varName = symbol.getName();
+                            String dataType = highVar.getDataType().getName();
+
+                            // Get storage location from representative varnode
+                            String storage = "";
+                            Varnode rep = highVar.getRepresentative();
+                            if (rep != null) {
+                                if (rep.isRegister()) {
+                                    storage = "Register";
+                                } else if (rep.isAddress()) {
+                                    storage = rep.getAddress().toString();
+                                } else {
+                                    storage = "Stack[" + rep.getOffset() + "]";
+                                }
+                            } else {
+                                storage = "Unknown";
+                            }
+
+                            // Collect XREFs for this variable
+                            List<String> xrefs = new ArrayList<>();
+                            Varnode[] instances = highVar.getInstances();
+                            for (Varnode vn : instances) {
+                                PcodeOp def = vn.getDef();
+                                if (def != null) {
+                                    Address addr = def.getSeqnum().getTarget();
+                                    if (addr != null && !xrefs.contains(addr.toString())) {
+                                        xrefs.add(addr.toString());
+                                    }
+                                }
+                            }
+
+                            varInfoMap.put(varName, new VariableInfo(dataType, storage, xrefs));
+                        }
+                    }
+
+                    // Output variable table
+                    if (!varInfoMap.isEmpty()) {
+                        for (Map.Entry<String, VariableInfo> entry : varInfoMap.entrySet()) {
+                            String varName = entry.getKey();
+                            VariableInfo info = entry.getValue();
+
+                            result.append("             ");
+                            result.append(String.format("%-18s", info.dataType));
+                            result.append(String.format("%-15s", info.storage));
+                            result.append(String.format("%-20s", varName));
+
+                            if (!info.xrefs.isEmpty()) {
+                                String xrefStr = info.xrefs.stream()
+                                    .limit(5)
+                                    .collect(Collectors.joining(", "));
+                                if (info.xrefs.size() > 5) {
+                                    xrefStr += "...";
+                                }
+                                result.append("XREF[").append(info.xrefs.size()).append("]:     ");
+                                result.append(xrefStr);
+                            }
+                            result.append("\n");
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Silently continue if decompilation fails
+            Msg.debug(this, "Could not get variable info: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Helper class to store variable information
+     */
+    private static class VariableInfo {
+        String dataType;
+        String storage;
+        List<String> xrefs;
+
+        VariableInfo(String dataType, String storage, List<String> xrefs) {
+            this.dataType = dataType;
+            this.storage = storage;
+            this.xrefs = xrefs;
+        }
+    }
+
+    /**
+     * Append function label with XREFs showing callers
+     */
+    private void appendFunctionLabel(StringBuilder result, Function func, Program program) {
+        result.append("                             ");
+
+        // Add namespace if not global
+        Namespace namespace = func.getParentNamespace();
+        if (namespace != null && !namespace.isGlobal()) {
+            result.append(namespace.getName()).append("::");
+        }
+
+        result.append(func.getName());
+
+        // Add XREFs to function (callers)
+        ReferenceManager refManager = program.getReferenceManager();
+        ReferenceIterator refIter = refManager.getReferencesTo(func.getEntryPoint());
+
+        List<String> callers = new ArrayList<>();
+        while (refIter.hasNext()) {
+            Reference ref = refIter.next();
+            Address fromAddr = ref.getFromAddress();
+            Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+            if (fromFunc != null && !fromFunc.equals(func)) {
+                String caller = fromFunc.getName() + ":" + fromAddr.toString();
+                if (!callers.contains(caller)) {
+                    callers.add(caller);
+                }
+            }
+        }
+
+        if (!callers.isEmpty()) {
+            result.append("                 XREF[").append(callers.size()).append("]:     ");
+            result.append(callers.stream().limit(3).collect(Collectors.joining(", ")));
+            if (callers.size() > 3) {
+                result.append("...");
+            }
+        }
+
+        result.append("\n");
+    }
+
+    /**
+     * Append enhanced disassembly with annotations
+     */
+    private void appendEnhancedDisassembly(StringBuilder result, Function func, Program program,
+                                          Listing listing, Address start, Address end) {
+        ReferenceManager refManager = program.getReferenceManager();
+        SymbolTable symbolTable = program.getSymbolTable();
+
+        InstructionIterator instructions = listing.getInstructions(start, true);
+        while (instructions.hasNext()) {
+            Instruction instr = instructions.next();
+            Address addr = instr.getAddress();
+
+            if (addr.compareTo(end) > 0) {
+                break;
+            }
+
+            // Show label at this address if any
+            Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
+            if (primarySymbol != null && !primarySymbol.getName().equals(func.getName())) {
+                result.append("                             ");
+                result.append(primarySymbol.getName()).append(":\n");
+            }
+
+            // Format: ADDRESS: INSTRUCTION
+            result.append("       ");
+            result.append(String.format("%-10s", addr.toString()));
+            result.append(String.format("%-40s", instr.toString()));
+
+            // Add function name for CALL instructions
+            if (instr.getFlowType().isCall()) {
+                Reference[] refs = refManager.getReferencesFrom(addr);
+                for (Reference ref : refs) {
+                    if (ref.getReferenceType().isCall()) {
+                        Function calledFunc = program.getFunctionManager().getFunctionAt(ref.getToAddress());
+                        if (calledFunc != null) {
+                            result.append(" ").append(calledFunc.getName());
+                        }
+                    }
+                }
+            }
+
+            // Add all comment types
+            appendAllComments(result, listing, addr);
+
+            result.append("\n");
+
+            // Show XREFs TO this address (who references this instruction)
+            ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
+            List<String> xrefList = new ArrayList<>();
+            while (xrefsTo.hasNext()) {
+                Reference ref = xrefsTo.next();
+                Address fromAddr = ref.getFromAddress();
+                // Don't show sequential flow as XREF
+                if (!ref.getReferenceType().isFlow() || !fromAddr.equals(addr.subtract(1))) {
+                    Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+                    String xrefStr = fromAddr.toString();
+                    if (fromFunc != null && !fromFunc.equals(func)) {
+                        xrefStr = fromFunc.getName() + ":" + xrefStr;
+                    }
+                    xrefStr += " (" + ref.getReferenceType().getName() + ")";
+                    xrefList.add(xrefStr);
+                }
+            }
+
+            if (!xrefList.isEmpty() && xrefList.size() <= 5) {
+                for (String xref : xrefList) {
+                    result.append("                     XREF from: ").append(xref).append("\n");
+                }
+            }
+        }
+    }
+
+    /**
+     * Append all comment types for an address
+     */
+    private void appendAllComments(StringBuilder result, Listing listing, Address addr) {
+        List<String> comments = new ArrayList<>();
+
+        String preComment = listing.getComment(CodeUnit.PRE_COMMENT, addr);
+        if (preComment != null && !preComment.isEmpty()) {
+            comments.add("[PRE: " + preComment.replace("\n", " ") + "]");
+        }
+
+        String eolComment = listing.getComment(CodeUnit.EOL_COMMENT, addr);
+        if (eolComment != null && !eolComment.isEmpty()) {
+            comments.add("; " + eolComment);
+        }
+
+        String postComment = listing.getComment(CodeUnit.POST_COMMENT, addr);
+        if (postComment != null && !postComment.isEmpty()) {
+            comments.add("[POST: " + postComment.replace("\n", " ") + "]");
+        }
+
+        String repeatableComment = listing.getComment(CodeUnit.REPEATABLE_COMMENT, addr);
+        if (repeatableComment != null && !repeatableComment.isEmpty()) {
+            comments.add("[REP: " + repeatableComment.replace("\n", " ") + "]");
+        }
+
+        if (!comments.isEmpty()) {
+            result.append(" ").append(String.join(" ", comments));
+        }
     }
 
     /**
