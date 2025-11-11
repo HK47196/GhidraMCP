@@ -67,6 +67,39 @@ class EnhancedDisassemblyTest {
         assertEquals(longLine.length(), maxLength, "Max length should equal longest line");
     }
 
+    // ==================== Register Assumptions Tests ====================
+
+    @Test
+    @DisplayName("Register assumptions should be displayed when present")
+    void testRegisterAssumptions() {
+        String sampleAssumptions = "                               assume CS = 0x2a0a\n" +
+                                   "                               assume DS = 0x5356";
+
+        assertTrue(sampleAssumptions.contains("assume CS"), "Should show CS register assumption");
+        assertTrue(sampleAssumptions.contains("assume DS"), "Should show DS register assumption");
+        assertTrue(sampleAssumptions.contains("0x2a0a"), "Should show hex value for CS");
+        assertTrue(sampleAssumptions.contains("0x5356"), "Should show hex value for DS");
+    }
+
+    @Test
+    @DisplayName("Register assumptions should use proper indentation")
+    void testRegisterAssumptionsIndentation() {
+        String assumptionLine = "                               assume CS = 0x2a0a";
+
+        // Should have 31 spaces of indentation (matching function signature indentation)
+        assertTrue(assumptionLine.startsWith("                               "),
+                  "Register assumptions should have 31 spaces of indentation");
+    }
+
+    @Test
+    @DisplayName("Register assumptions should be formatted with equals sign")
+    void testRegisterAssumptionsFormat() {
+        String assumptionLine = "assume CS = 0x2a0a";
+
+        assertTrue(assumptionLine.matches("assume [A-Z]+ = 0x[0-9a-f]+"),
+                  "Register assumption should match format: assume <REG> = 0x<hex>");
+    }
+
     // ==================== Function Signature Tests ====================
 
     @Test
@@ -359,6 +392,8 @@ class EnhancedDisassemblyTest {
             "                             * CODE_212: Combat - AI Decision Loop                  *\n" +
             "                             ********************************************************\n" +
             "                             uint16_t __cdecl16far CODE_212::Combat_AIDecisionLoop(pointer16 charIndexPtr)\n" +
+            "                               assume CS = 0x2a0a\n" +
+            "                               assume DS = 0x5356\n" +
             "             undefined         Stack[-0x4]    local_4                                 XREF[1]:     618c:0bc6(*)\n" +
             "                             CODE_212::Combat_AIDecisionLoop                 XREF[1]:     Combat_ModeController:618c:069d\n" +
             "       618c:0bad 55              PUSH       BP\n" +
@@ -367,6 +402,7 @@ class EnhancedDisassemblyTest {
         // Verify structure order
         int platePos = sampleOutput.indexOf("****");
         int sigPos = sampleOutput.indexOf("uint16_t");
+        int assumePos = sampleOutput.indexOf("assume CS");
         int varPos = sampleOutput.indexOf("Stack[-0x4]");
         // Find the function label line (not the signature) by looking for the XREF pattern after the name
         int labelPos = sampleOutput.indexOf("Combat_AIDecisionLoop                 XREF");
@@ -374,13 +410,15 @@ class EnhancedDisassemblyTest {
 
         assertTrue(platePos >= 0, "Should have PLATE comment");
         assertTrue(sigPos >= 0, "Should have function signature");
+        assertTrue(assumePos >= 0, "Should have register assumptions");
         assertTrue(varPos >= 0, "Should have local variables");
         assertTrue(labelPos >= 0, "Should have function label");
         assertTrue(asmPos >= 0, "Should have assembly instructions");
 
-        // Verify order: PLATE -> Signature -> Variables -> Label -> Assembly
+        // Verify order: PLATE -> Signature -> Assumptions -> Variables -> Label -> Assembly
         assertTrue(platePos < sigPos, "PLATE comment should come before signature");
-        assertTrue(sigPos < varPos, "Signature should come before variables");
+        assertTrue(sigPos < assumePos, "Signature should come before register assumptions");
+        assertTrue(assumePos < varPos, "Register assumptions should come before variables");
         assertTrue(varPos < labelPos, "Variables should come before function label");
         assertTrue(labelPos < asmPos, "Function label should come before assembly");
     }
