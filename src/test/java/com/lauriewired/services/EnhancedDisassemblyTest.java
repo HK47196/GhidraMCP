@@ -368,7 +368,8 @@ class EnhancedDisassemblyTest {
         int platePos = sampleOutput.indexOf("****");
         int sigPos = sampleOutput.indexOf("uint16_t");
         int varPos = sampleOutput.indexOf("Stack[-0x4]");
-        int labelPos = sampleOutput.indexOf("Combat_AIDecisionLoop");
+        // Find the function label line (not the signature) by looking for the XREF pattern after the name
+        int labelPos = sampleOutput.indexOf("Combat_AIDecisionLoop                 XREF");
         int asmPos = sampleOutput.indexOf("618c:0bad");
 
         assertTrue(platePos >= 0, "Should have PLATE comment");
