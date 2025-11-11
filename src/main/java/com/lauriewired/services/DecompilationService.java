@@ -226,7 +226,7 @@ public class DecompilationService {
             Address entryPoint = func.getEntryPoint();
 
             // Get all registers from the language
-            Register[] registers = programContext.getRegisters();
+            List<Register> registers = programContext.getRegisters();
 
             List<String> assumptions = new ArrayList<>();
             for (Register register : registers) {
