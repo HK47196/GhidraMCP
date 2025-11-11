@@ -7,6 +7,8 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.pcode.*;
 import ghidra.program.model.symbol.*;
+import ghidra.program.model.lang.Register;
+import ghidra.program.model.lang.RegisterValue;
 import ghidra.util.Msg;
 import ghidra.util.task.ConsoleTaskMonitor;
 
@@ -143,13 +145,16 @@ public class DecompilationService {
             // 2. Add function signature with calling convention and parameters
             appendFunctionSignature(result, func, program);
 
-            // 3. Add local variables table with XREFs
+            // 3. Add register assumptions
+            appendRegisterAssumptions(result, func, program);
+
+            // 4. Add local variables table with XREFs
             appendLocalVariables(result, func, program);
 
-            // 4. Add function label with XREFs showing callers
+            // 5. Add function label with XREFs showing callers
             appendFunctionLabel(result, func, program);
 
-            // 5. Add disassembly with enhanced annotations
+            // 6. Add disassembly with enhanced annotations
             appendEnhancedDisassembly(result, func, program, listing, entryPoint, end);
 
             return result.toString();
@@ -210,6 +215,49 @@ public class DecompilationService {
             result.append(params[i].getDataType().getName()).append(" ").append(params[i].getName());
         }
         result.append(")\n");
+    }
+
+    /**
+     * Append register assumptions (e.g., assume CS = 0x2a0a)
+     */
+    private void appendRegisterAssumptions(StringBuilder result, Function func, Program program) {
+        try {
+            ghidra.program.model.listing.ProgramContext programContext = program.getProgramContext();
+            Address entryPoint = func.getEntryPoint();
+
+            // Get all registers from the language
+            List<Register> registers = programContext.getRegisters();
+
+            List<String> assumptions = new ArrayList<>();
+            for (Register register : registers) {
+                // Skip sub-registers and only check base registers
+                if (register.getBaseRegister() != register) {
+                    continue;
+                }
+
+                // Get the register value at the function entry point
+                RegisterValue regValue = programContext.getRegisterValue(register, entryPoint);
+
+                if (regValue != null && regValue.hasValue()) {
+                    // Format: assume <register> = <hex_value>
+                    java.math.BigInteger value = regValue.getUnsignedValue();
+                    if (value != null) {
+                        String hexValue = "0x" + value.toString(16);
+                        assumptions.add("assume " + register.getName() + " = " + hexValue);
+                    }
+                }
+            }
+
+            // Output assumptions with proper indentation
+            for (String assumption : assumptions) {
+                result.append("                               ");
+                result.append(assumption);
+                result.append("\n");
+            }
+        } catch (Exception e) {
+            // Silently continue if getting register assumptions fails
+            Msg.debug(this, "Could not get register assumptions: " + e.getMessage());
+        }
     }
 
     /**
