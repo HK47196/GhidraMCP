@@ -1690,7 +1690,6 @@ public class GhidraMCPPlugin extends Plugin {
         try {
             DecompInterface decomp = new DecompInterface();
             DecompileOptions options = new DecompileOptions();
-            options.setInferConstPtr(false);
             decomp.setOptions(options);
             decomp.openProgram(program);
             DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());

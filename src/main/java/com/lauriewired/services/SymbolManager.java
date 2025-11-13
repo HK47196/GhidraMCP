@@ -146,7 +146,6 @@ public class SymbolManager {
 
         DecompInterface decomp = new DecompInterface();
         DecompileOptions options = new DecompileOptions();
-        options.setInferConstPtr(false);
         decomp.setOptions(options);
         decomp.openProgram(program);
 

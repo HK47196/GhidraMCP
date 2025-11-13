@@ -169,7 +169,6 @@ public class DecompiledTextSearchService {
     private DecompInterface setupDecompiler(Program program) {
         DecompInterface decomp = new DecompInterface();
         DecompileOptions options = new DecompileOptions();
-        options.setInferConstPtr(false);
         decomp.setOptions(options);
         decomp.setSimplificationStyle("decompile");
         decomp.openProgram(program);

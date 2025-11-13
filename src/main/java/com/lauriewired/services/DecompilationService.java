@@ -38,7 +38,6 @@ public class DecompilationService {
         if (program == null) return "No program loaded";
         DecompInterface decomp = new DecompInterface();
         DecompileOptions options = new DecompileOptions();
-        options.setInferConstPtr(false);
         decomp.setOptions(options);
         decomp.openProgram(program);
         for (Function func : program.getFunctionManager().getFunctions(true)) {
@@ -111,7 +110,6 @@ public class DecompilationService {
         try {
             DecompInterface decomp = new DecompInterface();
             DecompileOptions options = new DecompileOptions();
-            options.setInferConstPtr(false);
             decomp.setOptions(options);
             decomp.openProgram(program);
             DecompileResults result = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
@@ -520,7 +518,6 @@ public class DecompilationService {
         // Set up decompiler for accessing the decompiled function
         DecompInterface decomp = new DecompInterface();
         DecompileOptions options = new DecompileOptions();
-        options.setInferConstPtr(false);
         decomp.setOptions(options);
         decomp.openProgram(program);
         decomp.setSimplificationStyle("decompile"); // Full decompilation
