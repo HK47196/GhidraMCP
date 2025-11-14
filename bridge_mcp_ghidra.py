@@ -73,6 +73,8 @@ TOOL_CATEGORIES = {
 
 # Global configuration
 _enabled_tools: Optional[Set[str]] = None
+_tool_registry: Dict[str, any] = {}  # Store tool functions before registration
+_tools_registered: bool = False
 
 
 def load_config(config_path: Optional[str] = None) -> Dict:
@@ -144,35 +146,40 @@ def get_enabled_tools(config: Dict) -> Set[str]:
     return enabled
 
 
-def should_register_tool(tool_name: str) -> bool:
-    """
-    Check if a tool should be registered based on configuration.
-
-    Args:
-        tool_name: Name of the tool
-
-    Returns:
-        True if tool should be registered
-    """
-    global _enabled_tools
-
-    # If no config loaded, enable all tools (backward compatibility)
-    if _enabled_tools is None:
-        return True
-
-    return tool_name in _enabled_tools
-
-
 def conditional_tool(func):
     """
-    Decorator that conditionally registers a tool based on configuration.
+    Decorator that collects tool functions for later registration.
+    Tools are actually registered in register_tools() after config is loaded.
     """
     tool_name = func.__name__
-    if should_register_tool(tool_name):
-        return mcp.tool()(func)
-    else:
-        logger.debug(f"Tool '{tool_name}' disabled by configuration")
-        return func
+    _tool_registry[tool_name] = func
+    return func
+
+
+def register_tools():
+    """
+    Register tools with MCP based on configuration.
+    This must be called after config is loaded.
+    """
+    global _tools_registered
+
+    if _tools_registered:
+        logger.warning("Tools already registered, skipping")
+        return
+
+    # If no config loaded, enable all tools (backward compatibility)
+    enabled_tools = _enabled_tools if _enabled_tools is not None else set(_tool_registry.keys())
+
+    registered_count = 0
+    for tool_name, tool_func in _tool_registry.items():
+        if tool_name in enabled_tools:
+            mcp.tool()(tool_func)
+            registered_count += 1
+        else:
+            logger.debug(f"Tool '{tool_name}' disabled by configuration")
+
+    logger.info(f"Registered {registered_count} of {len(_tool_registry)} available tools")
+    _tools_registered = True
 
 def safe_get(endpoint: str, params: dict = None) -> list:
     """
@@ -1153,6 +1160,9 @@ def main():
         _enabled_tools = get_enabled_tools(config)
     else:
         logger.info("No tool configuration found, all tools enabled")
+
+    # Register tools based on configuration
+    register_tools()
 
     # Use the global variable to ensure it's properly updated
     global ghidra_server_url
