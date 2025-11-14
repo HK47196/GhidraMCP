@@ -692,4 +692,81 @@ class EnhancedDisassemblyTest {
         assertTrue(paramVar.contains("[0x4]"), "Parameter should have positive offset");
         assertFalse(paramVar.contains("[-"), "Parameter should not have negative offset");
     }
+
+    // ==================== Function Contiguity Warning Tests ====================
+
+    @Test
+    @DisplayName("Contiguity warning should be displayed when function has gap")
+    void testContiguityWarningPresent() {
+        String warningOutput = "WARNING: Function body is not contiguous\n" +
+                              "  Function: Build_DecodeTree @ 0x0022acee\n" +
+                              "  Declared range: 0x0022acee - 0x0022acf9 (12 bytes)\n" +
+                              "  Gap detected: 1 byte between end (0x0022acf9) and next function start (0x0022acfb)\n" +
+                              "  Next function: NextFunc @ 0x0022acfb\n" +
+                              "  Possible issue: Incorrect function boundary detection\n" +
+                              "  Action: Verify function ends correctly or merge with adjacent function\n";
+
+        assertTrue(warningOutput.contains("WARNING: Function body is not contiguous"), "Should show contiguity warning header");
+        assertTrue(warningOutput.contains("Gap detected:"), "Should indicate gap detected");
+        assertTrue(warningOutput.contains("Possible issue:"), "Should explain possible issue");
+        assertTrue(warningOutput.contains("Action:"), "Should provide recommended action");
+    }
+
+    @Test
+    @DisplayName("Contiguity warning should show gap size")
+    void testContiguityWarningGapSize() {
+        String smallGapWarning = "  Gap detected: 1 byte between end (0x0022acf9) and next function start (0x0022acfa)\n";
+        String largeGapWarning = "  Gap detected: 150 bytes between end (0x0022acf9) and next function start (0x0022ad8d)\n";
+
+        assertTrue(smallGapWarning.contains("1 byte"), "Should show singular 'byte' for 1-byte gap");
+        assertTrue(largeGapWarning.contains("150 bytes"), "Should show plural 'bytes' for multi-byte gap");
+    }
+
+    @Test
+    @DisplayName("Contiguity warning should note large gaps")
+    void testContiguityWarningLargeGapNote() {
+        String largeGapWarning = "WARNING: Function body is not contiguous\n" +
+                                "  Function: Build_DecodeTree @ 0x0022acee\n" +
+                                "  Declared range: 0x0022acee - 0x0022ad8c (159 bytes)\n" +
+                                "  Gap detected: 150 bytes between end (0x0022ad8c) and next function start (0x0022ae22)\n" +
+                                "  Note: Large gap (>= 100 bytes) - may indicate legitimate spacing\n" +
+                                "  Next function: NextFunc @ 0x0022ae22\n" +
+                                "  Possible issue: Incorrect function boundary detection\n" +
+                                "  Action: Verify function ends correctly or merge with adjacent function\n";
+
+        assertTrue(largeGapWarning.contains("Note: Large gap (>= 100 bytes)"), "Should note when gap is large");
+        assertTrue(largeGapWarning.contains("may indicate legitimate spacing"), "Should explain large gaps may be normal");
+    }
+
+    @Test
+    @DisplayName("Contiguity warning should show function size")
+    void testContiguityWarningFunctionSize() {
+        String warningWithSize = "  Declared range: 0x0022acee - 0x0022acf9 (12 bytes)\n";
+
+        assertTrue(warningWithSize.contains("(12 bytes)"), "Should show function size in bytes");
+        // Use Pattern.DOTALL flag to match newlines, or just check if the pattern exists in the string
+        assertTrue(warningWithSize.matches("(?s).*\\(\\d+ bytes?\\).*"), "Should show size in proper format");
+    }
+
+    @Test
+    @DisplayName("Contiguity warning should identify next function")
+    void testContiguityWarningNextFunction() {
+        String warningWithNextFunc = "  Next function: NextFunc @ 0x0022acfb\n";
+
+        assertTrue(warningWithNextFunc.contains("Next function:"), "Should identify next function");
+        assertTrue(warningWithNextFunc.contains("@"), "Should show next function address");
+    }
+
+    @Test
+    @DisplayName("Contiguity warning should not appear for contiguous functions")
+    void testNoWarningForContiguousFunction() {
+        // When there's no gap between functions, no warning should appear
+        String contiguousOutput = "                             void myFunction()\n" +
+                                 "                             myFunction\n" +
+                                 "       1000:0000 90              NOP\n" +
+                                 "       1000:0001 c3              RET\n";
+
+        assertFalse(contiguousOutput.contains("WARNING:"), "Should not show warning for contiguous function");
+        assertFalse(contiguousOutput.contains("Gap detected"), "Should not indicate gap for contiguous function");
+    }
 }

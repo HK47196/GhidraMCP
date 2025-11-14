@@ -165,6 +165,12 @@ public class DecompilationService {
             Address entryPoint = func.getEntryPoint();
             Address end = func.getBody().getMaxAddress();
 
+            // Check for non-contiguous function body and add warning if needed
+            String contiguityWarning = checkFunctionContiguity(func, program);
+            if (contiguityWarning != null) {
+                result.append(contiguityWarning).append("\n");
+            }
+
             // 1. Add PLATE comment (function documentation box)
             appendPlateComment(result, listing, entryPoint);
 
@@ -187,6 +193,78 @@ public class DecompilationService {
         } catch (Exception e) {
             Msg.error(this, "Error disassembling function in external program", e);
         }
+        return null;
+    }
+
+    /**
+     * Check if a function's body is contiguous (no gaps in the function)
+     * @param func Function to check
+     * @param program Program containing the function
+     * @return Warning string if non-contiguous, null otherwise
+     */
+    private String checkFunctionContiguity(Function func, Program program) {
+        try {
+            FunctionManager funcMgr = program.getFunctionManager();
+            Address funcEnd = func.getBody().getMaxAddress();
+
+            // Find the next function in memory after this one
+            // Start searching from one byte after the function's entry point
+            FunctionIterator funcIter = funcMgr.getFunctions(func.getEntryPoint(), true);
+
+            Function nextFunc = null;
+            while (funcIter.hasNext()) {
+                Function candidate = funcIter.next();
+                // Skip the current function and find the first function that starts after our function ends
+                if (candidate.getEntryPoint().compareTo(func.getEntryPoint()) > 0) {
+                    nextFunc = candidate;
+                    break;
+                }
+            }
+
+            if (nextFunc != null) {
+                Address nextFuncStart = nextFunc.getEntryPoint();
+
+                // Calculate the gap between this function's end and the next function's start
+                // funcEnd + 1 should equal nextFuncStart for contiguous functions
+                long gap = nextFuncStart.subtract(funcEnd) - 1;
+
+                if (gap > 0) {
+                    // There's a gap between this function and the next
+                    StringBuilder warning = new StringBuilder();
+                    warning.append("WARNING: Function body is not contiguous\n");
+                    warning.append("  Function: ").append(func.getName());
+                    warning.append(" @ ").append(func.getEntryPoint()).append("\n");
+                    warning.append("  Declared range: ").append(func.getEntryPoint());
+                    warning.append(" - ").append(funcEnd);
+
+                    // Calculate function size
+                    long funcSize = funcEnd.subtract(func.getEntryPoint()) + 1;
+                    warning.append(" (").append(funcSize).append(" bytes)\n");
+
+                    warning.append("  Gap detected: ").append(gap).append(" byte");
+                    if (gap != 1) warning.append("s");
+                    warning.append(" between end (").append(funcEnd);
+                    warning.append(") and next function start (").append(nextFuncStart).append(")\n");
+
+                    // Add note about gap size
+                    if (gap >= 100) {
+                        warning.append("  Note: Large gap (>= 100 bytes) - may indicate legitimate spacing\n");
+                    }
+
+                    warning.append("  Next function: ").append(nextFunc.getName());
+                    warning.append(" @ ").append(nextFuncStart).append("\n");
+
+                    warning.append("  Possible issue: Incorrect function boundary detection\n");
+                    warning.append("  Action: Verify function ends correctly or merge with adjacent function\n");
+
+                    return warning.toString();
+                }
+            }
+        } catch (Exception e) {
+            // Silently fail - don't block disassembly if contiguity check fails
+            Msg.debug(this, "Could not check function contiguity: " + e.getMessage());
+        }
+
         return null;
     }
 
