@@ -153,9 +153,6 @@ public class FunctionSignatureService {
 
             Msg.info(this, "Setting prototype for function " + func.getName() + ": " + prototype);
 
-            // Store original prototype as a comment for reference
-            addPrototypeComment(program, func, prototype);
-
             // Use ApplyFunctionSignatureCmd to parse and apply the signature
             parseFunctionSignatureAndApply(program, addr, prototype, success, errorMessage);
 
@@ -163,22 +160,6 @@ public class FunctionSignatureService {
             String msg = "Error setting function prototype: " + e.getMessage();
             errorMessage.append(msg);
             Msg.error(this, msg, e);
-        }
-    }
-
-    /**
-     * Add a comment documenting the prototype change
-     */
-    private void addPrototypeComment(Program program, Function func, String prototype) {
-        int txComment = program.startTransaction("Add prototype comment");
-        try {
-            program.getListing().setComment(
-                    func.getEntryPoint(),
-                    CodeUnit.PLATE_COMMENT,
-                    "Setting prototype: " + prototype
-            );
-        } finally {
-            program.endTransaction(txComment, true);
         }
     }
 
