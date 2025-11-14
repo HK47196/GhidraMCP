@@ -744,7 +744,8 @@ class EnhancedDisassemblyTest {
         String warningWithSize = "  Declared range: 0x0022acee - 0x0022acf9 (12 bytes)\n";
 
         assertTrue(warningWithSize.contains("(12 bytes)"), "Should show function size in bytes");
-        assertTrue(warningWithSize.matches(".*\\(\\d+ bytes?\\).*"), "Should show size in proper format");
+        // Use Pattern.DOTALL flag to match newlines, or just check if the pattern exists in the string
+        assertTrue(warningWithSize.matches("(?s).*\\(\\d+ bytes?\\).*"), "Should show size in proper format");
     }
 
     @Test
