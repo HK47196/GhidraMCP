@@ -11,6 +11,7 @@ import requests
 import argparse
 import logging
 import os
+import functools
 from pathlib import Path
 from urllib.parse import urljoin
 from typing import Dict, Set, Optional
@@ -180,13 +181,10 @@ def register_tools():
             if _tool_tracker is not None:
                 # Create a wrapper that increments the tracker before calling the tool
                 def create_tracked_wrapper(name, func):
+                    @functools.wraps(func)
                     def tracked_tool(*args, **kwargs):
                         _tool_tracker.increment(name)
                         return func(*args, **kwargs)
-                    # Preserve original function attributes
-                    tracked_tool.__name__ = func.__name__
-                    tracked_tool.__doc__ = func.__doc__
-                    tracked_tool.__annotations__ = func.__annotations__
                     return tracked_tool
 
                 wrapped_func = create_tracked_wrapper(tool_name, tool_func)
