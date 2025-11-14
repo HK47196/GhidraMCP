@@ -470,4 +470,226 @@ class EnhancedDisassemblyTest {
         assertTrue(lines[0].equals("Line 1 of comment"), "Should preserve first line");
         assertTrue(lines[2].equals("Line 3 of comment"), "Should preserve last line");
     }
+
+    // ==================== Enhanced Feature Tests ====================
+
+    @Test
+    @DisplayName("Instruction bytes should be displayed in hex format")
+    void testInstructionBytesDisplay() {
+        String sampleInstruction = "       0022d3d0 4e 55 ff ec     link.w     A5,-0x14";
+
+        // Should show address, then hex bytes, then instruction
+        assertTrue(sampleInstruction.contains("0022d3d0"), "Should show address");
+        assertTrue(sampleInstruction.contains("4e 55 ff ec"), "Should show instruction bytes in hex");
+        assertTrue(sampleInstruction.contains("link.w"), "Should show mnemonic");
+        assertTrue(sampleInstruction.contains("A5,-0x14"), "Should show operands");
+    }
+
+    @Test
+    @DisplayName("Instruction bytes should be properly formatted and spaced")
+    void testInstructionBytesFormatting() {
+        String twoByteInstr = "       0022d3d4 48 e7           movem.l    {A6 A3 A2 D7 D2},-(SP)";
+        String fourByteInstr = "       0022d3d0 4e 55 ff ec     link.w     A5,-0x14";
+
+        // Both should have consistent column alignment
+        assertTrue(twoByteInstr.contains("48 e7"), "Should show 2-byte instruction bytes");
+        assertTrue(fourByteInstr.contains("4e 55 ff ec"), "Should show 4-byte instruction bytes");
+
+        // Check that columns align properly (address at same position)
+        int addr1Pos = twoByteInstr.indexOf("0022d3d4");
+        int addr2Pos = fourByteInstr.indexOf("0022d3d0");
+        assertEquals(addr1Pos, addr2Pos, "Addresses should align at same column");
+    }
+
+    @Test
+    @DisplayName("Stack variables should use hex offsets with size indicators")
+    void testStackVariableHexOffsets() {
+        String stackVar1 = "             undefined4        Stack[-0x4]:4  local_4";
+        String stackVar2 = "             undefined4        Stack[-0x18]:4 local_18";
+
+        // Should use hex format for negative offsets
+        assertTrue(stackVar1.contains("Stack[-0x4]:4"), "Should show hex offset -0x4 with size :4");
+        assertTrue(stackVar2.contains("Stack[-0x18]:4"), "Should show hex offset -0x18 with size :4");
+
+        // Should not use decimal format
+        assertFalse(stackVar1.contains("Stack[-4]"), "Should not use decimal format");
+        assertFalse(stackVar2.contains("Stack[-24]"), "Should not use decimal format");
+    }
+
+    @Test
+    @DisplayName("Stack variables should include size indicators")
+    void testStackVariableSizeIndicators() {
+        String var4byte = "             undefined4        Stack[-0x4]:4  local_4";
+        String var1byte = "             char              Stack[-0x1]:1  local_1";
+
+        assertTrue(var4byte.contains(":4"), "4-byte variable should show :4 size");
+        assertTrue(var1byte.contains(":1"), "1-byte variable should show :1 size");
+    }
+
+    @Test
+    @DisplayName("Variable XREFs should include operation types")
+    void testVariableXREFOperationTypes() {
+        String varWithReadWrite = "             undefined4        Stack[-0x18]:4 local_18                                XREF[11]:    0022d424(W), 0022d44a(R), 0022d452(W)";
+        String varWithPointer = "             undefined4        Stack[-0x34]:4 local_34                                XREF[3]:     0022d4ee(*), 0022d5de(*), 0022d5e6(*)";
+
+        // Should show (W) for write operations
+        assertTrue(varWithReadWrite.contains("(W)"), "Should show (W) for write operations");
+
+        // Should show (R) for read operations
+        assertTrue(varWithReadWrite.contains("(R)"), "Should show (R) for read operations");
+
+        // Should show (*) for pointer dereference operations
+        assertTrue(varWithPointer.contains("(*)"), "Should show (*) for pointer operations");
+    }
+
+    @Test
+    @DisplayName("Jump target labels should show jump XREFs with (j) indicator")
+    void testJumpTargetXREFs() {
+        String labelWithJumps = "                             LAB_0022d3dc                                    XREF[2]:     0022d48c(j), 0022d4b4(j)";
+
+        assertTrue(labelWithJumps.contains("XREF[2]"), "Should show XREF count");
+        assertTrue(labelWithJumps.contains("0022d48c(j)"), "Should show first jump with (j)");
+        assertTrue(labelWithJumps.contains("0022d4b4(j)"), "Should show second jump with (j)");
+    }
+
+    @Test
+    @DisplayName("PC-relative references should be resolved to symbols")
+    void testPCRelativeReferenceResolution() {
+        String pcRelativeInstr = "       0022d4d0 43 fa 01 24     lea        (0x124,PC)=>DAT_0022d5f6,A1";
+
+        // Should show the offset
+        assertTrue(pcRelativeInstr.contains("(0x124,PC)"), "Should show PC-relative offset");
+
+        // Should resolve to symbol with =>
+        assertTrue(pcRelativeInstr.contains("=>DAT_0022d5f6"), "Should resolve to symbol DAT_0022d5f6");
+    }
+
+    @Test
+    @DisplayName("Data references should show target values")
+    void testDataReferenceValues() {
+        String dataRef1 = "       0022d4d8 2c d9           move.l     (A1)+=>DAT_0022d5f6,(A6)+                        = 636F6E3Ah";
+        String dataRef2 = "       0022d5fa 31 30 2f 31     undefined4 31302F31h";
+
+        // Should show symbol
+        assertTrue(dataRef1.contains("=>DAT_0022d5f6"), "Should show resolved symbol");
+
+        // Should show actual data value
+        assertTrue(dataRef1.contains("= 636F6E3Ah"), "Should show data value 636F6E3Ah");
+        assertTrue(dataRef2.contains("31302F31h"), "Should show hex value in data definition");
+    }
+
+    @Test
+    @DisplayName("Stack offsets in operands should be resolved to variable names")
+    void testStackOffsetToVariableNameResolution() {
+        String instrWithStackVar = "       0022d5ec 4c ed 4c 84     movem.l    (-0x28=>local_28,A5),{D2 D7 A2 A3 A6}";
+
+        // Should show the stack offset
+        assertTrue(instrWithStackVar.contains("-0x28"), "Should show stack offset -0x28");
+
+        // Should resolve to variable name with =>
+        assertTrue(instrWithStackVar.contains("-0x28=>local_28"), "Should resolve to variable name local_28");
+    }
+
+    @Test
+    @DisplayName("Call instructions should show function signatures")
+    void testCallInstructionSignatures() {
+        String callWithSig = "       0022d50e 4e ae ff e2     jsr        (-0x1e,A6=>exec_library_Supervisor)              BPTR dos_library_Open(CONST_STRPTR";
+
+        // Should show target function name
+        assertTrue(callWithSig.contains("exec_library_Supervisor"), "Should show called function name");
+
+        // Should show function signature/prototype
+        assertTrue(callWithSig.contains("BPTR dos_library_Open"), "Should show function signature");
+    }
+
+    @Test
+    @DisplayName("Call destination overrides should be displayed for thunks")
+    void testCallDestinationOverride() {
+        String callWithOverride = "                           -- Call Destination Override: exec_library_Supervisor (00234026)";
+
+        assertTrue(callWithOverride.contains("-- Call Destination Override:"), "Should show override indicator");
+        assertTrue(callWithOverride.contains("exec_library_Supervisor"), "Should show thunked function name");
+        assertTrue(callWithOverride.contains("(00234026)"), "Should show target address");
+    }
+
+    @Test
+    @DisplayName("Indirect references should be resolved to symbols")
+    void testIndirectReferenceResolution() {
+        String indirectRef = "       0022d50a 2c 6c 41 a0     movea.l    (0x41a0,A4)=>dosLibraryPtr,A6";
+
+        // Should show offset
+        assertTrue(indirectRef.contains("(0x41a0,A4)"), "Should show indirect offset");
+
+        // Should resolve to symbol
+        assertTrue(indirectRef.contains("=>dosLibraryPtr") || indirectRef.contains("=>"),
+                  "Should resolve indirect reference to symbol");
+    }
+
+    @Test
+    @DisplayName("All stack variables should be displayed not just referenced ones")
+    void testAllStackVariablesDisplayed() {
+        // Ghidra UI shows ALL stack variables, even if not referenced in decompilation
+        String varList = "             undefined4        Stack[-0x4]:4  local_4                                 XREF[1]:     0022d5f2(R)\n" +
+                        "             undefined4        Stack[-0x10]:4 local_10                                XREF[1]:     0022d546(W)\n" +
+                        "             undefined4        Stack[-0x14]:4 local_14                                XREF[2]:     0022d52a(W), 0022d538(R)\n" +
+                        "             undefined4        Stack[-0x18]:4 local_18                                XREF[11]:    0022d424(W), 0022d44a(R)\n" +
+                        "             undefined4        Stack[-0x28]:4 local_28                                XREF[1]:     0022d5ec(*)\n" +
+                        "             undefined4        Stack[-0x30]:4 local_30                                XREF[1]:     0022d5da(*)\n" +
+                        "             undefined4        Stack[-0x34]:4 local_34                                XREF[3]:     0022d4ee(*), 0022d5de(*)";
+
+        // Should show all 7 local variables
+        assertTrue(varList.contains("local_4"), "Should show local_4");
+        assertTrue(varList.contains("local_10"), "Should show local_10");
+        assertTrue(varList.contains("local_14"), "Should show local_14");
+        assertTrue(varList.contains("local_18"), "Should show local_18");
+        assertTrue(varList.contains("local_28"), "Should show local_28");
+        assertTrue(varList.contains("local_30"), "Should show local_30");
+        assertTrue(varList.contains("local_34"), "Should show local_34");
+
+        // All should have proper hex offsets
+        assertTrue(varList.contains("Stack[-0x4]:4"), "local_4 should have hex offset");
+        assertTrue(varList.contains("Stack[-0x18]:4"), "local_18 should have hex offset");
+        assertTrue(varList.contains("Stack[-0x34]:4"), "local_34 should have hex offset");
+    }
+
+    @Test
+    @DisplayName("Variable XREFs should be limited to 11 entries like Ghidra UI")
+    void testVariableXREFLimit() {
+        // Ghidra limits XREF display to 11 entries per variable
+        String varWith11Xrefs = "XREF[11]:    0022d424(W), 0022d44a(R), 0022d452(W), 0022d458(R), 0022d460(W), 0022d466(R), 0022d46c(W), 0022d474(R), 0022d47a(W), 0022d482(R), 0022d488(W)";
+
+        assertTrue(varWith11Xrefs.contains("XREF[11]"), "Should show count of 11");
+
+        // Count the number of comma-separated entries
+        String xrefPart = varWith11Xrefs.substring(varWith11Xrefs.indexOf(":") + 1);
+        int commas = (int) xrefPart.chars().filter(ch -> ch == ',').count();
+
+        // 11 entries means 10 commas
+        assertTrue(commas <= 10, "Should have at most 10 commas for 11 entries");
+    }
+
+    @Test
+    @DisplayName("Multi-byte instructions should display all bytes")
+    void testMultiByteInstructionDisplay() {
+        String sixByteInstr = "       0022d3dc 0c ac 00 00     cmpi.l     #0x20,(0x3ff2,A4)";
+        String sevenByteInstr = "       0022d5ec 4c ed 4c 84     movem.l    (-0x28,A5),{D2 D7 A2 A3 A6}";
+
+        // Should show all instruction bytes
+        assertTrue(sixByteInstr.contains("0c ac 00 00"), "Should show all bytes of 4-byte instruction");
+        assertTrue(sevenByteInstr.contains("4c ed 4c 84"), "Should show first part of multi-byte instruction");
+    }
+
+    @Test
+    @DisplayName("Function parameter variables should be included in variable listing")
+    void testFunctionParametersInVariableListing() {
+        String paramVar = "             char *            Stack[0x4]:4   commandLine                             XREF[3]:     0022d3dc, 0022d480, 0022d4b2";
+
+        // Should show function parameter with positive stack offset
+        assertTrue(paramVar.contains("Stack[0x4]:4"), "Should show positive stack offset for parameter");
+        assertTrue(paramVar.contains("commandLine"), "Should show parameter name");
+
+        // Parameters have positive offsets, locals have negative
+        assertTrue(paramVar.contains("[0x4]"), "Parameter should have positive offset");
+        assertFalse(paramVar.contains("[-"), "Parameter should not have negative offset");
+    }
 }

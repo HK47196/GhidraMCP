@@ -263,102 +263,150 @@ public class DecompilationService {
      */
     private void appendLocalVariables(StringBuilder result, Function func, Program program) {
         try {
-            // Decompile to get high-level variable information
+            // Get ALL variables from the function (parameters + locals)
+            Variable[] allVars = func.getAllVariables();
+
+            // Sort by storage location for better organization
+            Arrays.sort(allVars, (v1, v2) -> {
+                String s1 = v1.getVariableStorage().toString();
+                String s2 = v2.getVariableStorage().toString();
+                return s1.compareTo(s2);
+            });
+
+            // Decompile to get XREF information
             DecompInterface decomp = new DecompInterface();
             decomp.openProgram(program);
             DecompileResults decompResults = decomp.decompileFunction(func, this.decompileTimeout, new ConsoleTaskMonitor());
             decomp.flushCache();
 
+            Map<String, List<XRefInfo>> xrefMap = new HashMap<>();
+
             if (decompResults != null && decompResults.decompileCompleted()) {
                 HighFunction highFunc = decompResults.getHighFunction();
                 if (highFunc != null) {
+                    // Build XREF map from high-level variables
                     LocalSymbolMap symbolMap = highFunc.getLocalSymbolMap();
                     Iterator<HighSymbol> symbols = symbolMap.getSymbols();
 
-                    Map<String, VariableInfo> varInfoMap = new TreeMap<>();
                     while (symbols.hasNext()) {
                         HighSymbol symbol = symbols.next();
                         HighVariable highVar = symbol.getHighVariable();
                         if (highVar != null) {
                             String varName = symbol.getName();
-                            String dataType = highVar.getDataType().getName();
+                            List<XRefInfo> xrefs = new ArrayList<>();
 
-                            // Get storage location from representative varnode
-                            String storage = "";
-                            Varnode rep = highVar.getRepresentative();
-                            if (rep != null) {
-                                if (rep.isRegister()) {
-                                    storage = "Register";
-                                } else if (rep.isAddress()) {
-                                    storage = rep.getAddress().toString();
-                                } else {
-                                    storage = "Stack[" + rep.getOffset() + "]";
-                                }
-                            } else {
-                                storage = "Unknown";
-                            }
-
-                            // Collect XREFs for this variable
-                            List<String> xrefs = new ArrayList<>();
                             Varnode[] instances = highVar.getInstances();
                             for (Varnode vn : instances) {
+                                // Check for definition (write)
                                 PcodeOp def = vn.getDef();
                                 if (def != null) {
                                     Address addr = def.getSeqnum().getTarget();
-                                    if (addr != null && !xrefs.contains(addr.toString())) {
-                                        xrefs.add(addr.toString());
+                                    if (addr != null) {
+                                        xrefs.add(new XRefInfo(addr.toString(), "W"));
+                                    }
+                                }
+
+                                // Check for uses (read)
+                                Iterator<PcodeOp> descendants = vn.getDescendants();
+                                while (descendants.hasNext()) {
+                                    PcodeOp use = descendants.next();
+                                    Address addr = use.getSeqnum().getTarget();
+                                    if (addr != null) {
+                                        // Determine if it's a pointer dereference or read
+                                        String type = isPointerDeref(use) ? "*" : "R";
+                                        xrefs.add(new XRefInfo(addr.toString(), type));
                                     }
                                 }
                             }
 
-                            varInfoMap.put(varName, new VariableInfo(dataType, storage, xrefs));
-                        }
-                    }
-
-                    // Output variable table
-                    if (!varInfoMap.isEmpty()) {
-                        for (Map.Entry<String, VariableInfo> entry : varInfoMap.entrySet()) {
-                            String varName = entry.getKey();
-                            VariableInfo info = entry.getValue();
-
-                            result.append("             ");
-                            result.append(String.format("%-18s", info.dataType));
-                            result.append(String.format("%-15s", info.storage));
-                            result.append(String.format("%-20s", varName));
-
-                            if (!info.xrefs.isEmpty()) {
-                                String xrefStr = info.xrefs.stream()
-                                    .limit(5)
-                                    .collect(Collectors.joining(", "));
-                                if (info.xrefs.size() > 5) {
-                                    xrefStr += "...";
-                                }
-                                result.append("XREF[").append(info.xrefs.size()).append("]:     ");
-                                result.append(xrefStr);
-                            }
-                            result.append("\n");
+                            xrefMap.put(varName, xrefs);
                         }
                     }
                 }
             }
+
+            // Output all variables in Ghidra UI format
+            for (Variable var : allVars) {
+                String dataType = var.getDataType().getDisplayName();
+                String storage = formatVariableStorage(var);
+                String varName = var.getName();
+
+                // Format: dataType (18 chars) storage (15 chars) name (40 chars) XREF
+                result.append("             ");
+                result.append(String.format("%-18s", dataType));
+                result.append(String.format("%-15s", storage));
+                result.append(String.format("%-40s", varName));
+
+                // Add XREFs if available
+                List<XRefInfo> xrefs = xrefMap.get(varName);
+                if (xrefs != null && !xrefs.isEmpty()) {
+                    // Remove duplicates and sort
+                    Map<String, String> uniqueXrefs = new LinkedHashMap<>();
+                    for (XRefInfo xref : xrefs) {
+                        uniqueXrefs.put(xref.address, xref.type);
+                    }
+
+                    result.append("XREF[").append(uniqueXrefs.size()).append("]:     ");
+
+                    int count = 0;
+                    for (Map.Entry<String, String> entry : uniqueXrefs.entrySet()) {
+                        if (count > 0) result.append(", ");
+                        result.append(entry.getKey()).append("(").append(entry.getValue()).append(")");
+                        count++;
+                        if (count >= 11) break; // Limit to 11 XREFs like Ghidra
+                    }
+                }
+
+                result.append("\n");
+            }
         } catch (Exception e) {
-            // Silently continue if decompilation fails
+            // Silently continue if getting variable info fails
             Msg.debug(this, "Could not get variable info: " + e.getMessage());
         }
     }
 
     /**
-     * Helper class to store variable information
+     * Format variable storage location in Ghidra UI format
      */
-    private static class VariableInfo {
-        String dataType;
-        String storage;
-        List<String> xrefs;
+    private String formatVariableStorage(Variable var) {
+        String storage = var.getVariableStorage().toString();
 
-        VariableInfo(String dataType, String storage, List<String> xrefs) {
-            this.dataType = dataType;
-            this.storage = storage;
-            this.xrefs = xrefs;
+        // Check if it's a stack variable
+        if (var.isStackVariable()) {
+            int stackOffset = var.getStackOffset();
+            int size = var.getLength();
+            // Format as Stack[offset]:size with hex offset
+            return String.format("Stack[%s]:%d",
+                stackOffset < 0 ? "-0x" + Integer.toHexString(-stackOffset) : "0x" + Integer.toHexString(stackOffset),
+                size);
+        } else if (var.isRegisterVariable()) {
+            return "Register";
+        } else if (var.isMemoryVariable()) {
+            return var.getMinAddress().toString();
+        }
+
+        return storage;
+    }
+
+    /**
+     * Check if a PcodeOp represents a pointer dereference
+     */
+    private boolean isPointerDeref(PcodeOp op) {
+        int opcode = op.getOpcode();
+        return opcode == PcodeOp.LOAD || opcode == PcodeOp.STORE ||
+               opcode == PcodeOp.INDIRECT || opcode == PcodeOp.PTRSUB;
+    }
+
+    /**
+     * Helper class to store XREF information with address and type
+     */
+    private static class XRefInfo {
+        String address;
+        String type; // R=read, W=write, *=pointer deref, j=jump
+
+        XRefInfo(String address, String type) {
+            this.address = address;
+            this.type = type;
         }
     }
 
@@ -421,29 +469,56 @@ public class DecompilationService {
                 break;
             }
 
-            // Show label at this address if any
+            // Show label at this address if any (with XREFs for jump targets)
             Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
             if (primarySymbol != null && !primarySymbol.getName().equals(func.getName())) {
                 result.append("                             ");
-                result.append(primarySymbol.getName()).append(":\n");
-            }
+                result.append(primarySymbol.getName());
 
-            // Format: ADDRESS: INSTRUCTION
-            result.append("       ");
-            result.append(String.format("%-10s", addr.toString()));
-            result.append(String.format("%-40s", instr.toString()));
-
-            // Add function name for CALL instructions
-            if (instr.getFlowType().isCall()) {
-                Reference[] refs = refManager.getReferencesFrom(addr);
-                for (Reference ref : refs) {
-                    if (ref.getReferenceType().isCall()) {
-                        Function calledFunc = program.getFunctionManager().getFunctionAt(ref.getToAddress());
-                        if (calledFunc != null) {
-                            result.append(" ").append(calledFunc.getName());
-                        }
+                // Add XREFs for labels (jump targets)
+                ReferenceIterator labelXrefs = refManager.getReferencesTo(addr);
+                List<String> jumpRefs = new ArrayList<>();
+                while (labelXrefs.hasNext()) {
+                    Reference ref = labelXrefs.next();
+                    if (ref.getReferenceType().isJump() || ref.getReferenceType().isConditional()) {
+                        jumpRefs.add(ref.getFromAddress().toString() + "(j)");
                     }
                 }
+
+                if (!jumpRefs.isEmpty()) {
+                    result.append("                                    XREF[").append(jumpRefs.size()).append("]:     ");
+                    result.append(String.join(", ", jumpRefs.stream().limit(5).collect(Collectors.toList())));
+                }
+
+                result.append("\n");
+            }
+
+            // Get instruction bytes
+            byte[] bytes = instr.getBytes();
+            StringBuilder bytesStr = new StringBuilder();
+            for (byte b : bytes) {
+                bytesStr.append(String.format("%02x ", b & 0xFF));
+            }
+
+            // Format the bytes field (limit to ~12 chars worth of bytes to match Ghidra)
+            String bytesField = String.format("%-12s", bytesStr.toString().trim());
+
+            // Build instruction mnemonic and operands with enhanced references
+            String mnemonicStr = instr.getMnemonicString();
+            String enhancedOperands = buildEnhancedOperands(instr, program, func);
+
+            // Calculate proper column widths
+            result.append("       ");  // 7 spaces
+            result.append(String.format("%-10s", addr.toString()));  // address (10 chars)
+            result.append(bytesField);  // instruction bytes (12 chars)
+            result.append(String.format("%-10s", mnemonicStr));  // mnemonic (10 chars)
+
+            // Add operands with references and symbols
+            result.append(enhancedOperands);
+
+            // Add function names for CALL instructions with prototypes
+            if (instr.getFlowType().isCall()) {
+                appendCallDetails(result, instr, program, refManager);
             }
 
             // Add all comment types
@@ -451,14 +526,14 @@ public class DecompilationService {
 
             result.append("\n");
 
-            // Show XREFs TO this address (who references this instruction)
+            // Show XREFs TO this address (who references this instruction) - limit to 5
             ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
             List<String> xrefList = new ArrayList<>();
             while (xrefsTo.hasNext()) {
                 Reference ref = xrefsTo.next();
                 Address fromAddr = ref.getFromAddress();
                 // Don't show sequential flow as XREF
-                if (!ref.getReferenceType().isFlow() || !fromAddr.equals(addr.subtract(1))) {
+                if (!ref.getReferenceType().isFlow()) {
                     Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
                     String xrefStr = fromAddr.toString();
                     if (fromFunc != null && !fromFunc.equals(func)) {
@@ -472,6 +547,128 @@ public class DecompilationService {
             if (!xrefList.isEmpty() && xrefList.size() <= 5) {
                 for (String xref : xrefList) {
                     result.append("                     XREF from: ").append(xref).append("\n");
+                }
+            }
+        }
+    }
+
+    /**
+     * Build enhanced operand string with resolved references and symbols
+     */
+    private String buildEnhancedOperands(Instruction instr, Program program, Function func) {
+        StringBuilder operands = new StringBuilder();
+
+        int numOperands = instr.getNumOperands();
+        for (int i = 0; i < numOperands; i++) {
+            if (i > 0) operands.append(",");
+
+            String opStr = instr.getDefaultOperandRepresentation(i);
+
+            // Get references for this operand
+            Reference[] refs = instr.getOperandReferences(i);
+            if (refs.length > 0) {
+                for (Reference ref : refs) {
+                    Address toAddr = ref.getToAddress();
+
+                    // Try to get symbol at target address
+                    Symbol targetSymbol = program.getSymbolTable().getPrimarySymbol(toAddr);
+
+                    // Check if it's a data reference and get the value
+                    ghidra.program.model.listing.Data data = program.getListing().getDataAt(toAddr);
+
+                    // Enhanced operand format: operand=>symbol
+                    if (targetSymbol != null) {
+                        operands.append(opStr).append("=>").append(targetSymbol.getName());
+
+                        // Add data value if available
+                        if (data != null && data.isDefined()) {
+                            Object value = data.getValue();
+                            if (value != null) {
+                                operands.append("                        = ").append(value);
+                            }
+                        }
+                    } else {
+                        operands.append(opStr);
+
+                        // Just add value if no symbol
+                        if (data != null && data.isDefined()) {
+                            Object value = data.getValue();
+                            if (value != null) {
+                                operands.append("                        = ").append(value);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // No references, just use default operand
+                operands.append(opStr);
+
+                // Check if operand references a local variable (stack offset)
+                // Try to replace stack offsets with variable names
+                String withVarNames = replaceStackOffsetsWithVarNames(opStr, func);
+                if (!withVarNames.equals(opStr)) {
+                    operands.setLength(operands.length() - opStr.length());
+                    operands.append(withVarNames);
+                }
+            }
+        }
+
+        return operands.toString();
+    }
+
+    /**
+     * Replace stack offsets in operand strings with variable names
+     */
+    private String replaceStackOffsetsWithVarNames(String operandStr, Function func) {
+        // Look for patterns like (-0x18,A5) or (0x10,SP) and replace with variable names
+        Variable[] vars = func.getAllVariables();
+
+        for (Variable var : vars) {
+            if (var.isStackVariable()) {
+                int offset = var.getStackOffset();
+                String hexOffset = offset < 0 ? "-0x" + Integer.toHexString(-offset) : "0x" + Integer.toHexString(offset);
+
+                // Try to find this offset in the operand string
+                if (operandStr.contains(hexOffset) || operandStr.contains(Integer.toString(offset))) {
+                    // Replace with offset=>varname
+                    operandStr = operandStr.replace("(" + hexOffset, "(" + hexOffset + "=>" + var.getName());
+                }
+            }
+        }
+
+        return operandStr;
+    }
+
+    /**
+     * Append call details including function prototypes
+     */
+    private void appendCallDetails(StringBuilder result, Instruction instr, Program program, ReferenceManager refManager) {
+        Reference[] refs = refManager.getReferencesFrom(instr.getAddress());
+        for (Reference ref : refs) {
+            if (ref.getReferenceType().isCall()) {
+                Function calledFunc = program.getFunctionManager().getFunctionAt(ref.getToAddress());
+                if (calledFunc != null) {
+                    // Add function name
+                    result.append("              ").append(calledFunc.getName());
+
+                    // Add function signature/prototype on next line
+                    String signature = calledFunc.getSignature().toString();
+                    if (signature != null && !signature.isEmpty()) {
+                        result.append("\n");
+                        result.append("                                                                                       ");
+                        result.append(signature);
+                    }
+
+                    // Add call destination override if thunk or indirect
+                    if (calledFunc.isThunk()) {
+                        Function thunkedFunc = calledFunc.getThunkedFunction(true);
+                        if (thunkedFunc != null) {
+                            result.append("\n");
+                            result.append("                           -- Call Destination Override: ");
+                            result.append(thunkedFunc.getName());
+                            result.append(" (").append(thunkedFunc.getEntryPoint()).append(")");
+                        }
+                    }
                 }
             }
         }
