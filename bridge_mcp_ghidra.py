@@ -46,7 +46,8 @@ TOOL_CATEGORIES = {
         "get_xrefs_to", "get_xrefs_from", "get_function_xrefs"
     ],
     "decompile": [
-        "decompile_function", "decompile_function_by_address", "disassemble_function"
+        "decompile_function", "decompile_function_by_address", "disassemble_function",
+        "get_address_context"
     ],
     "search": [
         "search_functions_by_name", "search_data_by_name",
@@ -468,6 +469,14 @@ def disassemble_function(address: str) -> list:
     Get assembly code (address: instruction; comment) for a function.
     """
     return safe_get("disassemble_function", {"address": address})
+
+@conditional_tool
+def get_address_context(address: str, before: int = 5, after: int = 5) -> list:
+    """
+    Get detailed Ghidra-style disassembly around an address with context window.
+    Shows bytes, mnemonics, operands, symbols, XREFs, and comments.
+    """
+    return safe_get("get_address_context", {"address": address, "before": before, "after": after})
 
 @conditional_tool
 def get_function_data(address: str = None, name: str = None) -> list:

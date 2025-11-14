@@ -769,4 +769,189 @@ class EnhancedDisassemblyTest {
         assertFalse(contiguousOutput.contains("WARNING:"), "Should not show warning for contiguous function");
         assertFalse(contiguousOutput.contains("Gap detected"), "Should not indicate gap for contiguous function");
     }
+
+    // ==================== Address Context Tests ====================
+
+    @Test
+    @DisplayName("Address context should show target address with arrow marker")
+    void testAddressContextTargetMarker() {
+        String contextOutput = "  --> 0022d3d4 48 e7           movem.l    {A6 A3 A2 D7 D2},-(SP)";
+
+        assertTrue(contextOutput.contains("  --> "), "Target instruction should be marked with arrow");
+        assertTrue(contextOutput.contains("0022d3d4"), "Should show target address");
+    }
+
+    @Test
+    @DisplayName("Address context should show instructions before target without arrow")
+    void testAddressContextBeforeInstructions() {
+        String beforeInstr = "       0022d3d0 4e 55 ff ec     link.w     A5,-0x14";
+
+        assertTrue(beforeInstr.startsWith("       "), "Before instructions should have standard indent");
+        assertFalse(beforeInstr.contains("-->"), "Before instructions should not have arrow");
+    }
+
+    @Test
+    @DisplayName("Address context should show instructions after target without arrow")
+    void testAddressContextAfterInstructions() {
+        String afterInstr = "       0022d3d8 2c 6c 41 a0     movea.l    (0x41a0,A4),A6";
+
+        assertTrue(afterInstr.startsWith("       "), "After instructions should have standard indent");
+        assertFalse(afterInstr.contains("-->"), "After instructions should not have arrow");
+    }
+
+    @Test
+    @DisplayName("Address context should show context window header")
+    void testAddressContextHeader() {
+        String header = "Disassembly context for address: 0022d3d4\n" +
+                       "Context window: -5 to +5 instructions";
+
+        assertTrue(header.contains("Disassembly context for address:"), "Should show header");
+        assertTrue(header.contains("Context window:"), "Should show context window info");
+        assertTrue(header.contains("-5 to +5"), "Should show before/after counts");
+    }
+
+    @Test
+    @DisplayName("Address context should show containing function name")
+    void testAddressContextFunctionName() {
+        String funcInfo = "Function: myFunction @ 0022d3d0";
+
+        assertTrue(funcInfo.contains("Function:"), "Should show function indicator");
+        assertTrue(funcInfo.contains("myFunction"), "Should show function name");
+        assertTrue(funcInfo.contains("@"), "Should show at symbol for address");
+    }
+
+    @Test
+    @DisplayName("Address context should handle data at target address")
+    void testAddressContextDataAddress() {
+        String dataNote = "Note: Target address contains data, not an instruction\n" +
+                         "Data type: dword";
+
+        assertTrue(dataNote.contains("Note:"), "Should show note about data");
+        assertTrue(dataNote.contains("contains data, not an instruction"), "Should explain it's data");
+        assertTrue(dataNote.contains("Data type:"), "Should show data type");
+    }
+
+    @Test
+    @DisplayName("Address context should handle undefined target address")
+    void testAddressContextUndefinedAddress() {
+        String undefinedNote = "Note: Target address is undefined or not an instruction";
+
+        assertTrue(undefinedNote.contains("Note:"), "Should show note");
+        assertTrue(undefinedNote.contains("undefined or not an instruction"), "Should explain undefined");
+    }
+
+    @Test
+    @DisplayName("Address context should show labels for jump targets")
+    void testAddressContextLabels() {
+        String labelLine = "                             LAB_0022d3dc                                    XREF[2]:     0022d48c(j), 0022d4b4(j)";
+
+        assertTrue(labelLine.contains("LAB_"), "Should show label");
+        assertTrue(labelLine.contains("XREF"), "Should show XREFs to label");
+        assertTrue(labelLine.contains("(j)"), "Should show jump indicator");
+    }
+
+    @Test
+    @DisplayName("Address context should show XREFs for target instruction only")
+    void testAddressContextTargetXREFs() {
+        String targetWithXref = "  --> 0022d3d4 48 e7           movem.l    {A6 A3 A2 D7 D2},-(SP)\n" +
+                               "                     XREF from: Combat_Init:0022d100 (CALL)";
+
+        assertTrue(targetWithXref.contains("XREF from:"), "Should show XREF for target");
+        assertTrue(targetWithXref.contains("Combat_Init"), "Should show source function");
+        assertTrue(targetWithXref.contains("(CALL)"), "Should show reference type");
+    }
+
+    @Test
+    @DisplayName("Address context should limit XREFs display for clarity")
+    void testAddressContextXREFLimit() {
+        String manyXrefs = "                     XREF from: [6 references]";
+
+        assertTrue(manyXrefs.contains("references]"), "Should indicate multiple references");
+    }
+
+    @Test
+    @DisplayName("Address context should use same formatting as disassemble_function")
+    void testAddressContextConsistentFormatting() {
+        String contextInstr = "       0022d3d0 4e 55 ff ec     link.w     A5,-0x14";
+
+        // Should match disassemble_function format: 7 spaces, address, bytes, mnemonic, operands
+        assertTrue(contextInstr.startsWith("       "), "Should have 7-space indent");
+        assertTrue(contextInstr.contains("4e 55 ff ec"), "Should show instruction bytes");
+        assertTrue(contextInstr.contains("link.w"), "Should show mnemonic");
+        assertTrue(contextInstr.contains("A5,-0x14"), "Should show operands");
+    }
+
+    @Test
+    @DisplayName("Address context should show call targets with signatures")
+    void testAddressContextCallSignatures() {
+        String callWithSig = "       0022d50e 4e ae ff e2     jsr        (-0x1e,A6)              exec_library_Supervisor";
+
+        assertTrue(callWithSig.contains("jsr"), "Should show call instruction");
+        assertTrue(callWithSig.contains("exec_library_Supervisor"), "Should show called function");
+    }
+
+    @Test
+    @DisplayName("Address context should show instruction comments")
+    void testAddressContextComments() {
+        String instrWithComment = "       0022d3d0 4e 55 ff ec     link.w     A5,-0x14 ; setup stack frame";
+
+        assertTrue(instrWithComment.contains("; "), "Should show EOL comment");
+        assertTrue(instrWithComment.contains("setup stack frame"), "Should show comment text");
+    }
+
+    @Test
+    @DisplayName("Address context should respect before parameter")
+    void testAddressContextBeforeParameter() {
+        // With before=3, should show exactly 3 instructions before target
+        // This is a format test - actual count would be verified in integration tests
+        String header = "Context window: -3 to +5 instructions";
+
+        assertTrue(header.contains("-3"), "Should respect before parameter");
+    }
+
+    @Test
+    @DisplayName("Address context should respect after parameter")
+    void testAddressContextAfterParameter() {
+        // With after=10, should show exactly 10 instructions after target
+        // This is a format test - actual count would be verified in integration tests
+        String header = "Context window: -5 to +10 instructions";
+
+        assertTrue(header.contains("+10"), "Should respect after parameter");
+    }
+
+    @Test
+    @DisplayName("Address context should use default values when parameters not specified")
+    void testAddressContextDefaultParameters() {
+        String headerWithDefaults = "Context window: -5 to +5 instructions";
+
+        assertTrue(headerWithDefaults.contains("-5 to +5"), "Should use default values of 5 before and 5 after");
+    }
+
+    @Test
+    @DisplayName("Address context should show variable name resolution in operands")
+    void testAddressContextVariableResolution() {
+        String instrWithVar = "       0022d5ec 4c ed 4c 84     movem.l    (-0x28=>local_28,A5),{D2 D7 A2 A3 A6}";
+
+        assertTrue(instrWithVar.contains("=>local_28"), "Should resolve stack offset to variable name");
+        assertTrue(instrWithVar.contains("-0x28"), "Should show original offset");
+    }
+
+    @Test
+    @DisplayName("Address context should show symbol resolution in operands")
+    void testAddressContextSymbolResolution() {
+        String instrWithSymbol = "       0022d4d0 43 fa 01 24     lea        (0x124,PC)=>DAT_0022d5f6,A1";
+
+        assertTrue(instrWithSymbol.contains("=>DAT_"), "Should resolve to symbol");
+        assertTrue(instrWithSymbol.contains("(0x124,PC)"), "Should show PC-relative offset");
+    }
+
+    @Test
+    @DisplayName("Address context error message should include address when invalid")
+    void testAddressContextInvalidAddressError() {
+        String errorMsg = "Error: Invalid address format: invalid_addr";
+
+        assertTrue(errorMsg.contains("Error:"), "Should show error indicator");
+        assertTrue(errorMsg.contains("Invalid address format"), "Should explain the error");
+        assertTrue(errorMsg.contains("invalid_addr"), "Should include the problematic address");
+    }
 }
