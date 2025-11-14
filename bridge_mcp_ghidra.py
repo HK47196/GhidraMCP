@@ -148,13 +148,51 @@ def get_data_by_address(address: str) -> str:
 def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
     """
     Search for functions whose name contains the given substring.
+
+    Supports namespace syntax using '::' separator:
+    - "namespace::" - returns all functions in the namespace
+    - "namespace::func" - searches for 'func' in the namespace
+    - "A::B::func" - searches for 'func' in nested namespace A::B
+    - "func" - searches for 'func' (standard substring search)
+
+    Examples:
+        search_functions_by_name("thunk::") - all functions in thunk namespace
+        search_functions_by_name("thunk::fun") - functions named 'fun' in thunk namespace
+        search_functions_by_name("std::vector::push") - functions matching 'push' in std::vector namespace
     """
     # Convert query to string to handle numeric inputs (e.g., "4140" parsed as int 4140)
     # Use 'is not None' check instead of truthiness to handle zero and empty strings correctly
     query_str = str(query) if query is not None else ""
     if not query_str:
         return ["Error: query string is required"]
-    return safe_get("searchFunctions", {"query": query_str, "offset": offset, "limit": limit})
+
+    params = {"offset": offset, "limit": limit}
+
+    # Check if query contains namespace syntax (::)
+    if "::" in query_str:
+        # Parse namespace and function name
+        if query_str.endswith("::"):
+            # Query ends with ::, search for all functions in namespace
+            namespace = query_str[:-2]  # Remove trailing ::
+            function_name = ""
+        else:
+            # Split by :: and take last part as function name
+            # Use rsplit with maxsplit=1 to handle nested namespaces correctly
+            parts = query_str.rsplit("::", 1)
+            namespace = parts[0] if len(parts) > 1 else ""
+            function_name = parts[1] if len(parts) > 1 else parts[0]
+
+        # Add namespace-specific parameters
+        if namespace:
+            params["namespace"] = namespace
+        if function_name:
+            params["function_name"] = function_name
+        # If no function_name (ends with ::), backend should return all functions in namespace
+    else:
+        # No namespace syntax, use standard substring search
+        params["query"] = query_str
+
+    return safe_get("searchFunctions", params)
 
 @mcp.tool()
 def search_data_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:

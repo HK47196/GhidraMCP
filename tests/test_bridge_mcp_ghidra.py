@@ -587,6 +587,209 @@ class TestNumericSearchQueries:
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "3735928559", "offset": 0, "limit": 100})
 
 
+class TestNamespaceSearch:
+    """Test suite for namespace detection in search_functions_by_name."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespace_only(self, mock_safe_get):
+        """Test search with namespace only (ending with ::)."""
+        mock_safe_get.return_value = ["thunk::func1", "thunk::func2", "thunk::func3"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("thunk::", offset=0, limit=100)
+
+        assert result == ["thunk::func1", "thunk::func2", "thunk::func3"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "thunk",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespace_with_function(self, mock_safe_get):
+        """Test search with namespace and function name."""
+        mock_safe_get.return_value = ["thunk::fun1", "thunk::fun2"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("thunk::fun", offset=0, limit=100)
+
+        assert result == ["thunk::fun1", "thunk::fun2"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "thunk",
+            "function_name": "fun",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_nested_namespace_only(self, mock_safe_get):
+        """Test search with nested namespace (A::B::)."""
+        mock_safe_get.return_value = ["A::B::func1", "A::B::func2"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("A::B::", offset=0, limit=100)
+
+        assert result == ["A::B::func1", "A::B::func2"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "A::B",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_nested_namespace_with_function(self, mock_safe_get):
+        """Test search with nested namespace and function name (A::B::fun)."""
+        mock_safe_get.return_value = ["A::B::fun"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("A::B::fun", offset=0, limit=100)
+
+        assert result == ["A::B::fun"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "A::B",
+            "function_name": "fun",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_deeply_nested_namespace(self, mock_safe_get):
+        """Test search with deeply nested namespace (A::B::C::D::)."""
+        mock_safe_get.return_value = ["A::B::C::D::func"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("A::B::C::D::", offset=0, limit=50)
+
+        assert result == ["A::B::C::D::func"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "A::B::C::D",
+            "offset": 0,
+            "limit": 50
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_deeply_nested_namespace_with_function(self, mock_safe_get):
+        """Test search with deeply nested namespace and function."""
+        mock_safe_get.return_value = ["std::vector::iterator::begin"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("std::vector::iterator::begin")
+
+        assert result == ["std::vector::iterator::begin"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "std::vector::iterator",
+            "function_name": "begin",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_without_namespace_syntax(self, mock_safe_get):
+        """Test search without namespace syntax (standard search)."""
+        mock_safe_get.return_value = ["my_function", "another_function"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("function", offset=0, limit=100)
+
+        assert result == ["my_function", "another_function"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "query": "function",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_std_namespace(self, mock_safe_get):
+        """Test search with std namespace (common C++ namespace)."""
+        mock_safe_get.return_value = ["std::vector", "std::string", "std::map"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("std::", offset=0, limit=100)
+
+        assert result == ["std::vector", "std::string", "std::map"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "std",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespace_with_pagination(self, mock_safe_get):
+        """Test namespace search with custom pagination."""
+        mock_safe_get.return_value = ["ns::func10"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("ns::", offset=10, limit=20)
+
+        assert result == ["ns::func10"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "ns",
+            "offset": 10,
+            "limit": 20
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_single_colon_no_namespace(self, mock_safe_get):
+        """Test search with single colon (not namespace syntax)."""
+        mock_safe_get.return_value = ["func:label"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("func:label", offset=0, limit=100)
+
+        assert result == ["func:label"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "query": "func:label",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespace_numeric_query(self, mock_safe_get):
+        """Test namespace search when query looks numeric but has namespace."""
+        mock_safe_get.return_value = ["ns::4140"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("ns::4140", offset=0, limit=100)
+
+        assert result == ["ns::4140"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "ns",
+            "function_name": "4140",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_underscore_namespace(self, mock_safe_get):
+        """Test namespace with underscores."""
+        mock_safe_get.return_value = ["my_namespace::my_func"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("my_namespace::my_func")
+
+        assert result == ["my_namespace::my_func"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "my_namespace",
+            "function_name": "my_func",
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_global_namespace_prefix(self, mock_safe_get):
+        """Test search with global namespace prefix (::func)."""
+        mock_safe_get.return_value = ["::global_func"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("::global_func")
+
+        assert result == ["::global_func"]
+        # Empty namespace before ::, so only function_name is set
+        call_args = mock_safe_get.call_args[0][1]
+        assert "function_name" in call_args
+        assert call_args["function_name"] == "global_func"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_empty_namespace_before_separator(self, mock_safe_get):
+        """Test that empty namespace is handled correctly."""
+        mock_safe_get.return_value = ["func"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("::func")
+
+        assert result == ["func"]
+        # Should only have function_name, not namespace (since namespace is empty)
+        call_args = mock_safe_get.call_args[0][1]
+        assert "namespace" not in call_args or call_args.get("namespace") == ""
+        assert call_args["function_name"] == "func"
+
+
 class TestSearchDecompiledText:
     """Test suite for the search_decompiled_text MCP tool."""
 
