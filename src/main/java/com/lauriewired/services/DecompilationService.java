@@ -653,9 +653,17 @@ public class DecompilationService {
                 String hexOffset = offset < 0 ? "-0x" + Integer.toHexString(-offset) : "0x" + Integer.toHexString(offset);
 
                 // Try to find this offset in the operand string
-                if (operandStr.contains(hexOffset) || operandStr.contains(Integer.toString(offset))) {
-                    // Replace with offset=>varname
-                    operandStr = operandStr.replace("(" + hexOffset, "(" + hexOffset + "=>" + var.getName());
+                if (operandStr.contains(hexOffset)) {
+                    // Handle multiple formats:
+                    // 1. (-0x28,A5) -> (-0x28=>local_28,A5)
+                    // 2. -0x28,A5 -> -0x28=>local_28,A5
+                    // 3. (0x10,SP) -> (0x10=>param_10,SP)
+
+                    // Replace hex offset followed by comma with offset=>varname,
+                    operandStr = operandStr.replace(hexOffset + ",", hexOffset + "=>" + var.getName() + ",");
+
+                    // Also handle case where it's followed by closing paren
+                    operandStr = operandStr.replace(hexOffset + ")", hexOffset + "=>" + var.getName() + ")");
                 }
             }
         }
