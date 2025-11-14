@@ -44,7 +44,8 @@ TOOL_CATEGORIES = {
         "list_exports", "list_namespaces", "list_data_items", "list_functions",
         "list_strings", "get_current_address", "get_current_function",
         "get_function_by_address", "get_data_by_address", "get_data_in_range",
-        "get_function_data", "get_xrefs_to", "get_xrefs_from", "get_function_xrefs"
+        "get_function_data", "get_xrefs_to", "get_xrefs_from", "get_function_xrefs",
+        "man"
     ],
     "decompile": [
         "decompile_function", "decompile_function_by_address", "disassemble_function",
@@ -217,6 +218,309 @@ def safe_post(endpoint: str, data: dict | str) -> str:
             return f"Error {response.status_code}: {response.text.strip()}"
     except Exception as e:
         return f"Request failed: {str(e)}"
+
+# ==================== TOOL MANUAL ====================
+# Detailed documentation for tools (original docstrings preserved for reference)
+
+MANUAL = {
+    "get_data_by_address": """Get information about data at a specific address.
+
+Params:
+    address: Memory address in hex or segment:offset format (e.g., "5356:3cd8" or "0x1400010a0")
+
+Returns:
+    Data information including name, type, value, and size""",
+
+    "set_data_type": """Set the data type at a specific address in the Ghidra program.
+
+Params:
+    address: Memory address in hex format (e.g. "0x1400010a0")
+    type_name: Name of the data type to set (e.g. "int", "dword", "byte[20]", "PCHAR")
+
+Returns:
+    Success or error message""",
+
+    "get_xrefs_to": """Get all references to the specified address (xref to).
+
+Params:
+    address: Target address in hex format (e.g. "0x1400010a0")
+    offset: Pagination offset (default: 0)
+    limit: Maximum number of references to return (default: 100)
+
+Returns:
+    List of references to the specified address""",
+
+    "get_xrefs_from": """Get all references from the specified address (xref from).
+
+Params:
+    address: Source address in hex format (e.g. "0x1400010a0")
+    offset: Pagination offset (default: 0)
+    limit: Maximum number of references to return (default: 100)
+
+Returns:
+    List of references from the specified address""",
+
+    "get_function_xrefs": """Get all references to the specified function by name.
+
+Params:
+    name: Function name to search for
+    offset: Pagination offset (default: 0)
+    limit: Maximum number of references to return (default: 100)
+
+Returns:
+    List of references to the specified function""",
+
+    "list_strings": """List all defined strings in the program with their addresses.
+
+Params:
+    offset: Pagination offset (default: 0)
+    limit: Maximum number of strings to return (default: 2000)
+    filter: Optional filter to match within string content
+
+Returns:
+    List of strings with their addresses""",
+
+    "bsim_select_database": """Select and connect to a BSim database for function similarity matching.
+
+Params:
+    database_path: Path to BSim database file (e.g., "/path/to/database.bsim")
+                  or URL (e.g., "postgresql://host:port/dbname")
+
+Returns:
+    Connection status and database information""",
+
+    "bsim_query_function": """Query a single function against the BSim database to find similar functions.
+
+Params:
+    function_address: Address of the function to query (e.g., "0x401000")
+    max_matches: Maximum number of matches to return (default: 10)
+    similarity_threshold: Minimum similarity score (inclusive, 0.0-1.0, default: 0.7)
+    confidence_threshold: Minimum confidence score (inclusive, 0.0-1.0, default: 0.0)
+    max_similarity: Maximum similarity score (exclusive, 0.0-1.0, default: unbounded)
+    max_confidence: Maximum confidence score (exclusive, 0.0-1.0, default: unbounded)
+    offset: Pagination offset (default: 0)
+    limit: Maximum number of results to return (default: 100)
+
+Returns:
+    List of matching functions with similarity scores and metadata""",
+
+    "bsim_query_all_functions": """Query all functions in the current program against the BSim database.
+Returns an overview of matches for all functions.
+
+Params:
+    max_matches_per_function: Max matches per function (default: 5)
+    similarity_threshold: Minimum similarity score (inclusive, 0.0-1.0, default: 0.7)
+    confidence_threshold: Minimum confidence score (inclusive, 0.0-1.0, default: 0.0)
+    max_similarity: Maximum similarity score (exclusive, 0.0-1.0, default: unbounded)
+    max_confidence: Maximum confidence score (exclusive, 0.0-1.0, default: unbounded)
+    offset: Pagination offset (default: 0)
+    limit: Maximum number of results to return (default: 100)
+
+Returns:
+    Summary and detailed results for all matching functions""",
+
+    "bsim_disconnect": """Disconnect from the current BSim database.
+
+Returns:
+    Disconnection status message""",
+
+    "bsim_status": """Get the current BSim database connection status.
+
+Returns:
+    Current connection status and database path if connected""",
+
+    "bsim_get_match_disassembly": """Get the disassembly of a specific BSim match. This requires the matched
+executable to be available in the Ghidra project.
+
+Params:
+    executable_path: Path to the matched executable (from BSim match result)
+    function_name: Name of the matched function
+    function_address: Address of the matched function (e.g., "0x401000")
+
+Returns:
+    Function prototype and assembly code for the matched function.
+    Returns an error message if the program is not found in the project.""",
+
+    "bsim_get_match_decompile": """Get the decompilation of a specific BSim match. This requires the matched
+executable to be available in the Ghidra project.
+
+Params:
+    executable_path: Path to the matched executable (from BSim match result)
+    function_name: Name of the matched function
+    function_address: Address of the matched function (e.g., "0x401000")
+
+Returns:
+    Function prototype and decompiled C code for the matched function.
+    Returns an error message if the program is not found in the project.""",
+
+    "bulk_operations": """Execute multiple operations in a single request. This is more efficient than
+making multiple individual requests.
+
+Params:
+    operations: List of operations to execute. Each operation is a dict with:
+        - endpoint: The API endpoint path (e.g., "/methods", "/decompile")
+        - params: Dict of parameters for that endpoint (e.g., {"name": "main"})
+
+Example:
+    operations = [
+        {"endpoint": "/methods", "params": {"offset": 0, "limit": 10}},
+        {"endpoint": "/decompile", "params": {"name": "main"}},
+        {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x401000", "new_name": "initialize"}}
+    ]
+
+Returns:
+    JSON string containing results array with the response for each operation.""",
+
+    "create_struct": """Create a new empty struct with a given name and optional size.
+
+Params:
+    name: Struct name
+    size: Initial size in bytes (0 for empty/auto-sized)
+    category_path: Category path like "/MyStructs" (default: "/")
+
+Returns:
+    JSON string with struct details (name, size, category, path)""",
+
+    "parse_c_struct": """Parse C struct definition from text and add to program.
+
+Params:
+    c_code: C struct definition (e.g., "struct MyStruct { int field1; char field2; };")
+    category_path: Where to place the struct (default: "/")
+
+Returns:
+    JSON string with parsed struct names and details
+
+Note: C code must be preprocessed (no #includes, macros expanded).
+Basic types must exist (int, char, void, etc.).""",
+
+    "add_struct_field": """Add a field to an existing struct.
+
+Params:
+    struct_name: Name of struct to modify
+    field_type: Data type name (e.g., "int", "char", "void*", "MyStruct")
+    field_name: Name of new field
+    length: Size in bytes (-1 for default based on type)
+    comment: Optional field comment
+
+Returns:
+    JSON string with field details (offset, size, type, name)""",
+
+    "insert_struct_field_at_offset": """Insert a field at a specific offset in the struct.
+
+Params:
+    struct_name: Name of struct
+    offset: Byte offset for insertion
+    field_type: Data type name
+    field_name: Name of field
+    length: Size in bytes (-1 for default)
+    comment: Optional field comment
+
+Returns:
+    JSON string with field details""",
+
+    "replace_struct_field": """Replace an existing field at a given ordinal position.
+
+Params:
+    struct_name: Name of struct
+    ordinal: Component index (0-based)
+    field_type: Data type name
+    field_name: Field name (empty to keep existing)
+    length: Size in bytes (-1 for default)
+    comment: Field comment (empty to keep existing)
+
+Returns:
+    JSON string with field details""",
+
+    "delete_struct_field": """Delete a field from a struct.
+
+Params:
+    struct_name: Name of struct
+    ordinal: Component index (0-based, use -1 if using offset)
+    offset: Byte offset (use -1 if using ordinal)
+
+Note: Must specify either ordinal OR offset, not both.
+
+Returns:
+    JSON string with result""",
+
+    "clear_struct_field": """Clear a field (keeps struct size, fills with undefined).
+
+Params:
+    struct_name: Name of struct
+    ordinal: Component index (0-based, use -1 if using offset)
+    offset: Byte offset (use -1 if using ordinal)
+
+Note: Must specify either ordinal OR offset, not both.
+
+Returns:
+    JSON string with result""",
+
+    "get_struct_info": """Get detailed information about a struct.
+
+Params:
+    name: Struct name
+
+Returns:
+    JSON string with complete struct details including all fields
+    (name, path, size, numComponents, numDefined, isPacked, alignment, components)""",
+
+    "list_structs": """List all struct types in the program.
+
+Params:
+    category_path: Filter by category (empty for all)
+    offset: Pagination offset
+    limit: Max results
+
+Returns:
+    JSON string with array of struct summaries""",
+
+    "rename_struct": """Rename a struct.
+
+Params:
+    old_name: Current struct name
+    new_name: New struct name
+
+Returns:
+    JSON string with result""",
+
+    "delete_struct": """Delete a struct from the program.
+
+Params:
+    name: Name of struct to delete
+
+Returns:
+    JSON string with result""",
+}
+
+@conditional_tool
+def man(tool_name: str) -> str:
+    """Get detailed documentation for a tool. Returns the full manual page with parameters and examples."""
+    if tool_name in MANUAL:
+        return f"=== Manual: {tool_name} ===\n\n{MANUAL[tool_name]}"
+    elif tool_name == "man":
+        available_tools = sorted(MANUAL.keys())
+        return f"""=== Manual: man ===
+
+Get detailed documentation for a tool.
+
+Params:
+    tool_name: Name of the tool to get documentation for
+
+Returns:
+    Detailed documentation including parameters, return values, and examples
+
+Available manual pages ({len(available_tools)}):
+{', '.join(available_tools)}"""
+    else:
+        # Tool might exist but not have extended documentation
+        available_tools = sorted(MANUAL.keys())
+        return f"""Tool '{tool_name}' not found in manual.
+
+Available manual pages ({len(available_tools)}):
+{', '.join(available_tools)}
+
+Note: Some tools may not have extended documentation in the manual.
+Use the tool's inline docstring for basic information."""
 
 @conditional_tool
 def list_methods(offset: int = 0, limit: int = 100) -> list:
