@@ -207,6 +207,14 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, programAnalyzer.getDataByAddress(address));
         });
 
+        server.createContext("/data_in_range", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String startAddress = qparams.get("start_address");
+            String endAddress = qparams.get("end_address");
+            boolean includeUndefined = Boolean.parseBoolean(qparams.getOrDefault("include_undefined", "false"));
+            sendResponse(exchange, programAnalyzer.getDataInRange(startAddress, endAddress, includeUndefined));
+        });
+
         server.createContext("/searchFunctions", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String searchTerm = qparams.get("query");
@@ -745,6 +753,14 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/get_data_by_address":
                     return programAnalyzer.getDataByAddress(params.get("address"));
+
+                case "/data_in_range":
+                    boolean includeUndef = Boolean.parseBoolean(params.getOrDefault("include_undefined", "false"));
+                    return programAnalyzer.getDataInRange(
+                        params.get("start_address"),
+                        params.get("end_address"),
+                        includeUndef
+                    );
 
                 case "/searchFunctions":
                     return programAnalyzer.searchFunctionsByName(
