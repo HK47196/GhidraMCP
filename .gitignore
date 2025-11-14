@@ -1,5 +1,7 @@
-# Maven target directory
-/target/
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
 
 # Compiled class files
 *.class
@@ -34,12 +36,6 @@ bin/
 # macOS metadata files
 .Spotlight-V100
 .Trashes
-
-# Maven Wrapper
-.mvn/
-!/.mvn/wrapper/maven-wrapper.jar
-mvnw
-mvnw.cmd
 
 # Environment files
 .env
