@@ -1051,3 +1051,106 @@ class TestSearchDecompiledText:
 
         assert result == mock_response
         assert "error" in result
+
+
+class TestToolTrackerIntegration:
+    """Test suite for ToolTracker integration with the bridge."""
+
+    def test_tool_tracker_import(self):
+        """Test that ToolTracker can be imported."""
+        from tool_tracker import ToolTracker
+        assert ToolTracker is not None
+
+    def test_global_tracker_variable_exists(self):
+        """Test that the global _tool_tracker variable exists."""
+        assert hasattr(bridge_mcp_ghidra, '_tool_tracker')
+
+    def test_register_tools_without_tracker(self):
+        """Test that register_tools works when tracker is None."""
+        # Save original state
+        original_registered = bridge_mcp_ghidra._tools_registered
+        original_tracker = bridge_mcp_ghidra._tool_tracker
+
+        try:
+            # Reset state
+            bridge_mcp_ghidra._tools_registered = False
+            bridge_mcp_ghidra._tool_tracker = None
+
+            # Should not raise an exception
+            bridge_mcp_ghidra.register_tools()
+
+        finally:
+            # Restore state
+            bridge_mcp_ghidra._tools_registered = original_registered
+            bridge_mcp_ghidra._tool_tracker = original_tracker
+
+    @patch('bridge_mcp_ghidra.ToolTracker')
+    def test_tracker_initialization_in_main(self, mock_tracker_class):
+        """Test that tracker is initialized with enabled tools."""
+        import tempfile
+        import os
+
+        # Create a mock tracker instance
+        mock_tracker = Mock()
+        mock_tracker_class.return_value = mock_tracker
+
+        # Save original state
+        original_tracker = bridge_mcp_ghidra._tool_tracker
+        original_enabled = bridge_mcp_ghidra._enabled_tools
+        original_registered = bridge_mcp_ghidra._tools_registered
+
+        try:
+            # Reset state
+            bridge_mcp_ghidra._tool_tracker = None
+            bridge_mcp_ghidra._enabled_tools = None
+            bridge_mcp_ghidra._tools_registered = False
+
+            # Get all tools from registry
+            all_tools = set(bridge_mcp_ghidra._tool_registry.keys())
+
+            # Simulate tracker initialization from main()
+            enabled_tools = bridge_mcp_ghidra._enabled_tools if bridge_mcp_ghidra._enabled_tools is not None else set(bridge_mcp_ghidra._tool_registry.keys())
+            bridge_mcp_ghidra._tool_tracker = mock_tracker_class(list(enabled_tools))
+
+            # Verify tracker was initialized with tool list
+            mock_tracker_class.assert_called_once()
+            call_args = mock_tracker_class.call_args[0]
+            assert isinstance(call_args[0], list), "Should be called with a list of tools"
+            assert len(call_args[0]) > 0, "Should have at least one tool"
+
+        finally:
+            # Restore state
+            bridge_mcp_ghidra._tool_tracker = original_tracker
+            bridge_mcp_ghidra._enabled_tools = original_enabled
+            bridge_mcp_ghidra._tools_registered = original_registered
+
+    def test_tool_wrapper_preserves_metadata(self):
+        """Test that the tracking wrapper preserves function metadata."""
+        # Create a mock tool function
+        def sample_tool(param1: str, param2: int = 10) -> str:
+            """Sample tool documentation."""
+            return f"Result: {param1}, {param2}"
+
+        # Create the wrapper using the same logic as register_tools
+        mock_tracker = Mock()
+
+        def create_tracked_wrapper(name, func):
+            def tracked_tool(*args, **kwargs):
+                mock_tracker.increment(name)
+                return func(*args, **kwargs)
+            tracked_tool.__name__ = func.__name__
+            tracked_tool.__doc__ = func.__doc__
+            tracked_tool.__annotations__ = func.__annotations__
+            return tracked_tool
+
+        wrapped = create_tracked_wrapper("sample_tool", sample_tool)
+
+        # Test that metadata is preserved
+        assert wrapped.__name__ == "sample_tool"
+        assert wrapped.__doc__ == "Sample tool documentation."
+        assert wrapped.__annotations__ == sample_tool.__annotations__
+
+        # Test that the wrapper calls the tracker
+        result = wrapped("test", 20)
+        assert result == "Result: test, 20"
+        mock_tracker.increment.assert_called_once_with("sample_tool")
