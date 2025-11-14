@@ -275,6 +275,14 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, decompilationService.disassembleFunction(address));
         });
 
+        server.createContext("/get_address_context", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String address = qparams.get("address");
+            int before = PluginUtils.parseIntOrDefault(qparams.get("before"), 5);
+            int after = PluginUtils.parseIntOrDefault(qparams.get("after"), 5);
+            sendResponse(exchange, decompilationService.getAddressContext(address, before, after));
+        });
+
         server.createContext("/get_function_data", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String address = qparams.get("address");
@@ -787,6 +795,13 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/disassemble_function":
                     return decompilationService.disassembleFunction(params.get("address"));
+
+                case "/get_address_context":
+                    return decompilationService.getAddressContext(
+                        params.get("address"),
+                        PluginUtils.parseIntOrDefault(params.get("before"), 5),
+                        PluginUtils.parseIntOrDefault(params.get("after"), 5)
+                    );
 
                 case "/get_function_data":
                     String dataAddress = params.get("address");

@@ -1027,4 +1027,207 @@ public class DecompilationService {
             return "Error getting data references: " + e.getMessage();
         }
     }
+
+    /**
+     * Get detailed disassembly context around a specific address
+     * @param addressStr Address as string
+     * @param before Number of instructions before the address (default: 5)
+     * @param after Number of instructions after the address (default: 5)
+     * @return Detailed disassembly with context
+     */
+    public String getAddressContext(String addressStr, int before, int after) {
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return "No program loaded";
+        if (addressStr == null || addressStr.isEmpty()) return "Address is required";
+
+        try {
+            Address targetAddr = program.getAddressFactory().getAddress(addressStr);
+            if (targetAddr == null) {
+                return "Error: Invalid address format: " + addressStr;
+            }
+
+            Listing listing = program.getListing();
+            ReferenceManager refManager = program.getReferenceManager();
+            SymbolTable symbolTable = program.getSymbolTable();
+
+            StringBuilder result = new StringBuilder();
+            result.append("Disassembly context for address: ").append(targetAddr).append("\n");
+            result.append("Context window: -").append(before).append(" to +").append(after).append(" instructions\n\n");
+
+            // Find the function containing this address (if any)
+            Function containingFunc = program.getFunctionManager().getFunctionContaining(targetAddr);
+            if (containingFunc != null) {
+                result.append("Function: ").append(containingFunc.getName());
+                result.append(" @ ").append(containingFunc.getEntryPoint()).append("\n\n");
+            }
+
+            // Get the instruction at the target address
+            Instruction targetInstr = listing.getInstructionAt(targetAddr);
+            if (targetInstr == null) {
+                // Maybe it's data or undefined
+                Data data = listing.getDataAt(targetAddr);
+                if (data != null) {
+                    result.append("Note: Target address contains data, not an instruction\n");
+                    result.append("Data type: ").append(data.getDataType().getDisplayName()).append("\n\n");
+                } else {
+                    result.append("Note: Target address is undefined or not an instruction\n\n");
+                }
+                // Try to show context anyway by finding nearest instruction
+                targetInstr = listing.getInstructionBefore(targetAddr);
+                if (targetInstr == null) {
+                    targetInstr = listing.getInstructionAfter(targetAddr);
+                }
+                if (targetInstr == null) {
+                    return result.append("Error: No instructions found near the target address").toString();
+                }
+                result.append("Showing context from nearest instruction\n\n");
+            }
+
+            // Collect instructions before target
+            List<Instruction> beforeInstructions = new ArrayList<>();
+            Instruction instr = targetInstr;
+            for (int i = 0; i < before && instr != null; i++) {
+                instr = listing.getInstructionBefore(instr.getAddress());
+                if (instr != null) {
+                    beforeInstructions.add(0, instr); // Add to beginning to maintain order
+                }
+            }
+
+            // Collect instructions after target (including target)
+            List<Instruction> afterInstructions = new ArrayList<>();
+            InstructionIterator instrIter = listing.getInstructions(targetAddr, true);
+            int count = 0;
+            while (instrIter.hasNext() && count <= after) {
+                afterInstructions.add(instrIter.next());
+                count++;
+            }
+
+            // Display all instructions with enhanced formatting
+            List<Instruction> allInstructions = new ArrayList<>(beforeInstructions);
+            allInstructions.addAll(afterInstructions);
+
+            for (Instruction instruction : allInstructions) {
+                Address addr = instruction.getAddress();
+                boolean isTarget = addr.equals(targetAddr);
+
+                // Show label at this address if any
+                Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
+                if (primarySymbol != null && (containingFunc == null || !primarySymbol.getName().equals(containingFunc.getName()))) {
+                    result.append("                             ");
+                    result.append(primarySymbol.getName());
+
+                    // Add XREFs for labels
+                    ReferenceIterator labelXrefs = refManager.getReferencesTo(addr);
+                    List<String> jumpRefs = new ArrayList<>();
+                    while (labelXrefs.hasNext()) {
+                        Reference ref = labelXrefs.next();
+                        if (ref.getReferenceType().isJump() || ref.getReferenceType().isConditional()) {
+                            String refTypeStr = getRefTypeDisplayString(ref);
+                            jumpRefs.add(ref.getFromAddress().toString() + refTypeStr);
+                        }
+                    }
+
+                    if (!jumpRefs.isEmpty()) {
+                        result.append("                                    XREF[").append(jumpRefs.size()).append("]:     ");
+                        result.append(String.join(", ", jumpRefs.stream().limit(5).collect(java.util.stream.Collectors.toList())));
+                    }
+
+                    result.append("\n");
+                }
+
+                // Mark target instruction with arrow
+                if (isTarget) {
+                    result.append("  --> ");
+                } else {
+                    result.append("       ");
+                }
+
+                // Get instruction bytes
+                byte[] bytes = null;
+                try {
+                    bytes = instruction.getBytes();
+                } catch (ghidra.program.model.mem.MemoryAccessException e) {
+                    // Memory access failed
+                }
+
+                StringBuilder bytesStr = new StringBuilder();
+                if (bytes != null) {
+                    for (byte b : bytes) {
+                        bytesStr.append(String.format("%02x ", b & 0xFF));
+                    }
+                } else {
+                    bytesStr.append("??");
+                }
+
+                String bytesField = String.format("%-12s", bytesStr.toString().trim());
+
+                // Build instruction mnemonic and operands
+                String mnemonicStr = instruction.getMnemonicString();
+                String enhancedOperands = buildEnhancedOperands(instruction, program, containingFunc);
+
+                // Format the instruction
+                result.append(String.format("%-10s", addr.toString()));  // address
+                result.append(bytesField);  // bytes
+                result.append(String.format("%-10s", mnemonicStr));  // mnemonic
+                result.append(enhancedOperands);  // operands
+
+                // Add function names for CALL instructions
+                if (instruction.getFlowType().isCall()) {
+                    Reference[] refs = refManager.getReferencesFrom(addr);
+                    for (Reference ref : refs) {
+                        if (ref.getReferenceType().isCall()) {
+                            Function calledFunc = program.getFunctionManager().getFunctionAt(ref.getToAddress());
+                            if (calledFunc != null) {
+                                result.append("              ").append(calledFunc.getName());
+                                String signature = calledFunc.getSignature().toString();
+                                if (signature != null && !signature.isEmpty()) {
+                                    result.append("\n");
+                                    result.append("                                                                                       ");
+                                    result.append(signature);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add comments
+                appendAllComments(result, listing, addr);
+
+                result.append("\n");
+
+                // Show XREFs TO this address (limit to 3 for context view)
+                if (!isTarget) {  // Skip XREFs for non-target to reduce clutter, or include if desired
+                    continue;
+                }
+
+                ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
+                List<String> xrefList = new ArrayList<>();
+                while (xrefsTo.hasNext()) {
+                    Reference ref = xrefsTo.next();
+                    Address fromAddr = ref.getFromAddress();
+                    if (!ref.getReferenceType().isFlow()) {
+                        Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+                        String xrefStr = fromAddr.toString();
+                        if (fromFunc != null) {
+                            xrefStr = fromFunc.getName() + ":" + xrefStr;
+                        }
+                        xrefStr += " (" + ref.getReferenceType().getName() + ")";
+                        xrefList.add(xrefStr);
+                    }
+                }
+
+                if (!xrefList.isEmpty() && xrefList.size() <= 3) {
+                    for (String xref : xrefList) {
+                        result.append("                     XREF from: ").append(xref).append("\n");
+                    }
+                } else if (xrefList.size() > 3) {
+                    result.append("                     XREF from: [").append(xrefList.size()).append(" references]\n");
+                }
+            }
+
+            return result.toString();
+        } catch (Exception e) {
+            return "Error getting address context: " + e.getMessage();
+        }
+    }
 }
