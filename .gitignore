@@ -53,3 +53,6 @@ __pycache__/
 
 # User configuration files (use mcp-config.example.toml as template)
 mcp-config.toml
+
+# Tool usage tracking database
+tool_stats.db

@@ -22,6 +22,7 @@ except ImportError:
     import tomli as tomllib  # Python 3.10
 
 from mcp.server.fastmcp import FastMCP
+from tool_tracker import ToolTracker
 
 DEFAULT_GHIDRA_SERVER = "http://127.0.0.1:8080/"
 DEFAULT_REQUEST_TIMEOUT = 60
@@ -75,6 +76,7 @@ TOOL_CATEGORIES = {
 _enabled_tools: Optional[Set[str]] = None
 _tool_registry: Dict[str, any] = {}  # Store tool functions before registration
 _tools_registered: bool = False
+_tool_tracker: Optional[ToolTracker] = None  # Track tool call statistics
 
 
 def load_config(config_path: Optional[str] = None) -> Dict:
@@ -173,7 +175,24 @@ def register_tools():
     registered_count = 0
     for tool_name, tool_func in _tool_registry.items():
         if tool_name in enabled_tools:
-            mcp.tool()(tool_func)
+            # Wrap tool function with tracking if tracker is available
+            if _tool_tracker is not None:
+                # Create a wrapper that increments the tracker before calling the tool
+                def create_tracked_wrapper(name, func):
+                    def tracked_tool(*args, **kwargs):
+                        _tool_tracker.increment(name)
+                        return func(*args, **kwargs)
+                    # Preserve original function attributes
+                    tracked_tool.__name__ = func.__name__
+                    tracked_tool.__doc__ = func.__doc__
+                    tracked_tool.__annotations__ = func.__annotations__
+                    return tracked_tool
+
+                wrapped_func = create_tracked_wrapper(tool_name, tool_func)
+                mcp.tool()(wrapped_func)
+            else:
+                mcp.tool()(tool_func)
+
             registered_count += 1
         else:
             logger.debug(f"Tool '{tool_name}' disabled by configuration")
@@ -1060,12 +1079,21 @@ def main():
     args = parser.parse_args()
 
     # Load configuration
-    global _enabled_tools
+    global _enabled_tools, _tool_tracker
     config = load_config(args.config)
     if config.get("tools"):
         _enabled_tools = get_enabled_tools(config)
     else:
         logger.info("No tool configuration found, all tools enabled")
+
+    # Initialize tool tracker with enabled tools
+    enabled_tools = _enabled_tools if _enabled_tools is not None else set(_tool_registry.keys())
+    try:
+        _tool_tracker = ToolTracker(list(enabled_tools))
+        logger.info("Tool call tracking initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize tool tracker: {e}. Continuing without tracking.")
+        _tool_tracker = None
 
     # Register tools based on configuration
     register_tools()
