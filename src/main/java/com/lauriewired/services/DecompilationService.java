@@ -574,7 +574,12 @@ public class DecompilationService {
                     Symbol targetSymbol = program.getSymbolTable().getPrimarySymbol(toAddr);
 
                     // Check if it's a data reference and get the value
-                    ghidra.program.model.listing.Data data = program.getListing().getDataAt(toAddr);
+                    ghidra.program.model.listing.Data data = null;
+                    try {
+                        data = program.getListing().getDataAt(toAddr);
+                    } catch (Exception e) {
+                        // Ignore - data will be null
+                    }
 
                     // Enhanced operand format: operand=>symbol
                     if (targetSymbol != null) {
@@ -582,9 +587,13 @@ public class DecompilationService {
 
                         // Add data value if available
                         if (data != null && data.isDefined()) {
-                            Object value = data.getValue();
-                            if (value != null) {
-                                operands.append("                        = ").append(value);
+                            try {
+                                Object value = data.getValue();
+                                if (value != null) {
+                                    operands.append("                        = ").append(value);
+                                }
+                            } catch (Exception e) {
+                                // Ignore - just don't show value
                             }
                         }
                     } else {
@@ -592,9 +601,13 @@ public class DecompilationService {
 
                         // Just add value if no symbol
                         if (data != null && data.isDefined()) {
-                            Object value = data.getValue();
-                            if (value != null) {
-                                operands.append("                        = ").append(value);
+                            try {
+                                Object value = data.getValue();
+                                if (value != null) {
+                                    operands.append("                        = ").append(value);
+                                }
+                            } catch (Exception e) {
+                                // Ignore - just don't show value
                             }
                         }
                     }
