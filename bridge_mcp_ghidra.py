@@ -222,25 +222,26 @@ def safe_post(endpoint: str, data: dict | str) -> str:
 # ==================== TOOL MANUAL ====================
 # Detailed documentation for tools (original docstrings preserved for reference)
 
-MANUAL = {
-    "get_data_by_address": """Get information about data at a specific address.
+MANUAL = {}
+
+MANUAL["get_data_by_address"] = """Get information about data at a specific address.
 
 Params:
     address: Memory address in hex or segment:offset format (e.g., "5356:3cd8" or "0x1400010a0")
 
 Returns:
-    Data information including name, type, value, and size""",
+    Data information including name, type, value, and size"""
 
-    "set_data_type": """Set the data type at a specific address in the Ghidra program.
+MANUAL["set_data_type"] = """Set the data type at a specific address in the Ghidra program.
 
 Params:
     address: Memory address in hex format (e.g. "0x1400010a0")
     type_name: Name of the data type to set (e.g. "int", "dword", "byte[20]", "PCHAR")
 
 Returns:
-    Success or error message""",
+    Success or error message"""
 
-    "get_xrefs_to": """Get all references to the specified address (xref to).
+MANUAL["get_xrefs_to"] = """Get all references to the specified address (xref to).
 
 Params:
     address: Target address in hex format (e.g. "0x1400010a0")
@@ -248,9 +249,9 @@ Params:
     limit: Maximum number of references to return (default: 100)
 
 Returns:
-    List of references to the specified address""",
+    List of references to the specified address"""
 
-    "get_xrefs_from": """Get all references from the specified address (xref from).
+MANUAL["get_xrefs_from"] = """Get all references from the specified address (xref from).
 
 Params:
     address: Source address in hex format (e.g. "0x1400010a0")
@@ -258,9 +259,9 @@ Params:
     limit: Maximum number of references to return (default: 100)
 
 Returns:
-    List of references from the specified address""",
+    List of references from the specified address"""
 
-    "get_function_xrefs": """Get all references to the specified function by name.
+MANUAL["get_function_xrefs"] = """Get all references to the specified function by name.
 
 Params:
     name: Function name to search for
@@ -268,9 +269,9 @@ Params:
     limit: Maximum number of references to return (default: 100)
 
 Returns:
-    List of references to the specified function""",
+    List of references to the specified function"""
 
-    "list_strings": """List all defined strings in the program with their addresses.
+MANUAL["list_strings"] = """List all defined strings in the program with their addresses.
 
 Params:
     offset: Pagination offset (default: 0)
@@ -278,18 +279,18 @@ Params:
     filter: Optional filter to match within string content
 
 Returns:
-    List of strings with their addresses""",
+    List of strings with their addresses"""
 
-    "bsim_select_database": """Select and connect to a BSim database for function similarity matching.
+MANUAL["bsim_select_database"] = """Select and connect to a BSim database for function similarity matching.
 
 Params:
     database_path: Path to BSim database file (e.g., "/path/to/database.bsim")
                   or URL (e.g., "postgresql://host:port/dbname")
 
 Returns:
-    Connection status and database information""",
+    Connection status and database information"""
 
-    "bsim_query_function": """Query a single function against the BSim database to find similar functions.
+MANUAL["bsim_query_function"] = """Query a single function against the BSim database to find similar functions.
 
 Params:
     function_address: Address of the function to query (e.g., "0x401000")
@@ -302,9 +303,9 @@ Params:
     limit: Maximum number of results to return (default: 100)
 
 Returns:
-    List of matching functions with similarity scores and metadata""",
+    List of matching functions with similarity scores and metadata"""
 
-    "bsim_query_all_functions": """Query all functions in the current program against the BSim database.
+MANUAL["bsim_query_all_functions"] = """Query all functions in the current program against the BSim database.
 Returns an overview of matches for all functions.
 
 Params:
@@ -317,19 +318,19 @@ Params:
     limit: Maximum number of results to return (default: 100)
 
 Returns:
-    Summary and detailed results for all matching functions""",
+    Summary and detailed results for all matching functions"""
 
-    "bsim_disconnect": """Disconnect from the current BSim database.
-
-Returns:
-    Disconnection status message""",
-
-    "bsim_status": """Get the current BSim database connection status.
+MANUAL["bsim_disconnect"] = """Disconnect from the current BSim database.
 
 Returns:
-    Current connection status and database path if connected""",
+    Disconnection status message"""
 
-    "bsim_get_match_disassembly": """Get the disassembly of a specific BSim match. This requires the matched
+MANUAL["bsim_status"] = """Get the current BSim database connection status.
+
+Returns:
+    Current connection status and database path if connected"""
+
+MANUAL["bsim_get_match_disassembly"] = """Get the disassembly of a specific BSim match. This requires the matched
 executable to be available in the Ghidra project.
 
 Params:
@@ -339,9 +340,9 @@ Params:
 
 Returns:
     Function prototype and assembly code for the matched function.
-    Returns an error message if the program is not found in the project.""",
+    Returns an error message if the program is not found in the project."""
 
-    "bsim_get_match_decompile": """Get the decompilation of a specific BSim match. This requires the matched
+MANUAL["bsim_get_match_decompile"] = """Get the decompilation of a specific BSim match. This requires the matched
 executable to be available in the Ghidra project.
 
 Params:
@@ -351,9 +352,9 @@ Params:
 
 Returns:
     Function prototype and decompiled C code for the matched function.
-    Returns an error message if the program is not found in the project.""",
+    Returns an error message if the program is not found in the project."""
 
-    "bulk_operations": """Execute multiple operations in a single request. This is more efficient than
+MANUAL["bulk_operations"] = """Execute multiple operations in a single request. This is more efficient than
 making multiple individual requests.
 
 Params:
@@ -369,9 +370,9 @@ Example:
     ]
 
 Returns:
-    JSON string containing results array with the response for each operation.""",
+    JSON string containing results array with the response for each operation."""
 
-    "create_struct": """Create a new empty struct with a given name and optional size.
+MANUAL["create_struct"] = """Create a new empty struct with a given name and optional size.
 
 Params:
     name: Struct name
@@ -379,9 +380,9 @@ Params:
     category_path: Category path like "/MyStructs" (default: "/")
 
 Returns:
-    JSON string with struct details (name, size, category, path)""",
+    JSON string with struct details (name, size, category, path)"""
 
-    "parse_c_struct": """Parse C struct definition from text and add to program.
+MANUAL["parse_c_struct"] = """Parse C struct definition from text and add to program.
 
 Params:
     c_code: C struct definition (e.g., "struct MyStruct { int field1; char field2; };")
@@ -391,9 +392,9 @@ Returns:
     JSON string with parsed struct names and details
 
 Note: C code must be preprocessed (no #includes, macros expanded).
-Basic types must exist (int, char, void, etc.).""",
+Basic types must exist (int, char, void, etc.)."""
 
-    "add_struct_field": """Add a field to an existing struct.
+MANUAL["add_struct_field"] = """Add a field to an existing struct.
 
 Params:
     struct_name: Name of struct to modify
@@ -403,9 +404,9 @@ Params:
     comment: Optional field comment
 
 Returns:
-    JSON string with field details (offset, size, type, name)""",
+    JSON string with field details (offset, size, type, name)"""
 
-    "insert_struct_field_at_offset": """Insert a field at a specific offset in the struct.
+MANUAL["insert_struct_field_at_offset"] = """Insert a field at a specific offset in the struct.
 
 Params:
     struct_name: Name of struct
@@ -416,9 +417,9 @@ Params:
     comment: Optional field comment
 
 Returns:
-    JSON string with field details""",
+    JSON string with field details"""
 
-    "replace_struct_field": """Replace an existing field at a given ordinal position.
+MANUAL["replace_struct_field"] = """Replace an existing field at a given ordinal position.
 
 Params:
     struct_name: Name of struct
@@ -429,21 +430,9 @@ Params:
     comment: Field comment (empty to keep existing)
 
 Returns:
-    JSON string with field details""",
+    JSON string with field details"""
 
-    "delete_struct_field": """Delete a field from a struct.
-
-Params:
-    struct_name: Name of struct
-    ordinal: Component index (0-based, use -1 if using offset)
-    offset: Byte offset (use -1 if using ordinal)
-
-Note: Must specify either ordinal OR offset, not both.
-
-Returns:
-    JSON string with result""",
-
-    "clear_struct_field": """Clear a field (keeps struct size, fills with undefined).
+MANUAL["delete_struct_field"] = """Delete a field from a struct.
 
 Params:
     struct_name: Name of struct
@@ -453,18 +442,30 @@ Params:
 Note: Must specify either ordinal OR offset, not both.
 
 Returns:
-    JSON string with result""",
+    JSON string with result"""
 
-    "get_struct_info": """Get detailed information about a struct.
+MANUAL["clear_struct_field"] = """Clear a field (keeps struct size, fills with undefined).
+
+Params:
+    struct_name: Name of struct
+    ordinal: Component index (0-based, use -1 if using offset)
+    offset: Byte offset (use -1 if using ordinal)
+
+Note: Must specify either ordinal OR offset, not both.
+
+Returns:
+    JSON string with result"""
+
+MANUAL["get_struct_info"] = """Get detailed information about a struct.
 
 Params:
     name: Struct name
 
 Returns:
     JSON string with complete struct details including all fields
-    (name, path, size, numComponents, numDefined, isPacked, alignment, components)""",
+    (name, path, size, numComponents, numDefined, isPacked, alignment, components)"""
 
-    "list_structs": """List all struct types in the program.
+MANUAL["list_structs"] = """List all struct types in the program.
 
 Params:
     category_path: Filter by category (empty for all)
@@ -472,25 +473,24 @@ Params:
     limit: Max results
 
 Returns:
-    JSON string with array of struct summaries""",
+    JSON string with array of struct summaries"""
 
-    "rename_struct": """Rename a struct.
+MANUAL["rename_struct"] = """Rename a struct.
 
 Params:
     old_name: Current struct name
     new_name: New struct name
 
 Returns:
-    JSON string with result""",
+    JSON string with result"""
 
-    "delete_struct": """Delete a struct from the program.
+MANUAL["delete_struct"] = """Delete a struct from the program.
 
 Params:
     name: Name of struct to delete
 
 Returns:
-    JSON string with result""",
-}
+    JSON string with result"""
 
 @conditional_tool
 def man(tool_name: str) -> str:
