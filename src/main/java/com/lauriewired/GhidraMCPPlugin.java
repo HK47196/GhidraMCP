@@ -417,7 +417,8 @@ public class GhidraMCPPlugin extends Plugin {
             String address = qparams.get("address");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            sendResponse(exchange, crossReferenceAnalyzer.getXrefsTo(address, offset, limit));
+            boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
+            sendResponse(exchange, crossReferenceAnalyzer.getXrefsTo(address, offset, limit, includeInstruction));
         });
 
         server.createContext("/xrefs_from", exchange -> {
@@ -425,7 +426,8 @@ public class GhidraMCPPlugin extends Plugin {
             String address = qparams.get("address");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            sendResponse(exchange, crossReferenceAnalyzer.getXrefsFrom(address, offset, limit));
+            boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
+            sendResponse(exchange, crossReferenceAnalyzer.getXrefsFrom(address, offset, limit, includeInstruction));
         });
 
         server.createContext("/function_xrefs", exchange -> {
@@ -433,7 +435,8 @@ public class GhidraMCPPlugin extends Plugin {
             String name = qparams.get("name");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            sendResponse(exchange, crossReferenceAnalyzer.getFunctionXrefs(name, offset, limit));
+            boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
+            sendResponse(exchange, crossReferenceAnalyzer.getFunctionXrefs(name, offset, limit, includeInstruction));
         });
 
         server.createContext("/strings", exchange -> {
@@ -904,21 +907,24 @@ public class GhidraMCPPlugin extends Plugin {
                     return crossReferenceAnalyzer.getXrefsTo(
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
-                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100),
+                        "true".equalsIgnoreCase(params.get("include_instruction"))
                     );
 
                 case "/xrefs_from":
                     return crossReferenceAnalyzer.getXrefsFrom(
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
-                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100),
+                        "true".equalsIgnoreCase(params.get("include_instruction"))
                     );
 
                 case "/function_xrefs":
                     return crossReferenceAnalyzer.getFunctionXrefs(
                         params.get("name"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
-                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100),
+                        "true".equalsIgnoreCase(params.get("include_instruction"))
                     );
 
                 case "/strings":
