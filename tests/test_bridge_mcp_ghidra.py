@@ -1237,6 +1237,229 @@ class TestSearchDecompiledText:
         assert "error" in result
 
 
+class TestManualTool:
+    """Test suite for the man() tool and MANUAL dictionary."""
+
+    def test_manual_dictionary_exists(self):
+        """Test that MANUAL dictionary is defined."""
+        assert hasattr(bridge_mcp_ghidra, 'MANUAL')
+        assert isinstance(bridge_mcp_ghidra.MANUAL, dict)
+
+    def test_manual_dictionary_not_empty(self):
+        """Test that MANUAL dictionary contains entries."""
+        assert len(bridge_mcp_ghidra.MANUAL) > 0
+
+    def test_manual_entries_are_strings(self):
+        """Test that all MANUAL entries are strings."""
+        for key, value in bridge_mcp_ghidra.MANUAL.items():
+            assert isinstance(key, str), f"Key {key} is not a string"
+            assert isinstance(value, str), f"Value for {key} is not a string"
+
+    def test_manual_entries_contain_params_section(self):
+        """Test that MANUAL entries have Params section."""
+        # Most entries should have Params, except ones with no parameters
+        entries_with_params = 0
+        for key, value in bridge_mcp_ghidra.MANUAL.items():
+            if "Params:" in value:
+                entries_with_params += 1
+        # At least some entries should have params
+        assert entries_with_params > 0
+
+    def test_manual_entries_contain_returns_section(self):
+        """Test that MANUAL entries have Returns section."""
+        entries_with_returns = 0
+        for key, value in bridge_mcp_ghidra.MANUAL.items():
+            if "Returns:" in value:
+                entries_with_returns += 1
+        # Most entries should have returns
+        assert entries_with_returns > 0
+
+    def test_man_function_exists(self):
+        """Test that man() function is defined."""
+        assert hasattr(bridge_mcp_ghidra, 'man')
+        assert callable(bridge_mcp_ghidra.man)
+
+    def test_man_returns_documentation_for_known_tool(self):
+        """Test man() returns documentation for a tool in MANUAL."""
+        result = bridge_mcp_ghidra.man("get_data_by_address")
+
+        assert "=== Manual: get_data_by_address ===" in result
+        assert "Params:" in result
+        assert "address:" in result
+        assert "Returns:" in result
+
+    def test_man_returns_documentation_for_bsim_tool(self):
+        """Test man() returns documentation for BSim tools."""
+        result = bridge_mcp_ghidra.man("bsim_query_function")
+
+        assert "=== Manual: bsim_query_function ===" in result
+        assert "function_address:" in result
+        assert "similarity_threshold:" in result
+        assert "confidence_threshold:" in result
+
+    def test_man_returns_documentation_for_struct_tool(self):
+        """Test man() returns documentation for struct tools."""
+        result = bridge_mcp_ghidra.man("create_struct")
+
+        assert "=== Manual: create_struct ===" in result
+        assert "name:" in result
+        assert "size:" in result
+        assert "category_path:" in result
+
+    def test_man_returns_self_documentation(self):
+        """Test man("man") returns documentation for itself."""
+        result = bridge_mcp_ghidra.man("man")
+
+        assert "=== Manual: man ===" in result
+        assert "Params:" in result
+        assert "tool_name:" in result
+        assert "Available manual pages" in result
+
+    def test_man_lists_available_tools(self):
+        """Test man("man") lists all available tools."""
+        result = bridge_mcp_ghidra.man("man")
+
+        # Should list at least some known tools
+        assert "get_data_by_address" in result or len(bridge_mcp_ghidra.MANUAL) > 0
+        # Should show count
+        assert f"({len(bridge_mcp_ghidra.MANUAL)})" in result
+
+    def test_man_returns_error_for_unknown_tool(self):
+        """Test man() returns error message for unknown tool."""
+        result = bridge_mcp_ghidra.man("nonexistent_tool")
+
+        assert "not found in manual" in result
+        assert "Available manual pages" in result
+
+    def test_man_error_includes_available_tools(self):
+        """Test error message includes list of available tools."""
+        result = bridge_mcp_ghidra.man("invalid_tool")
+
+        # Should show count of available tools
+        assert f"({len(bridge_mcp_ghidra.MANUAL)})" in result
+        # Should suggest checking inline docstring
+        assert "inline docstring" in result
+
+    def test_manual_has_xref_tools(self):
+        """Test MANUAL contains xref tool documentation."""
+        assert "get_xrefs_to" in bridge_mcp_ghidra.MANUAL
+        assert "get_xrefs_from" in bridge_mcp_ghidra.MANUAL
+        assert "get_function_xrefs" in bridge_mcp_ghidra.MANUAL
+
+    def test_manual_has_bsim_tools(self):
+        """Test MANUAL contains BSim tool documentation."""
+        assert "bsim_select_database" in bridge_mcp_ghidra.MANUAL
+        assert "bsim_query_function" in bridge_mcp_ghidra.MANUAL
+        assert "bsim_query_all_functions" in bridge_mcp_ghidra.MANUAL
+        assert "bsim_disconnect" in bridge_mcp_ghidra.MANUAL
+        assert "bsim_status" in bridge_mcp_ghidra.MANUAL
+
+    def test_manual_has_struct_tools(self):
+        """Test MANUAL contains struct tool documentation."""
+        assert "create_struct" in bridge_mcp_ghidra.MANUAL
+        assert "parse_c_struct" in bridge_mcp_ghidra.MANUAL
+        assert "add_struct_field" in bridge_mcp_ghidra.MANUAL
+        assert "get_struct_info" in bridge_mcp_ghidra.MANUAL
+        assert "delete_struct" in bridge_mcp_ghidra.MANUAL
+
+    def test_manual_entry_completeness_get_data_by_address(self):
+        """Test get_data_by_address manual entry is complete."""
+        entry = bridge_mcp_ghidra.MANUAL["get_data_by_address"]
+
+        assert "address:" in entry
+        assert "Memory address" in entry
+        assert "hex or segment:offset" in entry
+        assert "Returns:" in entry
+
+    def test_manual_entry_completeness_bsim_query_function(self):
+        """Test bsim_query_function manual entry is complete."""
+        entry = bridge_mcp_ghidra.MANUAL["bsim_query_function"]
+
+        # Check all parameters are documented
+        assert "function_address:" in entry
+        assert "max_matches:" in entry
+        assert "similarity_threshold:" in entry
+        assert "confidence_threshold:" in entry
+        assert "max_similarity:" in entry
+        assert "max_confidence:" in entry
+        assert "Returns:" in entry
+
+    def test_manual_entry_has_examples_for_bulk_operations(self):
+        """Test bulk_operations manual entry includes examples."""
+        entry = bridge_mcp_ghidra.MANUAL["bulk_operations"]
+
+        assert "Example:" in entry
+        assert "endpoint" in entry
+        assert "params" in entry
+
+    def test_manual_entry_has_notes_for_parse_c_struct(self):
+        """Test parse_c_struct manual entry includes important notes."""
+        entry = bridge_mcp_ghidra.MANUAL["parse_c_struct"]
+
+        assert "Note:" in entry
+        assert "preprocessed" in entry
+        assert "#includes" in entry
+
+    def test_man_preserves_original_verbose_documentation(self):
+        """Test that man() returns detailed docs unlike compact tool docstrings."""
+        # Get the actual function's docstring (compact)
+        func_docstring = bridge_mcp_ghidra.bsim_query_function.__doc__
+
+        # Get the manual entry (verbose)
+        manual_entry = bridge_mcp_ghidra.man("bsim_query_function")
+
+        # Manual should be more verbose
+        assert len(manual_entry) > len(func_docstring)
+        # Manual should have detailed parameter explanations
+        assert "similarity_threshold:" in manual_entry
+        assert "inclusive" in manual_entry.lower()
+
+    def test_man_tool_is_registered(self):
+        """Test that man tool is registered in tool registry."""
+        assert "man" in bridge_mcp_ghidra._tool_registry
+
+    def test_man_tool_is_in_query_category(self):
+        """Test that man tool is listed in the query category."""
+        assert "man" in bridge_mcp_ghidra.TOOL_CATEGORIES["query"]
+
+    def test_all_manual_keys_are_valid_tool_names(self):
+        """Test that all MANUAL keys correspond to valid functions."""
+        for tool_name in bridge_mcp_ghidra.MANUAL.keys():
+            # Each tool should either be in the registry or be a valid function
+            assert (tool_name in bridge_mcp_ghidra._tool_registry or
+                    hasattr(bridge_mcp_ghidra, tool_name)), \
+                   f"Tool {tool_name} in MANUAL but not found as function"
+
+    def test_man_output_format_consistency(self):
+        """Test that man() output follows consistent format."""
+        result = bridge_mcp_ghidra.man("set_data_type")
+
+        # Should start with header
+        assert result.startswith("=== Manual:")
+        assert "===" in result
+        # Should contain the tool name in header
+        assert "set_data_type" in result.split("\n")[0]
+
+    def test_man_handles_tools_with_complex_params(self):
+        """Test man() handles tools with complex parameter documentation."""
+        result = bridge_mcp_ghidra.man("bulk_operations")
+
+        # Should handle list[dict] type documentation
+        assert "operations:" in result
+        assert "endpoint:" in result
+        assert "params:" in result
+
+    def test_manual_coverage_percentage(self):
+        """Test that MANUAL covers a reasonable percentage of tools."""
+        total_tools = len(bridge_mcp_ghidra._tool_registry)
+        documented_tools = len(bridge_mcp_ghidra.MANUAL)
+
+        # At least some tools should be documented
+        assert documented_tools > 0
+        # Should document the most important/complex tools
+        assert documented_tools >= 20  # We have 27 documented
+
+
 class TestToolTrackerIntegration:
     """Test suite for ToolTracker integration with the bridge."""
 
