@@ -545,6 +545,974 @@ Example Output:
            002320e6  00 00          uint16_t   0h
            00224832  41 ec 38 34    lea       (0x3834,A4)=>g_Bytecode_Stack,A0"""
 
+# ==================== QUERY TOOLS ====================
+
+MANUAL["list_methods"] = """List all function names in the program with pagination support.
+
+This tool retrieves function names from the program's symbol table. It includes both
+user-defined functions and auto-generated function names (e.g., FUN_00401000). Use this
+for getting an overview of available functions or iterating through all functions.
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of function names to return (default: 100)
+
+Returns:
+    List of function names, one per line. Names may include namespace prefixes
+    (e.g., "MyClass::myMethod").
+
+Use Cases:
+    - Getting a list of all functions in the program
+    - Finding functions with specific naming patterns
+    - Iterating through functions in batches
+    - Building an index of program functions
+
+Example:
+    To get the first 10 functions: offset=0, limit=10
+    To get the next 10 functions: offset=10, limit=10
+
+Note: For searching by name substring, use search_functions_by_name instead."""
+
+MANUAL["list_classes"] = """List all namespace and class names in the program with pagination.
+
+Retrieves all non-global namespaces/classes from the program. In Ghidra, namespaces are
+used to organize symbols hierarchically, often representing C++ classes, modules, or
+logical groupings of code.
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of namespace names to return (default: 100)
+
+Returns:
+    List of namespace/class names, one per line.
+
+Use Cases:
+    - Discovering the program's organizational structure
+    - Finding C++ class names
+    - Understanding module organization in the binary
+    - Identifying code grouped by functionality
+
+Example:
+    Results may include: "std", "MyNamespace", "ClassName", "Module::SubModule"
+
+Note: This shows only non-global namespaces. Global namespace symbols are accessed
+through other tools like list_methods."""
+
+MANUAL["list_segments"] = """List all memory segments in the program with their properties.
+
+Memory segments (also called memory blocks in Ghidra) define regions of the program's
+address space. Each segment has specific attributes like read/write/execute permissions,
+initialization status, and purpose (code, data, etc.).
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of segments to return (default: 100)
+
+Returns:
+    List of memory segments with properties including:
+    - Segment name (e.g., ".text", ".data", ".rodata", "RAM")
+    - Start address and end address
+    - Size in bytes
+    - Permissions (read, write, execute)
+    - Initialization status (initialized/uninitialized)
+
+Use Cases:
+    - Understanding program memory layout
+    - Identifying code vs data sections
+    - Finding executable regions for analysis
+    - Locating specific sections like .rodata or .bss
+    - Planning analysis scope by memory region
+
+Common Segments:
+    - .text: Executable code
+    - .data: Initialized data
+    - .rodata: Read-only data (constants, strings)
+    - .bss: Uninitialized data
+    - .plt/.got: Dynamic linking tables
+
+Note: Use list_functions_by_segment or list_data_by_segment to get contents of specific segments."""
+
+MANUAL["list_imports"] = """List imported symbols (external functions/data) in the program.
+
+Imports are symbols that the program references but are defined in external libraries
+(DLLs, shared objects). These are typically library functions that the program calls.
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of imports to return (default: 100)
+
+Returns:
+    List of imported symbols with information including:
+    - Symbol name (e.g., "malloc", "printf", "CreateFileA")
+    - Library name (e.g., "msvcrt.dll", "kernel32.dll", "libc.so.6")
+    - Import address (location in import table)
+    - Ordinal number (if imported by ordinal)
+
+Use Cases:
+    - Identifying external dependencies
+    - Understanding what libraries the program uses
+    - Finding specific API calls (e.g., file I/O, network, crypto)
+    - Security analysis (identifying dangerous functions)
+    - Determining program capabilities from imports
+
+Example Imports:
+    - Windows: CreateFileA, ReadFile, WriteFile from kernel32.dll
+    - Linux: fopen, fread, fwrite from libc.so.6
+    - Crypto: CryptEncrypt from advapi32.dll
+
+Note: Imports are resolved at runtime by the dynamic linker."""
+
+MANUAL["list_exports"] = """List exported symbols (functions/data made available to other programs).
+
+Exports are symbols that this program makes available to other programs or libraries.
+Typically found in DLLs, shared libraries, or executables that expose an API.
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of exports to return (default: 100)
+
+Returns:
+    List of exported symbols with information including:
+    - Symbol name (e.g., "DllMain", "MyFunction", "exported_variable")
+    - Export address (where the symbol is defined)
+    - Ordinal number (position in export table)
+    - Type (function or data)
+
+Use Cases:
+    - Understanding the API a DLL/library provides
+    - Finding entry points in a library
+    - Identifying the public interface of a module
+    - Locating important functions by their exported names
+    - Analyzing malware DLL exports
+
+Example Exports:
+    - DLL entry: DllMain, DllRegisterServer
+    - API functions: MyFunction, ProcessData, Initialize
+    - Exported variables: g_SharedData
+
+Note: Executables typically have few or no exports. DLLs and shared libraries have many."""
+
+MANUAL["list_namespaces"] = """List all non-global namespaces in the program with pagination.
+
+Namespaces in Ghidra provide hierarchical organization of symbols. This tool returns
+all namespaces except the global namespace. Namespaces can represent C++ classes,
+modules, packages, or logical groupings created during analysis.
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of namespaces to return (default: 100)
+
+Returns:
+    List of namespace names, showing the full namespace hierarchy.
+
+Use Cases:
+    - Discovering program structure and organization
+    - Finding C++ class hierarchies
+    - Understanding modular organization
+    - Navigating large codebases
+    - Identifying related groups of functions
+
+Example Namespaces:
+    - C++: "std", "MyClass", "OuterClass::InnerClass"
+    - Modules: "Crypto", "Network", "FileIO"
+    - Manual: "Utilities", "Helpers"
+
+Note: This is similar to list_classes but includes all namespace types, not just classes."""
+
+MANUAL["list_data_items"] = """List all defined data labels and their values with pagination.
+
+Retrieves data items that have been explicitly defined in the program, including global
+variables, static data, string literals, constants, and data structures. This excludes
+undefined bytes.
+
+Params:
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of data items to return (default: 100)
+
+Returns:
+    List of data items with information including:
+    - Address
+    - Label/name (e.g., "DAT_00404000", "g_Config", "s_ErrorMessage")
+    - Data type (e.g., "dword", "char[20]", "MyStruct")
+    - Value or representation
+    - Size in bytes
+
+Use Cases:
+    - Finding global variables
+    - Locating string literals
+    - Discovering data structures
+    - Analyzing program constants
+    - Understanding data organization
+
+Example Data Items:
+    - Global variables: g_Counter (int), g_FileName (char*)
+    - String literals: s_Hello_World (char[12])
+    - Constants: DAT_00404000 (dword) = 0x12345678
+    - Structures: g_Config (ConfigStruct)
+
+Note: For searching by name, use search_data_by_name. For data in specific regions,
+use list_data_by_segment or get_data_in_range."""
+
+MANUAL["get_data_in_range"] = """Get all data items within a specific address range.
+
+Retrieves data items (variables, strings, structures) that fall within the specified
+address range. Useful for analyzing data in a specific memory region or between two
+known addresses.
+
+Params:
+    start_address: Beginning of address range (e.g., "0x404000")
+    end_address: End of address range (e.g., "0x405000")
+    include_undefined: Include undefined bytes in results (default: False)
+
+Returns:
+    List of data items in the range with:
+    - Address
+    - Label/name
+    - Data type
+    - Value or representation
+    - Size
+
+Use Cases:
+    - Analyzing data in a specific memory region
+    - Examining a data segment or section
+    - Finding all data between two addresses
+    - Investigating memory around a specific location
+    - Analyzing arrays or sequential data structures
+
+Example:
+    start_address="0x404000", end_address="0x405000"
+    Returns all defined data between these addresses.
+
+Note: By default, only defined data is returned. Set include_undefined=True to see
+all bytes in the range, including undefined regions."""
+
+MANUAL["get_current_address"] = """Get the address currently selected in the Ghidra UI.
+
+Returns the address where the user's cursor is positioned in the Ghidra Code Browser.
+This is useful for interactive workflows where the user navigates to a location and
+wants analysis at that specific address.
+
+Params:
+    None
+
+Returns:
+    The currently selected address in hex format (e.g., "0x00401000").
+    Returns an error message if no address is selected.
+
+Use Cases:
+    - Interactive analysis based on user navigation
+    - "Analyze current location" workflows
+    - Context-aware assistance
+    - Building tools that operate on the selected address
+
+Example:
+    User positions cursor at 0x00401234 in Ghidra.
+    Tool returns: "0x00401234"
+
+Note: Requires active Ghidra UI with a selected address. Useful for MCP tools that
+provide interactive assistance."""
+
+MANUAL["get_current_function"] = """Get the function currently selected in the Ghidra UI.
+
+Returns information about the function where the user's cursor is currently positioned
+in the Ghidra Code Browser. If the cursor is not within a function, returns an error.
+
+Params:
+    None
+
+Returns:
+    Function information including:
+    - Function name
+    - Entry point address
+    - Function signature/prototype
+    - Size in bytes
+
+Use Cases:
+    - Interactive function analysis
+    - "Analyze current function" workflows
+    - Context-aware code assistance
+    - Quick function information lookup
+
+Example:
+    User positions cursor inside a function.
+    Tool returns function details like: "main @ 0x00401000"
+
+Note: Requires active Ghidra UI with cursor inside a function."""
+
+MANUAL["get_function_by_address"] = """Get function information for the function at a specific address.
+
+Retrieves detailed information about the function at the given address. The address
+can be anywhere within the function body, not just the entry point.
+
+Params:
+    address: Address within the function (e.g., "0x00401000")
+            Can be entry point or any address inside the function
+
+Returns:
+    Function information including:
+    - Function name
+    - Entry point address
+    - Function signature/prototype
+    - Address range (start and end)
+    - Size in bytes
+    - Return type and parameters
+
+Use Cases:
+    - Getting function details when you know an address
+    - Finding which function contains a specific address
+    - Retrieving function metadata for analysis
+    - Verifying function boundaries
+
+Example:
+    address="0x00401234" (inside a function starting at 0x00401000)
+    Returns information about that function.
+
+Note: If the address is not within a function, returns an error."""
+
+MANUAL["list_functions"] = """List all functions in the program without pagination.
+
+Returns a complete list of all functions defined in the program. This includes both
+user-defined and auto-generated function names. Unlike list_methods, this returns
+the full list without pagination.
+
+Params:
+    None
+
+Returns:
+    Complete list of all function names in the program, one per line.
+
+Use Cases:
+    - Getting a complete function inventory
+    - Exporting all function names
+    - Counting total functions
+    - Bulk analysis operations
+
+Warning:
+    For large programs with thousands of functions, this can return a very large
+    result. Consider using list_methods with pagination for better performance.
+
+Note: For most use cases, prefer list_methods with pagination for better control
+and performance."""
+
+MANUAL["get_function_data"] = """Get all data references used by a specific function.
+
+Retrieves all data items (global variables, strings, constants, etc.) that are
+referenced by the specified function. This includes both direct references and
+data accessed through pointers.
+
+Params:
+    address: Function address (e.g., "0x00401000"), OR
+    name: Function name (e.g., "main")
+
+    Note: Must specify either address OR name, not both.
+
+Returns:
+    List of data items referenced by the function, including:
+    - Data address
+    - Label/name (e.g., "s_ErrorMsg", "g_Counter")
+    - Data type
+    - Value or representation
+    - Reference type (read, write, pointer)
+
+Use Cases:
+    - Understanding what data a function uses
+    - Finding string literals used by a function
+    - Identifying global variables accessed
+    - Analyzing function dependencies
+    - Tracking data flow
+
+Example:
+    Function "ProcessFile" may reference:
+    - s_FileName_404000: "config.txt"
+    - g_FileHandle: dword
+    - DAT_405000: byte array
+
+Note: This shows data referenced, not local variables on the stack."""
+
+# ==================== DECOMPILE TOOLS ====================
+
+MANUAL["decompile_function"] = """Decompile a function by name and return the decompiled C code.
+
+Uses Ghidra's decompiler to convert assembly code back into readable C-like pseudocode.
+The decompiled code shows the function's logic, control flow, and operations in a
+high-level format.
+
+Params:
+    name: Function name (e.g., "main", "MyClass::myMethod", "FUN_00401000")
+
+Returns:
+    Decompiled C code including:
+    - Function signature with return type and parameters
+    - Local variable declarations with inferred types
+    - Function body with control flow (if/else, loops, etc.)
+    - Comments from the Ghidra database
+
+Use Cases:
+    - Understanding function logic
+    - Reverse engineering algorithms
+    - Analyzing malware behavior
+    - Verifying function purpose
+    - Code review and documentation
+
+Example Output:
+    void processData(char *input, int size) {
+        int i;
+        char *buffer;
+
+        buffer = malloc(size);
+        for (i = 0; i < size; i++) {
+            buffer[i] = input[i] ^ 0x55;
+        }
+        return;
+    }
+
+Note: Decompilation quality depends on Ghidra's analysis. Complex or obfuscated
+code may produce less readable output. For assembly code, use disassemble_function."""
+
+MANUAL["decompile_function_by_address"] = """Decompile a function at a specific address and return C code.
+
+Uses Ghidra's decompiler to convert the function at the given address into C-like
+pseudocode. The address can be the function entry point or any address within the
+function.
+
+Params:
+    address: Address of the function (e.g., "0x00401000")
+            Can be entry point or any address inside the function
+
+Returns:
+    Decompiled C code including:
+    - Function signature with return type and parameters
+    - Local variable declarations with inferred types
+    - Function body with control flow
+    - Comments from the Ghidra database
+
+Use Cases:
+    - Decompiling when you know the address but not the name
+    - Analyzing functions at specific locations
+    - Following call targets from disassembly
+    - Analyzing unnamed or dynamically called functions
+
+Example:
+    address="0x00401234"
+    Returns decompiled C code for the function containing that address.
+
+Note: Functionally equivalent to decompile_function but uses address instead of name.
+If the address is not within a function, returns an error."""
+
+MANUAL["disassemble_function"] = """Get the assembly code disassembly for a function.
+
+Returns the complete assembly listing for the specified function, showing each
+instruction with its address, bytes, mnemonic, and operands. Also includes comments.
+
+Params:
+    address: Address of the function (e.g., "0x00401000")
+            Can be entry point or any address inside the function
+
+Returns:
+    Assembly listing with format:
+    address: instruction ; comment
+
+    Each line shows:
+    - Memory address
+    - Assembly instruction (mnemonic + operands)
+    - Comments (if any)
+
+Use Cases:
+    - Low-level analysis of function behavior
+    - Understanding exact instruction sequence
+    - Analyzing optimization or compiler output
+    - Finding specific instruction patterns
+    - Debugging or exploit development
+
+Example Output:
+    00401000: push    ebp
+    00401001: mov     ebp,esp ; setup stack frame
+    00401003: sub     esp,0x10
+    00401006: call    00402000 ; call helper function
+    0040100b: xor     eax,eax
+    0040100d: pop     ebp
+    0040100e: ret
+
+Note: For high-level code view, use decompile_function instead. For context around
+a specific address including data, use get_address_context."""
+
+# ==================== SEARCH TOOLS ====================
+
+MANUAL["search_functions_by_name"] = """Search for functions whose name contains a given substring or matches namespace criteria.
+
+Performs substring search on function names with support for namespace filtering.
+This is more flexible than list_methods as it filters results and supports namespace syntax.
+
+Params:
+    query: Search query - can be:
+           - Simple substring (e.g., "crypt" finds "encrypt", "decrypt")
+           - Namespace::function (e.g., "MyClass::process")
+           - Namespace only (e.g., "MyClass::" finds all functions in MyClass)
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of results to return (default: 100)
+
+Returns:
+    List of matching function names with their addresses.
+
+Use Cases:
+    - Finding functions by partial name
+    - Locating functions in a specific namespace/class
+    - Discovering related functions (e.g., all "init" functions)
+    - Finding API functions (e.g., all "Create*" functions)
+    - Narrowing down function lists
+
+Examples:
+    query="encrypt" → finds encrypt, decrypt, EncryptData, etc.
+    query="std::" → finds all functions in std namespace
+    query="File" → finds OpenFile, CloseFile, FileRead, etc.
+
+Note: Search is case-sensitive by default and uses substring matching."""
+
+MANUAL["search_data_by_name"] = """Search for data variables whose label or name contains a given substring.
+
+Searches through all data labels (global variables, strings, constants) to find
+those matching the query string. Useful for finding specific data items when you
+know part of the name.
+
+Params:
+    query: Search substring (e.g., "error", "config", "password")
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of results to return (default: 100)
+
+Returns:
+    List of matching data items with:
+    - Address
+    - Label/name
+    - Data type
+    - Value or representation
+
+Use Cases:
+    - Finding global variables by partial name
+    - Locating string literals containing specific text
+    - Discovering configuration data
+    - Finding error messages or debug strings
+    - Searching for suspicious variable names
+
+Examples:
+    query="password" → finds g_Password, s_PasswordPrompt, etc.
+    query="config" → finds g_Config, ConfigData, etc.
+    query="error" → finds error messages and error variables
+
+Note: Searches the label/symbol name, not the actual string contents. For searching
+string contents, use list_strings with filter parameter."""
+
+MANUAL["list_functions_by_segment"] = """List all functions within a specific memory segment or address range.
+
+Retrieves functions located in a particular segment (like .text) or within a custom
+address range. Useful for analyzing functions in specific code sections.
+
+Params:
+    segment_name: Name of the segment (e.g., ".text", ".init", "RAM"), OR
+    start_address: Beginning of address range (e.g., "0x401000"), AND
+    end_address: End of address range (e.g., "0x402000")
+
+    Note: Provide either segment_name OR both start_address and end_address.
+
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of results to return (default: 100)
+
+Returns:
+    List of functions in the specified region with:
+    - Function name
+    - Entry point address
+    - Size
+
+Use Cases:
+    - Analyzing all code in a specific section
+    - Finding functions in executable segments
+    - Analyzing initialization code (.init section)
+    - Examining code in specific memory regions
+    - Segmenting analysis by memory layout
+
+Examples:
+    segment_name=".text" → all functions in main code section
+    start_address="0x401000", end_address="0x402000" → functions in range
+
+Note: Most executable code is in .text segment. Other segments like .init may
+contain initialization code."""
+
+MANUAL["list_data_by_segment"] = """List all data items within a specific memory segment or address range.
+
+Retrieves data items located in a particular segment (like .data, .rodata) or within
+a custom address range. Useful for analyzing data in specific memory sections.
+
+Params:
+    segment_name: Name of the segment (e.g., ".data", ".rodata", ".bss"), OR
+    start_address: Beginning of address range (e.g., "0x404000"), AND
+    end_address: End of address range (e.g., "0x405000")
+
+    Note: Provide either segment_name OR both start_address and end_address.
+
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum number of results to return (default: 100)
+
+Returns:
+    List of data items in the specified region with:
+    - Address
+    - Label/name
+    - Data type
+    - Value or representation
+
+Use Cases:
+    - Analyzing global variables (.data section)
+    - Finding read-only constants (.rodata section)
+    - Examining uninitialized data (.bss section)
+    - Analyzing data in specific memory regions
+    - Understanding data organization by segment
+
+Examples:
+    segment_name=".rodata" → constants and string literals
+    segment_name=".data" → initialized global variables
+    start_address="0x404000", end_address="0x405000" → data in range
+
+Common Segments:
+    - .data: Initialized global/static variables
+    - .rodata: Read-only data (constants, strings)
+    - .bss: Uninitialized global/static variables"""
+
+MANUAL["search_decompiled_text"] = """Search for text patterns in decompiled function code using regular expressions.
+
+Searches through the decompiled C code of functions to find patterns. This is
+extremely powerful for finding specific code patterns, API calls, or logic across
+the entire program.
+
+Params:
+    pattern: Regular expression pattern to search for (e.g., "malloc.*free")
+    is_regex: Treat pattern as regex (default: True)
+    case_sensitive: Case-sensitive matching (default: True)
+    multiline: Enable multiline regex mode (default: False)
+    function_names: Optional list of specific functions to search in
+                   If None, searches all functions
+    max_results: Maximum results per function (default: 100)
+    offset: Starting position for pagination (default: 0)
+    limit: Maximum total results to return (default: 100)
+
+Returns:
+    JSON string containing:
+    - Matched functions
+    - Matching line numbers and content
+    - Context around matches
+
+Use Cases:
+    - Finding all uses of specific API calls
+    - Locating error handling patterns
+    - Discovering crypto operations
+    - Finding buffer operations (memcpy, strcpy)
+    - Searching for vulnerable code patterns
+    - Locating specific algorithms
+
+Examples:
+    pattern="malloc" → find memory allocations
+    pattern="strcpy|strcat" → find unsafe string functions
+    pattern="AES.*encrypt" → find AES encryption code
+    pattern="if.*==.*NULL" → find NULL checks
+
+Note: Searches decompiled code, not assembly. Decompilation quality affects results."""
+
+# ==================== MODIFICATION TOOLS ====================
+
+MANUAL["rename_function"] = """Rename a function by its current name to a new user-defined name.
+
+Changes the name of a function from its current name to a new name. The new name
+persists in the Ghidra database and appears in decompilation, disassembly, and
+cross-references.
+
+Params:
+    old_name: Current function name (e.g., "FUN_00401000", "sub_401000")
+    new_name: New name for the function (e.g., "processData", "decrypt")
+
+Returns:
+    Success message if renamed, error message if function not found or name invalid.
+
+Use Cases:
+    - Giving descriptive names to auto-generated function names
+    - Improving code readability during analysis
+    - Documenting function purposes
+    - Standardizing naming conventions
+    - Making analysis notes permanent
+
+Examples:
+    old_name="FUN_00401000", new_name="decryptBuffer"
+    old_name="sub_402000", new_name="initializeConfig"
+
+Naming Guidelines:
+    - Use descriptive, meaningful names
+    - Follow C naming conventions (alphanumeric + underscore)
+    - Avoid special characters except underscore
+    - Names should reflect function purpose
+
+Note: If you know the address but not the current name, use rename_function_by_address."""
+
+MANUAL["rename_function_by_address"] = """Rename a function by its address rather than current name.
+
+Changes the name of the function at the specified address. This is useful when you
+know the address but not the current function name, or when the current name is
+auto-generated.
+
+Params:
+    function_address: Address of the function (e.g., "0x00401000")
+                     Can be entry point or any address within the function
+    new_name: New name for the function (e.g., "processData", "decrypt")
+
+Returns:
+    Success message if renamed, error message if no function at address or name invalid.
+
+Use Cases:
+    - Renaming when you have an address from analysis
+    - Renaming functions at known locations
+    - Batch renaming using address lists
+    - Renaming from cross-reference analysis
+
+Examples:
+    function_address="0x00401000", new_name="main"
+    function_address="0x00402500", new_name="encryptData"
+
+Naming Guidelines:
+    - Use descriptive, meaningful names
+    - Follow C naming conventions
+    - Avoid special characters except underscore
+
+Note: If you know the current name, rename_function may be more readable."""
+
+MANUAL["rename_data"] = """Rename a data label at a specific address.
+
+Changes the label/symbol name for data at the specified address. This applies to
+global variables, strings, constants, and other data items.
+
+Params:
+    address: Address of the data item (e.g., "0x00404000")
+    new_name: New label name (e.g., "g_Config", "s_ErrorMessage")
+
+Returns:
+    Success message if renamed, error message if no data at address or name invalid.
+
+Use Cases:
+    - Naming global variables descriptively
+    - Labeling string literals
+    - Marking configuration data
+    - Documenting data structures
+    - Improving data cross-reference readability
+
+Examples:
+    address="0x404000", new_name="g_ServerConfig"
+    address="0x405000", new_name="s_WelcomeMessage"
+
+Naming Conventions:
+    - g_ prefix for globals (e.g., g_Counter)
+    - s_ prefix for strings (e.g., s_ErrorMsg)
+    - Use descriptive names reflecting data purpose
+
+Note: The renamed label appears in all cross-references and disassembly."""
+
+MANUAL["rename_variable"] = """Rename a local variable within a specific function.
+
+Changes the name of a local variable (stack variable or register variable) in the
+decompiled code of a function. This improves code readability during analysis.
+
+Params:
+    function_name: Name of the function containing the variable
+    old_name: Current variable name (e.g., "local_10", "param_1", "iVar2")
+    new_name: New variable name (e.g., "buffer", "fileSize", "counter")
+
+Returns:
+    Success message if renamed, error message if function or variable not found.
+
+Use Cases:
+    - Making decompiled code more readable
+    - Documenting variable purposes
+    - Clarifying function logic
+    - Tracking data flow through variables
+    - Making analysis notes in code
+
+Examples:
+    function_name="processData", old_name="local_10", new_name="buffer"
+    function_name="main", old_name="param_1", new_name="argc"
+    function_name="decrypt", old_name="iVar2", new_name="keyIndex"
+
+Variable Types:
+    - local_XX: Stack variables
+    - param_X: Function parameters
+    - iVar, uVar, etc.: Temporary variables
+
+Note: Variable names are local to the function and appear in decompilation."""
+
+MANUAL["set_function_prototype"] = """Set or modify a function's prototype (signature).
+
+Defines the function's return type, parameters, and calling convention. This improves
+decompilation quality and correctness by providing type information to Ghidra's analyzer.
+
+Params:
+    function_address: Address of the function (e.g., "0x00401000")
+    prototype: Complete function signature (e.g., "int processData(char* buffer, int size)")
+
+Returns:
+    Success message if prototype set, error message if invalid syntax or address.
+
+Use Cases:
+    - Correcting auto-analyzed function signatures
+    - Adding type information for better decompilation
+    - Documenting function interfaces
+    - Specifying calling conventions
+    - Improving parameter and return value analysis
+
+Examples:
+    prototype="void encrypt(char* data, int length, char* key)"
+    prototype="int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)"
+    prototype="char* malloc(size_t size)"
+
+Prototype Format:
+    return_type [calling_convention] function_name(param_type param_name, ...)
+
+Common Calling Conventions:
+    - __cdecl: C default
+    - __stdcall: Windows API
+    - __fastcall: Register passing
+    - __thiscall: C++ methods
+
+Note: Correct prototypes significantly improve decompilation quality. Types must
+exist in Ghidra's data type manager."""
+
+MANUAL["set_local_variable_type"] = """Set the data type of a local variable within a function.
+
+Changes the type of a local variable in the decompiled code, which can improve
+decompilation accuracy and readability. Ghidra will propagate this type information
+through the function's dataflow.
+
+Params:
+    function_address: Address of the function (e.g., "0x00401000")
+    variable_name: Name of the local variable (e.g., "local_10", "buffer")
+    new_type: Data type specification (e.g., "int", "char*", "MyStruct*", "byte[256]")
+
+Returns:
+    Success message if type set, error message if function, variable, or type not found.
+
+Use Cases:
+    - Correcting auto-inferred variable types
+    - Specifying pointer types for clarity
+    - Defining structure types for local variables
+    - Improving decompilation readability
+    - Fixing type propagation issues
+
+Examples:
+    variable_name="local_10", new_type="char*"
+    variable_name="buffer", new_type="byte[256]"
+    variable_name="config", new_type="ConfigStruct*"
+
+Common Types:
+    - Basic: int, char, short, long, byte, word, dword
+    - Pointers: int*, char*, void*
+    - Arrays: char[256], byte[100]
+    - Structures: MyStruct, MyStruct*
+
+Note: Type must exist in Ghidra's data type manager. Setting types can cascade
+through dataflow analysis."""
+
+MANUAL["set_decompiler_comment"] = """Add a comment at a specific address in the decompiled function pseudocode.
+
+Creates a comment that appears in the decompiled C code view. This is ideal for
+documenting code logic, algorithms, or analysis findings at the C code level.
+
+Params:
+    address: Address where the comment should appear (e.g., "0x00401234")
+    comment: Comment text (can be multi-line)
+
+Returns:
+    Success message if comment set, error message if address invalid.
+
+Use Cases:
+    - Documenting function logic in decompiled view
+    - Explaining complex algorithms
+    - Noting analysis findings
+    - Marking interesting or suspicious code
+    - Adding reverse engineering notes
+
+Example:
+    address="0x00401234"
+    comment="This XOR loop decrypts the configuration data"
+
+Comment appears in decompiled C code:
+    // This XOR loop decrypts the configuration data
+    for (i = 0; i < size; i++) {
+        buffer[i] = buffer[i] ^ 0x55;
+    }
+
+Note: Comments appear only in decompiler view. For assembly comments, use
+set_disassembly_comment. For large headers, use set_plate_comment."""
+
+MANUAL["set_disassembly_comment"] = """Add a comment at a specific address in the disassembly listing.
+
+Creates a comment that appears in the assembly code view (EOL comment - End Of Line).
+This is ideal for documenting specific instructions or assembly-level details.
+
+Params:
+    address: Address where the comment should appear (e.g., "0x00401234")
+    comment: Comment text (single or multi-line)
+
+Returns:
+    Success message if comment set, error message if address invalid.
+
+Use Cases:
+    - Documenting assembly instructions
+    - Explaining instruction purpose or effect
+    - Noting register usage
+    - Marking important instructions
+    - Adding low-level analysis notes
+
+Example:
+    address="0x00401234"
+    comment="XOR with key byte for decryption"
+
+Comment appears in disassembly:
+    00401234: xor al, byte [esi]  ; XOR with key byte for decryption
+
+Note: Comments appear in assembly listing view. For decompiler comments, use
+set_decompiler_comment. For large headers, use set_plate_comment."""
+
+MANUAL["set_plate_comment"] = """Add a plate comment at a specific address.
+
+Creates a large, bordered comment box that appears above the specified address in
+the listing view. Plate comments are ideal for function headers, section markers,
+or important notices that should stand out visually.
+
+Params:
+    address: Address where the plate comment should appear (e.g., "0x00401000")
+    comment: Comment text (typically multi-line)
+
+Returns:
+    Success message if comment set, error message if address invalid.
+
+Use Cases:
+    - Creating function header documentation
+    - Marking major code sections
+    - Adding important warnings or notes
+    - Documenting APIs or interfaces
+    - Creating visual separators in listings
+
+Example:
+    address="0x00401000"
+    comment=\"\"\"Decryption Function
+
+Decrypts the configuration buffer using XOR encryption.
+Parameters: buffer (char*), size (int), key (char*)
+Returns: 0 on success, -1 on error\"\"\"
+
+Appears as bordered box in listing:
+    ┌─────────────────────────────────────────┐
+    │ Decryption Function                     │
+    │                                         │
+    │ Decrypts the configuration buffer...    │
+    │ Parameters: buffer (char*), size (int)  │
+    │ Returns: 0 on success, -1 on error      │
+    └─────────────────────────────────────────┘
+
+Note: Plate comments are prominently displayed and ideal for important documentation.
+They appear in both disassembly and listing views."""
+
 @conditional_tool
 def man(tool_name: str) -> str:
     """Get detailed documentation for a tool. Returns the full manual page with parameters and examples."""
