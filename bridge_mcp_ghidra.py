@@ -303,17 +303,6 @@ def get_data_by_address(address: str) -> str:
 def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
     """
     Search for functions whose name contains the given substring.
-
-    Supports namespace syntax using '::' separator:
-    - "namespace::" - returns all functions in the namespace
-    - "namespace::func" - searches for 'func' in the namespace
-    - "A::B::func" - searches for 'func' in nested namespace A::B
-    - "func" - searches for 'func' (standard substring search)
-
-    Examples:
-        search_functions_by_name("thunk::") - all functions in thunk namespace
-        search_functions_by_name("thunk::fun") - functions named 'fun' in thunk namespace
-        search_functions_by_name("std::vector::push") - functions matching 'push' in std::vector namespace
     """
     # Convert query to string to handle numeric inputs (e.g., "4140" parsed as int 4140)
     # Use 'is not None' check instead of truthiness to handle zero and empty strings correctly
@@ -372,21 +361,6 @@ def list_functions_by_segment(
 ) -> list:
     """
     List functions within a specific memory segment or address range.
-
-    Either provide segment_name OR both start_address and end_address.
-
-    Args:
-        segment_name: Name of the memory segment (e.g., "CODE_70")
-        start_address: Start address of range (e.g., "4592:000e")
-        end_address: End address of range (e.g., "4592:0399")
-        offset: Pagination offset (default: 0)
-        limit: Maximum number of results (default: 100)
-
-    Returns:
-        List of functions with name, address (segment:offset format), and size.
-
-    Example:
-        list_functions_by_segment(segment_name="CODE_70", offset=0, limit=100)
     """
     params = {"offset": offset, "limit": limit}
 
@@ -410,21 +384,6 @@ def list_data_by_segment(
 ) -> list:
     """
     List defined data items within a specific memory segment or address range.
-
-    Either provide segment_name OR both start_address and end_address.
-
-    Args:
-        segment_name: Name of the memory segment (e.g., "CODE_70")
-        start_address: Start address of range (e.g., "4592:000e")
-        end_address: End address of range (e.g., "4592:0399")
-        offset: Pagination offset (default: 0)
-        limit: Maximum number of results (default: 100)
-
-    Returns:
-        List of data items with label, address (segment:offset format), type, and value.
-
-    Example:
-        list_data_by_segment(segment_name="CODE_70", offset=0, limit=100)
     """
     params = {"offset": offset, "limit": limit}
 
@@ -495,23 +454,6 @@ def disassemble_function(address: str) -> list:
 def get_function_data(address: str = None, name: str = None) -> list:
     """
     Get all data (DAT_* symbols, strings, constants, etc.) referenced by a function.
-
-    Returns detailed information about each data reference including:
-    - Symbol name (e.g., DAT_0022d5f6, s_con:_0022d5f6)
-    - Data address
-    - Data type (e.g., dword, char[20], pointer)
-    - Reference location (where in the function it's referenced from)
-    - Value (for strings, integers, etc.)
-
-    Args:
-        address: Function address in hex format (e.g., "0x401000")
-        name: Function name (alternative to address)
-
-    Note: Either address or name must be provided.
-
-    Example:
-        get_function_data(address="0x401000")
-        get_function_data(name="main")
     """
     params = {}
     if address:
@@ -656,42 +598,6 @@ def search_decompiled_text(
 ) -> str:
     """
     Search for text patterns in decompiled function code using regex.
-
-    This tool searches through the decompiled C code of functions (similar to the
-    Decompiler Text Finder in Ghidra's UI). It's useful for finding specific code
-    patterns, function calls, variable usage, or security-relevant constructs.
-
-    Args:
-        pattern: Search pattern (regex if is_regex=true, otherwise literal string)
-        is_regex: Whether pattern is regex (true) or literal string (false) (default: true)
-        case_sensitive: Whether search is case-sensitive (default: true)
-        multiline: Whether pattern can match across multiple lines (default: false)
-        function_names: Optional list of specific function names to search (empty = search all)
-        max_results: Maximum number of total results to return (0 = unlimited) (default: 100)
-        offset: Pagination offset for results (default: 0)
-        limit: Maximum number of results per page (default: 100)
-
-    Returns:
-        JSON string with search results including:
-        - matches: Array of match objects with function_name, function_address, line_number,
-                  matched_text, context, and is_multiline
-        - count: Number of matches returned
-        - total_count: Total number of matches found
-        - offset: Current pagination offset
-        - limit: Current pagination limit
-
-    Examples:
-        # Find all malloc calls
-        search_decompiled_text("malloc\\s*\\(", is_regex=True)
-
-        # Find strcpy calls (case-insensitive literal search)
-        search_decompiled_text("strcpy", is_regex=False, case_sensitive=False)
-
-        # Find multi-line if statements with specific pattern
-        search_decompiled_text("if\\s*\\([^)]*\\)\\s*\\{", is_regex=True, multiline=True)
-
-        # Search only in specific functions
-        search_decompiled_text("password", is_regex=False, function_names=["authenticate", "login"])
     """
     data = {
         "pattern": pattern,
