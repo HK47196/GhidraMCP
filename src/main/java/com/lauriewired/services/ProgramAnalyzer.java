@@ -543,4 +543,104 @@ public class ProgramAnalyzer {
             return "Error getting data at address " + addressStr + ": " + e.getMessage();
         }
     }
+
+    /**
+     * Get all data items within an address range, optionally including undefined data.
+     * This is useful for seeing what's defined around a specific address without global pagination.
+     *
+     * @param startAddress Start address of range (e.g., "0x00231fec")
+     * @param endAddress End address of range (e.g., "0x00232100")
+     * @param includeUndefined If true, include undefined data items in the range
+     * @return Formatted list of data items in the range
+     */
+    public String getDataInRange(String startAddress, String endAddress, boolean includeUndefined) {
+        Program program = navigator.getCurrentProgram();
+        if (program == null) return "No program loaded";
+
+        if (startAddress == null || startAddress.isEmpty()) {
+            return "Error: Start address is required";
+        }
+        if (endAddress == null || endAddress.isEmpty()) {
+            return "Error: End address is required";
+        }
+
+        try {
+            // Parse addresses
+            ghidra.program.model.address.Address start = program.getAddressFactory().getAddress(startAddress);
+            ghidra.program.model.address.Address end = program.getAddressFactory().getAddress(endAddress);
+
+            if (start == null) {
+                return "Error: Invalid start address format: " + startAddress;
+            }
+            if (end == null) {
+                return "Error: Invalid end address format: " + endAddress;
+            }
+
+            if (start.compareTo(end) > 0) {
+                return "Error: Start address must be less than or equal to end address";
+            }
+
+            // Build result
+            StringBuilder result = new StringBuilder();
+            result.append(String.format("Data items from %s to %s (include_undefined=%s):\n\n",
+                start.toString(), end.toString(), includeUndefined));
+
+            List<String> items = new ArrayList<>();
+
+            // Get the appropriate data iterator based on includeUndefined flag
+            DataIterator dataIt;
+            if (includeUndefined) {
+                // Get all data (including undefined)
+                dataIt = program.getListing().getData(start, true);
+            } else {
+                // Get only defined data
+                dataIt = program.getListing().getDefinedData(start, true);
+            }
+
+            int count = 0;
+            while (dataIt.hasNext()) {
+                Data data = dataIt.next();
+                ghidra.program.model.address.Address addr = data.getAddress();
+
+                // Check if within range
+                if (addr.compareTo(start) >= 0 && addr.compareTo(end) <= 0) {
+                    // Find which segment this data is in for proper formatting
+                    MemoryBlock dataBlock = program.getMemory().getBlock(addr);
+                    String segOffset = formatSegmentOffset(addr, dataBlock);
+
+                    String label = data.getLabel() != null ? data.getLabel() : "(unnamed)";
+                    DataType dataType = data.getDataType();
+                    String typeName = dataType != null ? dataType.getName() : "undefined";
+                    String value = data.getDefaultValueRepresentation();
+                    int size = data.getLength();
+
+                    items.add(String.format("%s: %s [%s, %d bytes] = %s",
+                        segOffset,
+                        PluginUtils.escapeNonAscii(label),
+                        typeName,
+                        size,
+                        PluginUtils.escapeNonAscii(value)
+                    ));
+                    count++;
+                } else if (addr.compareTo(end) > 0) {
+                    // We've passed the end of the range, stop iterating
+                    break;
+                }
+            }
+
+            if (count == 0) {
+                result.append("No data items found in the specified range\n");
+            } else {
+                for (String item : items) {
+                    result.append(item).append("\n");
+                }
+                result.append(String.format("\nTotal: %d item(s)\n", count));
+            }
+
+            return result.toString();
+
+        } catch (Exception e) {
+            return "Error getting data in range: " + e.getMessage();
+        }
+    }
 }

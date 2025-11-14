@@ -42,8 +42,8 @@ TOOL_CATEGORIES = {
         "list_methods", "list_classes", "list_segments", "list_imports",
         "list_exports", "list_namespaces", "list_data_items", "list_functions",
         "list_strings", "get_current_address", "get_current_function",
-        "get_function_by_address", "get_data_by_address", "get_function_data",
-        "get_xrefs_to", "get_xrefs_from", "get_function_xrefs"
+        "get_function_by_address", "get_data_by_address", "get_data_in_range",
+        "get_function_data", "get_xrefs_to", "get_xrefs_from", "get_function_xrefs"
     ],
     "decompile": [
         "decompile_function", "decompile_function_by_address", "disassemble_function",
@@ -318,6 +318,31 @@ def get_data_by_address(address: str) -> str:
         Data information including name, type, value, and size
     """
     return "\n".join(safe_get("get_data_by_address", {"address": address}))
+
+@conditional_tool
+def get_data_in_range(start_address: str, end_address: str, include_undefined: bool = False) -> str:
+    """
+    Get all data items within a specific address range.
+
+    This is useful for seeing what's defined around a specific address without using
+    global pagination. For example, "Show me all defined data from 0x00231fec to 0x00232100"
+    will immediately reveal all data items in that range.
+
+    Args:
+        start_address: Start address of the range (e.g., "0x00231fec")
+        end_address: End address of the range (e.g., "0x00232100")
+        include_undefined: If True, include undefined data items (default: False)
+
+    Returns:
+        Formatted list of all data items in the specified range, including their
+        addresses, labels, types, sizes, and values
+    """
+    params = {
+        "start_address": start_address,
+        "end_address": end_address,
+        "include_undefined": str(include_undefined).lower()
+    }
+    return "\n".join(safe_get("data_in_range", params))
 
 @conditional_tool
 def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:

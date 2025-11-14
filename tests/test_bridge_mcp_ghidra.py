@@ -392,6 +392,190 @@ class TestMCPTools:
             "limit": 25
         })
 
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_basic(self, mock_safe_get):
+        """Test get_data_in_range with basic hex address range."""
+        mock_safe_get.return_value = [
+            "Data items from 0x00231fec to 0x00232100 (include_undefined=false):",
+            "",
+            "0x00231fec: stack_array [byte[20], 20 bytes] = [0x00, 0x01, ...]",
+            "0x00232000: vm_register_1 [word, 2 bytes] = 0x1234",
+            "0x00232002: vm_register_2 [word, 2 bytes] = 0x5678",
+            "0x00232004: vm_register_3 [dword, 4 bytes] = 0xdeadbeef",
+            "",
+            "Total: 4 item(s)"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range("0x00231fec", "0x00232100")
+
+        assert "Data items from 0x00231fec to 0x00232100" in result
+        assert "stack_array" in result
+        assert "vm_register_1" in result
+        assert "Total: 4 item(s)" in result
+        mock_safe_get.assert_called_once_with("data_in_range", {
+            "start_address": "0x00231fec",
+            "end_address": "0x00232100",
+            "include_undefined": "false"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_segment_offset(self, mock_safe_get):
+        """Test get_data_in_range with segment:offset format."""
+        mock_safe_get.return_value = [
+            "Data items from 5356:3cd8 to 5356:3d00 (include_undefined=false):",
+            "",
+            "5356:3cd8: g_EventQueue_ErrorCode [word, 2 bytes] = 0x0000",
+            "5356:3cda: g_EventQueue_Flags [byte, 1 bytes] = 0x01",
+            "",
+            "Total: 2 item(s)"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range("5356:3cd8", "5356:3d00")
+
+        assert "5356:3cd8" in result
+        assert "g_EventQueue_ErrorCode" in result
+        assert "g_EventQueue_Flags" in result
+        mock_safe_get.assert_called_once_with("data_in_range", {
+            "start_address": "5356:3cd8",
+            "end_address": "5356:3d00",
+            "include_undefined": "false"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_include_undefined_true(self, mock_safe_get):
+        """Test get_data_in_range with include_undefined=True."""
+        mock_safe_get.return_value = [
+            "Data items from 0x401000 to 0x401020 (include_undefined=true):",
+            "",
+            "0x401000: label1 [dword, 4 bytes] = 0x12345678",
+            "0x401004: (unnamed) [undefined, 1 bytes] = ??",
+            "0x401005: (unnamed) [undefined, 1 bytes] = ??",
+            "0x401006: label2 [word, 2 bytes] = 0xabcd",
+            "",
+            "Total: 4 item(s)"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range(
+            "0x401000",
+            "0x401020",
+            include_undefined=True
+        )
+
+        assert "include_undefined=true" in result
+        assert "undefined" in result
+        assert "Total: 4 item(s)" in result
+        mock_safe_get.assert_called_once_with("data_in_range", {
+            "start_address": "0x401000",
+            "end_address": "0x401020",
+            "include_undefined": "true"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_include_undefined_false(self, mock_safe_get):
+        """Test get_data_in_range with include_undefined=False (default)."""
+        mock_safe_get.return_value = [
+            "Data items from 0x401000 to 0x401020 (include_undefined=false):",
+            "",
+            "0x401000: label1 [dword, 4 bytes] = 0x12345678",
+            "0x401006: label2 [word, 2 bytes] = 0xabcd",
+            "",
+            "Total: 2 item(s)"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range(
+            "0x401000",
+            "0x401020",
+            include_undefined=False
+        )
+
+        assert "include_undefined=false" in result
+        assert "undefined" not in result
+        assert "Total: 2 item(s)" in result
+        mock_safe_get.assert_called_once_with("data_in_range", {
+            "start_address": "0x401000",
+            "end_address": "0x401020",
+            "include_undefined": "false"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_empty_result(self, mock_safe_get):
+        """Test get_data_in_range with empty range (no data found)."""
+        mock_safe_get.return_value = [
+            "Data items from 0x500000 to 0x500100 (include_undefined=false):",
+            "",
+            "No data items found in the specified range"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range("0x500000", "0x500100")
+
+        assert "No data items found" in result
+        mock_safe_get.assert_called_once_with("data_in_range", {
+            "start_address": "0x500000",
+            "end_address": "0x500100",
+            "include_undefined": "false"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_with_strings(self, mock_safe_get):
+        """Test get_data_in_range with string data types."""
+        mock_safe_get.return_value = [
+            "Data items from 0x404000 to 0x404050 (include_undefined=false):",
+            "",
+            "0x404000: str_hello [string, 12 bytes] = \"Hello World\"",
+            "0x40400c: str_test [unicode, 20 bytes] = \"Test String\"",
+            "",
+            "Total: 2 item(s)"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range("0x404000", "0x404050")
+
+        assert "str_hello" in result
+        assert "Hello World" in result
+        assert "str_test" in result
+        assert "unicode" in result
+        mock_safe_get.assert_called_once()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_with_arrays(self, mock_safe_get):
+        """Test get_data_in_range with array data types."""
+        mock_safe_get.return_value = [
+            "Data items from 0x600000 to 0x600100 (include_undefined=false):",
+            "",
+            "0x600000: buffer [byte[256], 256 bytes] = [0x00, 0x01, ...]",
+            "0x600100: matrix [int[16], 64 bytes] = [0, 1, 2, ...]",
+            "",
+            "Total: 2 item(s)"
+        ]
+
+        result = bridge_mcp_ghidra.get_data_in_range("0x600000", "0x600100")
+
+        assert "buffer" in result
+        assert "byte[256]" in result
+        assert "matrix" in result
+        assert "int[16]" in result
+        mock_safe_get.assert_called_once()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_data_in_range_large_range(self, mock_safe_get):
+        """Test get_data_in_range with many items in range."""
+        # Simulate a response with 10 items
+        items = []
+        items.append("Data items from 0x700000 to 0x700100 (include_undefined=false):")
+        items.append("")
+        for i in range(10):
+            items.append(f"0x70000{i:x}: data_{i} [dword, 4 bytes] = 0x{i*0x1000:08x}")
+        items.append("")
+        items.append("Total: 10 item(s)")
+
+        mock_safe_get.return_value = items
+
+        result = bridge_mcp_ghidra.get_data_in_range("0x700000", "0x700100")
+
+        assert "Total: 10 item(s)" in result
+        assert "data_0" in result
+        assert "data_9" in result
+        mock_safe_get.assert_called_once()
+
 
 class TestGlobalConfiguration:
     """Test suite for global configuration variables."""
