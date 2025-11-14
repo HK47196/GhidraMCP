@@ -10,7 +10,16 @@ import sys
 import requests
 import argparse
 import logging
+import os
+from pathlib import Path
 from urllib.parse import urljoin
+from typing import Dict, Set, Optional
+
+# TOML support for config files
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    import tomli as tomllib  # Python 3.10
 
 from mcp.server.fastmcp import FastMCP
 
@@ -25,6 +34,145 @@ mcp = FastMCP("ghidra-mcp")
 ghidra_server_url = DEFAULT_GHIDRA_SERVER
 # Initialize ghidra_request_timeout with default value
 ghidra_request_timeout = DEFAULT_REQUEST_TIMEOUT
+
+# Tool categories for configuration
+TOOL_CATEGORIES = {
+    "query": [
+        "list_methods", "list_classes", "list_segments", "list_imports",
+        "list_exports", "list_namespaces", "list_data_items", "list_functions",
+        "list_strings", "get_current_address", "get_current_function",
+        "get_function_by_address", "get_data_by_address", "get_function_data",
+        "get_xrefs_to", "get_xrefs_from", "get_function_xrefs"
+    ],
+    "decompile": [
+        "decompile_function", "decompile_function_by_address", "disassemble_function"
+    ],
+    "search": [
+        "search_functions_by_name", "search_data_by_name",
+        "list_functions_by_segment", "list_data_by_segment", "search_decompiled_text"
+    ],
+    "modification": [
+        "rename_function", "rename_function_by_address", "rename_data",
+        "rename_variable", "set_function_prototype", "set_local_variable_type",
+        "set_data_type", "set_decompiler_comment", "set_disassembly_comment",
+        "set_plate_comment"
+    ],
+    "bsim": [
+        "bsim_select_database", "bsim_query_function", "bsim_query_all_functions",
+        "bsim_disconnect", "bsim_status", "bsim_get_match_disassembly",
+        "bsim_get_match_decompile"
+    ],
+    "struct": [
+        "create_struct", "parse_c_struct", "add_struct_field",
+        "insert_struct_field_at_offset", "replace_struct_field",
+        "delete_struct_field", "clear_struct_field", "get_struct_info",
+        "list_structs", "rename_struct", "delete_struct"
+    ],
+    "bulk": ["bulk_operations"]
+}
+
+# Global configuration
+_enabled_tools: Optional[Set[str]] = None
+
+
+def load_config(config_path: Optional[str] = None) -> Dict:
+    """
+    Load configuration from TOML file.
+
+    Args:
+        config_path: Path to config file. If None, looks for mcp-config.toml in current directory.
+
+    Returns:
+        Configuration dictionary with tool settings
+    """
+    if config_path is None:
+        config_path = "mcp-config.toml"
+
+    if not os.path.exists(config_path):
+        logger.info(f"No config file found at {config_path}, using default settings (all tools enabled)")
+        return {"tools": {}}
+
+    try:
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+        logger.info(f"Loaded configuration from {config_path}")
+        return config
+    except Exception as e:
+        logger.warning(f"Failed to load config file {config_path}: {e}. Using default settings.")
+        return {"tools": {}}
+
+
+def get_enabled_tools(config: Dict) -> Set[str]:
+    """
+    Determine which tools should be enabled based on configuration.
+
+    Args:
+        config: Configuration dictionary
+
+    Returns:
+        Set of enabled tool names
+    """
+    tools_config = config.get("tools", {})
+
+    # If explicit enabled_tools list is provided, use it
+    if "enabled_tools" in tools_config:
+        enabled = set(tools_config["enabled_tools"])
+        logger.info(f"Using explicit enabled_tools list: {len(enabled)} tools")
+        return enabled
+
+    # Otherwise, start with all tools and apply category/disabled filters
+    all_tools = set()
+    for category_tools in TOOL_CATEGORIES.values():
+        all_tools.update(category_tools)
+
+    enabled = set(all_tools)
+
+    # Apply category-level filters
+    for category, category_tools in TOOL_CATEGORIES.items():
+        category_key = f"enable_{category}"
+        if category_key in tools_config and not tools_config[category_key]:
+            logger.info(f"Disabling category '{category}': {len(category_tools)} tools")
+            enabled -= set(category_tools)
+
+    # Apply individual disabled_tools filter
+    if "disabled_tools" in tools_config:
+        disabled = set(tools_config["disabled_tools"])
+        logger.info(f"Disabling {len(disabled)} individual tools")
+        enabled -= disabled
+
+    logger.info(f"Total enabled tools: {len(enabled)}")
+    return enabled
+
+
+def should_register_tool(tool_name: str) -> bool:
+    """
+    Check if a tool should be registered based on configuration.
+
+    Args:
+        tool_name: Name of the tool
+
+    Returns:
+        True if tool should be registered
+    """
+    global _enabled_tools
+
+    # If no config loaded, enable all tools (backward compatibility)
+    if _enabled_tools is None:
+        return True
+
+    return tool_name in _enabled_tools
+
+
+def conditional_tool(func):
+    """
+    Decorator that conditionally registers a tool based on configuration.
+    """
+    tool_name = func.__name__
+    if should_register_tool(tool_name):
+        return mcp.tool()(func)
+    else:
+        logger.debug(f"Tool '{tool_name}' disabled by configuration")
+        return func
 
 def safe_get(endpoint: str, params: dict = None) -> list:
     """
@@ -61,77 +209,77 @@ def safe_post(endpoint: str, data: dict | str) -> str:
     except Exception as e:
         return f"Request failed: {str(e)}"
 
-@mcp.tool()
+@conditional_tool
 def list_methods(offset: int = 0, limit: int = 100) -> list:
     """
     List all function names in the program with pagination.
     """
     return safe_get("methods", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_classes(offset: int = 0, limit: int = 100) -> list:
     """
     List all namespace/class names in the program with pagination.
     """
     return safe_get("classes", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def decompile_function(name: str) -> str:
     """
     Decompile a specific function by name and return the decompiled C code.
     """
     return safe_post("decompile", name)
 
-@mcp.tool()
+@conditional_tool
 def rename_function(old_name: str, new_name: str) -> str:
     """
     Rename a function by its current name to a new user-defined name.
     """
     return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
 
-@mcp.tool()
+@conditional_tool
 def rename_data(address: str, new_name: str) -> str:
     """
     Rename a data label at the specified address.
     """
     return safe_post("renameData", {"address": address, "newName": new_name})
 
-@mcp.tool()
+@conditional_tool
 def list_segments(offset: int = 0, limit: int = 100) -> list:
     """
     List all memory segments in the program with pagination.
     """
     return safe_get("segments", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_imports(offset: int = 0, limit: int = 100) -> list:
     """
     List imported symbols in the program with pagination.
     """
     return safe_get("imports", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_exports(offset: int = 0, limit: int = 100) -> list:
     """
     List exported functions/symbols with pagination.
     """
     return safe_get("exports", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_namespaces(offset: int = 0, limit: int = 100) -> list:
     """
     List all non-global namespaces in the program with pagination.
     """
     return safe_get("namespaces", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_data_items(offset: int = 0, limit: int = 100) -> list:
     """
     List defined data labels and their values with pagination.
     """
     return safe_get("data", {"offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def get_data_by_address(address: str) -> str:
     """
     Get information about data at a specific address.
@@ -144,7 +292,7 @@ def get_data_by_address(address: str) -> str:
     """
     return "\n".join(safe_get("get_data_by_address", {"address": address}))
 
-@mcp.tool()
+@conditional_tool
 def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
     """
     Search for functions whose name contains the given substring.
@@ -194,7 +342,7 @@ def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100
 
     return safe_get("searchFunctions", params)
 
-@mcp.tool()
+@conditional_tool
 def search_data_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
     """
     Search for data variables whose label/name contains the given substring.
@@ -207,7 +355,7 @@ def search_data_by_name(query: str | int, offset: int = 0, limit: int = 100) -> 
         return ["Error: query string is required"]
     return safe_get("searchData", {"query": query_str, "offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_functions_by_segment(
     segment_name: str = None,
     start_address: str = None,
@@ -245,7 +393,7 @@ def list_functions_by_segment(
 
     return safe_get("functions_by_segment", params)
 
-@mcp.tool()
+@conditional_tool
 def list_data_by_segment(
     segment_name: str = None,
     start_address: str = None,
@@ -283,7 +431,7 @@ def list_data_by_segment(
 
     return safe_get("data_by_segment", params)
 
-@mcp.tool()
+@conditional_tool
 def rename_variable(function_name: str, old_name: str, new_name: str) -> str:
     """
     Rename a local variable within a function.
@@ -294,49 +442,49 @@ def rename_variable(function_name: str, old_name: str, new_name: str) -> str:
         "newName": new_name
     })
 
-@mcp.tool()
+@conditional_tool
 def get_function_by_address(address: str) -> str:
     """
     Get a function by its address.
     """
     return "\n".join(safe_get("get_function_by_address", {"address": address}))
 
-@mcp.tool()
+@conditional_tool
 def get_current_address() -> str:
     """
     Get the address currently selected by the user.
     """
     return "\n".join(safe_get("get_current_address"))
 
-@mcp.tool()
+@conditional_tool
 def get_current_function() -> str:
     """
     Get the function currently selected by the user.
     """
     return "\n".join(safe_get("get_current_function"))
 
-@mcp.tool()
+@conditional_tool
 def list_functions() -> list:
     """
     List all functions in the database.
     """
     return safe_get("list_functions")
 
-@mcp.tool()
+@conditional_tool
 def decompile_function_by_address(address: str) -> str:
     """
     Decompile a function at the given address.
     """
     return "\n".join(safe_get("decompile_function", {"address": address}))
 
-@mcp.tool()
+@conditional_tool
 def disassemble_function(address: str) -> list:
     """
     Get assembly code (address: instruction; comment) for a function.
     """
     return safe_get("disassemble_function", {"address": address})
 
-@mcp.tool()
+@conditional_tool
 def get_function_data(address: str = None, name: str = None) -> list:
     """
     Get all data (DAT_* symbols, strings, constants, etc.) referenced by a function.
@@ -368,21 +516,21 @@ def get_function_data(address: str = None, name: str = None) -> list:
 
     return safe_get("get_function_data", params)
 
-@mcp.tool()
+@conditional_tool
 def set_decompiler_comment(address: str, comment: str) -> str:
     """
     Set a comment for a given address in the function pseudocode.
     """
     return safe_post("set_decompiler_comment", {"address": address, "comment": comment})
 
-@mcp.tool()
+@conditional_tool
 def set_disassembly_comment(address: str, comment: str) -> str:
     """
     Set a comment for a given address in the function disassembly.
     """
     return safe_post("set_disassembly_comment", {"address": address, "comment": comment})
 
-@mcp.tool()
+@conditional_tool
 def set_plate_comment(address: str, comment: str) -> str:
     """
     Set a plate comment for a given address. Plate comments are multi-line bordered
@@ -390,28 +538,28 @@ def set_plate_comment(address: str, comment: str) -> str:
     """
     return safe_post("set_plate_comment", {"address": address, "comment": comment})
 
-@mcp.tool()
+@conditional_tool
 def rename_function_by_address(function_address: str, new_name: str) -> str:
     """
     Rename a function by its address.
     """
     return safe_post("rename_function_by_address", {"function_address": function_address, "new_name": new_name})
 
-@mcp.tool()
+@conditional_tool
 def set_function_prototype(function_address: str, prototype: str) -> str:
     """
     Set a function's prototype.
     """
     return safe_post("set_function_prototype", {"function_address": function_address, "prototype": prototype})
 
-@mcp.tool()
+@conditional_tool
 def set_local_variable_type(function_address: str, variable_name: str, new_type: str) -> str:
     """
     Set a local variable's type.
     """
     return safe_post("set_local_variable_type", {"function_address": function_address, "variable_name": variable_name, "new_type": new_type})
 
-@mcp.tool()
+@conditional_tool
 def set_data_type(address: str, type_name: str) -> str:
     """
     Set the data type at a specific address in the Ghidra program.
@@ -425,7 +573,7 @@ def set_data_type(address: str, type_name: str) -> str:
     """
     return safe_post("set_data_type", {"address": address, "type_name": type_name})
 
-@mcp.tool()
+@conditional_tool
 def get_xrefs_to(address: str, offset: int = 0, limit: int = 100) -> list:
     """
     Get all references to the specified address (xref to).
@@ -440,7 +588,7 @@ def get_xrefs_to(address: str, offset: int = 0, limit: int = 100) -> list:
     """
     return safe_get("xrefs_to", {"address": address, "offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def get_xrefs_from(address: str, offset: int = 0, limit: int = 100) -> list:
     """
     Get all references from the specified address (xref from).
@@ -455,7 +603,7 @@ def get_xrefs_from(address: str, offset: int = 0, limit: int = 100) -> list:
     """
     return safe_get("xrefs_from", {"address": address, "offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def get_function_xrefs(name: str, offset: int = 0, limit: int = 100) -> list:
     """
     Get all references to the specified function by name.
@@ -470,7 +618,7 @@ def get_function_xrefs(name: str, offset: int = 0, limit: int = 100) -> list:
     """
     return safe_get("function_xrefs", {"name": name, "offset": offset, "limit": limit})
 
-@mcp.tool()
+@conditional_tool
 def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list:
     """
     List all defined strings in the program with their addresses.
@@ -488,7 +636,7 @@ def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list
         params["filter"] = filter
     return safe_get("strings", params)
 
-@mcp.tool()
+@conditional_tool
 def search_decompiled_text(
     pattern: str,
     is_regex: bool = True,
@@ -553,7 +701,7 @@ def search_decompiled_text(
 
     return safe_post("search_decompiled_text", data)
 
-@mcp.tool()
+@conditional_tool
 def bsim_select_database(database_path: str) -> str:
     """
     Select and connect to a BSim database for function similarity matching.
@@ -567,7 +715,7 @@ def bsim_select_database(database_path: str) -> str:
     """
     return safe_post("bsim/select_database", {"database_path": database_path})
 
-@mcp.tool()
+@conditional_tool
 def bsim_query_function(
     function_address: str,
     max_matches: int = 10,
@@ -610,7 +758,7 @@ def bsim_query_function(
     
     return safe_post("bsim/query_function", data)
 
-@mcp.tool()
+@conditional_tool
 def bsim_query_all_functions(
     max_matches_per_function: int = 5,
     similarity_threshold: float = 0.7,
@@ -651,7 +799,7 @@ def bsim_query_all_functions(
     
     return safe_post("bsim/query_all_functions", data)
 
-@mcp.tool()
+@conditional_tool
 def bsim_disconnect() -> str:
     """
     Disconnect from the current BSim database.
@@ -661,7 +809,7 @@ def bsim_disconnect() -> str:
     """
     return safe_post("bsim/disconnect", {})
 
-@mcp.tool()
+@conditional_tool
 def bsim_status() -> str:
     """
     Get the current BSim database connection status.
@@ -671,7 +819,7 @@ def bsim_status() -> str:
     """
     return "\n".join(safe_get("bsim/status"))
 
-@mcp.tool()
+@conditional_tool
 def bsim_get_match_disassembly(
     executable_path: str,
     function_name: str,
@@ -696,7 +844,7 @@ def bsim_get_match_disassembly(
         "function_address": function_address,
     })
 
-@mcp.tool()
+@conditional_tool
 def bsim_get_match_decompile(
     executable_path: str,
     function_name: str,
@@ -721,7 +869,7 @@ def bsim_get_match_decompile(
         "function_address": function_address,
     })
 
-@mcp.tool()
+@conditional_tool
 def bulk_operations(operations: list[dict]) -> str:
     """
     Execute multiple operations in a single request. This is more efficient than
@@ -763,7 +911,7 @@ def bulk_operations(operations: list[dict]) -> str:
 
 # ==================== STRUCT OPERATIONS ====================
 
-@mcp.tool()
+@conditional_tool
 def create_struct(name: str, size: int = 0, category_path: str = "") -> str:
     """
     Create a new empty struct with a given name and optional size.
@@ -782,7 +930,7 @@ def create_struct(name: str, size: int = 0, category_path: str = "") -> str:
         "category_path": category_path
     })
 
-@mcp.tool()
+@conditional_tool
 def parse_c_struct(c_code: str, category_path: str = "") -> str:
     """
     Parse C struct definition from text and add to program.
@@ -802,7 +950,7 @@ def parse_c_struct(c_code: str, category_path: str = "") -> str:
         "category_path": category_path
     })
 
-@mcp.tool()
+@conditional_tool
 def add_struct_field(struct_name: str, field_type: str, field_name: str,
                      length: int = -1, comment: str = "") -> str:
     """
@@ -826,7 +974,7 @@ def add_struct_field(struct_name: str, field_type: str, field_name: str,
         "comment": comment
     })
 
-@mcp.tool()
+@conditional_tool
 def insert_struct_field_at_offset(struct_name: str, offset: int, field_type: str,
                                   field_name: str, length: int = -1, comment: str = "") -> str:
     """
@@ -852,7 +1000,7 @@ def insert_struct_field_at_offset(struct_name: str, offset: int, field_type: str
         "comment": comment
     })
 
-@mcp.tool()
+@conditional_tool
 def replace_struct_field(struct_name: str, ordinal: int, field_type: str,
                         field_name: str = "", length: int = -1, comment: str = "") -> str:
     """
@@ -878,7 +1026,7 @@ def replace_struct_field(struct_name: str, ordinal: int, field_type: str,
         "comment": comment
     })
 
-@mcp.tool()
+@conditional_tool
 def delete_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) -> str:
     """
     Delete a field from a struct.
@@ -899,7 +1047,7 @@ def delete_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) -
         "offset": offset
     })
 
-@mcp.tool()
+@conditional_tool
 def clear_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) -> str:
     """
     Clear a field (keeps struct size, fills with undefined).
@@ -920,7 +1068,7 @@ def clear_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) ->
         "offset": offset
     })
 
-@mcp.tool()
+@conditional_tool
 def get_struct_info(name: str) -> str:
     """
     Get detailed information about a struct.
@@ -934,7 +1082,7 @@ def get_struct_info(name: str) -> str:
     """
     return safe_get("struct/get_info", {"name": name})
 
-@mcp.tool()
+@conditional_tool
 def list_structs(category_path: str = "", offset: int = 0, limit: int = 100) -> str:
     """
     List all struct types in the program.
@@ -952,7 +1100,7 @@ def list_structs(category_path: str = "", offset: int = 0, limit: int = 100) -> 
         params["category_path"] = category_path
     return safe_get("struct/list", params)
 
-@mcp.tool()
+@conditional_tool
 def rename_struct(old_name: str, new_name: str) -> str:
     """
     Rename a struct.
@@ -969,7 +1117,7 @@ def rename_struct(old_name: str, new_name: str) -> str:
         "new_name": new_name
     })
 
-@mcp.tool()
+@conditional_tool
 def delete_struct(name: str) -> str:
     """
     Delete a struct from the program.
@@ -994,16 +1142,30 @@ def main():
                         help="Transport protocol for MCP, default: stdio")
     parser.add_argument("--ghidra-timeout", type=int, default=DEFAULT_REQUEST_TIMEOUT,
                         help=f"MCP requests timeout, default: {DEFAULT_REQUEST_TIMEOUT}")
+    parser.add_argument("--config", type=str, default=None,
+                        help="Path to configuration file (TOML format), default: mcp-config.toml if it exists")
     args = parser.parse_args()
+
+    # Load configuration
+    global _enabled_tools
+    config = load_config(args.config)
+    if config.get("tools"):
+        _enabled_tools = get_enabled_tools(config)
+    else:
+        logger.info("No tool configuration found, all tools enabled")
 
     # Use the global variable to ensure it's properly updated
     global ghidra_server_url
     if args.ghidra_server:
         ghidra_server_url = args.ghidra_server
+    elif "server" in config and "ghidra_server" in config["server"]:
+        ghidra_server_url = config["server"]["ghidra_server"]
 
     global ghidra_request_timeout
     if args.ghidra_timeout:
         ghidra_request_timeout = args.ghidra_timeout
+    elif "server" in config and "request_timeout" in config["server"]:
+        ghidra_request_timeout = config["server"]["request_timeout"]
 
     if args.transport == "sse":
         try:
