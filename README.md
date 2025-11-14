@@ -103,6 +103,126 @@ Another MCP client that supports multiple models on the backend is [5ire](https:
 2. Name: GhidraMCP
 3. Command: `python /ABSOLUTE_PATH_TO/bridge_mcp_ghidra.py`
 
+# Configuration
+
+GhidraMCP supports selective tool enabling through a configuration file. This allows you to control which tools are available to MCP clients, enabling use cases like read-only mode or restricting dangerous operations.
+
+## Configuration File
+
+Create a `mcp-config.toml` file in the same directory as `bridge_mcp_ghidra.py`. An example configuration file is provided as `mcp-config.example.toml`.
+
+### Server Configuration
+
+You can configure server settings in the config file as an alternative to command-line arguments:
+
+```toml
+[server]
+ghidra_server = "http://127.0.0.1:8080/"
+request_timeout = 60
+```
+
+### Tool Configuration
+
+GhidraMCP provides three ways to control which tools are enabled:
+
+#### Option 1: Category-Based Control
+
+Enable or disable entire categories of tools:
+
+```toml
+[tools]
+enable_query = true          # List/get operations
+enable_decompile = true      # Decompilation and disassembly
+enable_search = true         # Search operations
+enable_modification = false  # Rename, set type, etc. (disabled)
+enable_bsim = true          # BSim similarity matching
+enable_struct = false        # Struct operations (disabled)
+enable_bulk = true          # Bulk operations
+```
+
+Tool categories:
+- **query**: `list_methods`, `list_classes`, `get_function_by_address`, etc.
+- **decompile**: `decompile_function`, `disassemble_function`, etc.
+- **search**: `search_functions_by_name`, `search_decompiled_text`, etc.
+- **modification**: `rename_function`, `set_data_type`, `set_function_prototype`, etc.
+- **bsim**: `bsim_select_database`, `bsim_query_function`, etc.
+- **struct**: `create_struct`, `add_struct_field`, `delete_struct`, etc.
+- **bulk**: `bulk_operations`
+
+#### Option 2: Explicit Tool List
+
+Specify exactly which tools should be available (overrides category settings):
+
+```toml
+[tools]
+enabled_tools = [
+    "list_methods",
+    "decompile_function",
+    "search_functions_by_name",
+    "get_current_function",
+]
+```
+
+#### Option 3: Disabled Tools List
+
+Disable specific tools while keeping their category enabled:
+
+```toml
+[tools]
+enable_modification = true
+disabled_tools = [
+    "rename_function",  # Disable this specific modification tool
+    "delete_struct",
+]
+```
+
+### Usage
+
+To use a configuration file:
+
+```bash
+# Use default config file (mcp-config.toml in current directory)
+python bridge_mcp_ghidra.py
+
+# Specify custom config file path
+python bridge_mcp_ghidra.py --config /path/to/my-config.toml
+
+# Command-line arguments override config file settings
+python bridge_mcp_ghidra.py --config my-config.toml --ghidra-server http://localhost:9000/
+```
+
+### Example: Read-Only Mode
+
+To prevent any modifications to the Ghidra database:
+
+```toml
+[tools]
+enable_query = true
+enable_decompile = true
+enable_search = true
+enable_modification = false
+enable_bsim = true
+enable_struct = false
+enable_bulk = false
+```
+
+### Example: Analysis Only
+
+For decompilation and analysis without database modifications:
+
+```toml
+[tools]
+enabled_tools = [
+    "list_methods",
+    "list_functions",
+    "decompile_function",
+    "disassemble_function",
+    "search_functions_by_name",
+    "get_xrefs_to",
+    "get_xrefs_from",
+]
+```
+
 # Building from Source
 1. Copy the following files from your Ghidra directory to this project's `lib/` directory:
 - `Ghidra/Features/Base/lib/Base.jar`
