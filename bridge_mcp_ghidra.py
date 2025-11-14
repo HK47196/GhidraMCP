@@ -299,6 +299,38 @@ def disassemble_function(address: str) -> list:
     return safe_get("disassemble_function", {"address": address})
 
 @mcp.tool()
+def get_function_data(address: str = None, name: str = None) -> list:
+    """
+    Get all data (DAT_* symbols, strings, constants, etc.) referenced by a function.
+
+    Returns detailed information about each data reference including:
+    - Symbol name (e.g., DAT_0022d5f6, s_con:_0022d5f6)
+    - Data address
+    - Data type (e.g., dword, char[20], pointer)
+    - Reference location (where in the function it's referenced from)
+    - Value (for strings, integers, etc.)
+
+    Args:
+        address: Function address in hex format (e.g., "0x401000")
+        name: Function name (alternative to address)
+
+    Note: Either address or name must be provided.
+
+    Example:
+        get_function_data(address="0x401000")
+        get_function_data(name="main")
+    """
+    params = {}
+    if address:
+        params["address"] = address
+    elif name:
+        params["name"] = name
+    else:
+        return ["Error: Either 'address' or 'name' parameter is required"]
+
+    return safe_get("get_function_data", params)
+
+@mcp.tool()
 def set_decompiler_comment(address: str, comment: str) -> str:
     """
     Set a comment for a given address in the function pseudocode.
