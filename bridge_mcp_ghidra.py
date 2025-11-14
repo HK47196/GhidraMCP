@@ -323,19 +323,6 @@ def get_data_by_address(address: str) -> str:
 def get_data_in_range(start_address: str, end_address: str, include_undefined: bool = False) -> str:
     """
     Get all data items within a specific address range.
-
-    This is useful for seeing what's defined around a specific address without using
-    global pagination. For example, "Show me all defined data from 0x00231fec to 0x00232100"
-    will immediately reveal all data items in that range.
-
-    Args:
-        start_address: Start address of the range (e.g., "0x00231fec")
-        end_address: End address of the range (e.g., "0x00232100")
-        include_undefined: If True, include undefined data items (default: False)
-
-    Returns:
-        Formatted list of all data items in the specified range, including their
-        addresses, labels, types, sizes, and values
     """
     params = {
         "start_address": start_address,
