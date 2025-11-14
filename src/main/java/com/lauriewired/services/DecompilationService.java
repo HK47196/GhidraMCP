@@ -6,6 +6,8 @@ import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.util.XReferenceUtils;
 import ghidra.app.util.template.TemplateSimplifier;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressIterator;
+import ghidra.program.model.address.AddressSetView;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.listing.CodeUnitFormat;
 import ghidra.program.model.listing.CodeUnitFormatOptions;
