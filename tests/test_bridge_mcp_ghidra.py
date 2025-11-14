@@ -489,7 +489,7 @@ class TestMCPTools:
         )
 
         assert "include_undefined=false" in result
-        assert "undefined" not in result
+        assert "[undefined" not in result  # No undefined data items should be shown
         assert "Total: 2 item(s)" in result
         mock_safe_get.assert_called_once_with("data_in_range", {
             "start_address": "0x401000",
