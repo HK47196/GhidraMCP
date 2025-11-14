@@ -247,9 +247,11 @@ Params:
     address: Target address in hex format (e.g. "0x1400010a0")
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
+    include_instruction: Include instruction text at each xref location (default: False)
 
 Returns:
-    List of references to the specified address"""
+    List of references to the specified address. When include_instruction is True,
+    each reference includes the instruction text (e.g., "tst.l (0x3936,A4)")."""
 
 MANUAL["get_xrefs_from"] = """Get all references from the specified address (xref from).
 
@@ -257,9 +259,11 @@ Params:
     address: Source address in hex format (e.g. "0x1400010a0")
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
+    include_instruction: Include instruction text at the source address (default: False)
 
 Returns:
-    List of references from the specified address"""
+    List of references from the specified address. When include_instruction is True,
+    each reference includes the instruction text at the source address."""
 
 MANUAL["get_function_xrefs"] = """Get all references to the specified function by name.
 
@@ -267,9 +271,11 @@ Params:
     name: Function name to search for
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
+    include_instruction: Include instruction text at each xref location (default: False)
 
 Returns:
-    List of references to the specified function"""
+    List of references to the specified function. When include_instruction is True,
+    each reference includes the instruction text (e.g., "call FUN_00401234")."""
 
 MANUAL["list_strings"] = """List all defined strings in the program with their addresses.
 
@@ -873,19 +879,28 @@ def set_data_type(address: str, type_name: str) -> str:
     return safe_post("set_data_type", {"address": address, "type_name": type_name})
 
 @conditional_tool
-def get_xrefs_to(address: str, offset: int = 0, limit: int = 100) -> list:
+def get_xrefs_to(address: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
     """Get all references to the specified address (xref to)."""
-    return safe_get("xrefs_to", {"address": address, "offset": offset, "limit": limit})
+    params = {"address": address, "offset": offset, "limit": limit}
+    if include_instruction:
+        params["include_instruction"] = "true"
+    return safe_get("xrefs_to", params)
 
 @conditional_tool
-def get_xrefs_from(address: str, offset: int = 0, limit: int = 100) -> list:
+def get_xrefs_from(address: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
     """Get all references from the specified address (xref from)."""
-    return safe_get("xrefs_from", {"address": address, "offset": offset, "limit": limit})
+    params = {"address": address, "offset": offset, "limit": limit}
+    if include_instruction:
+        params["include_instruction"] = "true"
+    return safe_get("xrefs_from", params)
 
 @conditional_tool
-def get_function_xrefs(name: str, offset: int = 0, limit: int = 100) -> list:
+def get_function_xrefs(name: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
     """Get all references to the specified function by name."""
-    return safe_get("function_xrefs", {"name": name, "offset": offset, "limit": limit})
+    params = {"name": name, "offset": offset, "limit": limit}
+    if include_instruction:
+        params["include_instruction"] = "true"
+    return safe_get("function_xrefs", params)
 
 @conditional_tool
 def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list:
