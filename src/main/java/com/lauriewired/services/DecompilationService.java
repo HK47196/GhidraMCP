@@ -208,7 +208,18 @@ public class DecompilationService {
             Address funcEnd = func.getBody().getMaxAddress();
 
             // Find the next function in memory after this one
-            Function nextFunc = funcMgr.getFunctionAfter(func.getEntryPoint());
+            // Start searching from one byte after the function's entry point
+            FunctionIterator funcIter = funcMgr.getFunctions(func.getEntryPoint(), true);
+
+            Function nextFunc = null;
+            while (funcIter.hasNext()) {
+                Function candidate = funcIter.next();
+                // Skip the current function and find the first function that starts after our function ends
+                if (candidate.getEntryPoint().compareTo(func.getEntryPoint()) > 0) {
+                    nextFunc = candidate;
+                    break;
+                }
+            }
 
             if (nextFunc != null) {
                 Address nextFuncStart = nextFunc.getEntryPoint();
