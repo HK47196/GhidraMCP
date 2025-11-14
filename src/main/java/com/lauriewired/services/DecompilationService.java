@@ -4,6 +4,7 @@ import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.util.XReferenceUtils;
+import ghidra.app.util.template.TemplateSimplifier;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.listing.CodeUnitFormat;
@@ -35,16 +36,20 @@ public class DecompilationService {
         this.decompileTimeout = decompileTimeout;
 
         // Initialize CodeUnitFormat with comprehensive formatting options
+        // Using full constructor since fields are protected
         CodeUnitFormatOptions formatOptions = new CodeUnitFormatOptions(
-            ShowBlockName.NEVER,
-            ShowNamespace.NON_LOCAL  // Show namespace for non-local references
+            ShowBlockName.NEVER,           // showBlockName
+            ShowNamespace.NON_LOCAL,       // showNamespace - Show namespace for non-local references
+            null,                          // localPrefixOverride
+            true,                          // doRegVariableMarkup - Enable register variable names
+            true,                          // doStackVariableMarkup - Enable stack variable names
+            true,                          // includeInferredVariableMarkup - Infer variables when possible
+            true,                          // alwaysShowPrimaryReference - Enable "=>" notation
+            true,                          // includeScalarReferenceAdjustment - Show offset adjustments
+            true,                          // showLibraryInNamespace
+            true,                          // followReferencedPointers - Enable "->" for pointers
+            new TemplateSimplifier()       // templateSimplifier - Handles C++ template simplification
         );
-        formatOptions.alwaysShowPrimaryReference = true;  // Enable "=>" notation
-        formatOptions.followReferencedPointers = true;    // Enable "->" for pointers
-        formatOptions.doStackVariableMarkup = true;       // Enable stack variable names
-        formatOptions.doRegVariableMarkup = true;         // Enable register variable names
-        formatOptions.includeInferredVariableMarkup = true; // Infer variables when possible
-        formatOptions.includeScalarReferenceAdjustment = true; // Show offset adjustments
 
         this.codeUnitFormatter = new CodeUnitFormat(formatOptions);
     }
