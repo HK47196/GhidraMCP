@@ -777,11 +777,13 @@ public class DecompilationService {
             this.dataType = data.getDataType().getDisplayName();
 
             // Get value (may be null for some types)
+            Object tempValue;
             try {
-                this.value = data.getValue();
+                tempValue = data.getValue();
             } catch (Exception e) {
-                this.value = null;
+                tempValue = null;
             }
+            this.value = tempValue;
         }
 
         @Override
