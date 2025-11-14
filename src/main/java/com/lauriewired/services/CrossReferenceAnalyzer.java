@@ -14,7 +14,9 @@ import ghidra.program.model.symbol.ReferenceIterator;
 import ghidra.program.model.symbol.ReferenceManager;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Service for analyzing cross-references in Ghidra programs
@@ -47,24 +49,40 @@ public class CrossReferenceAnalyzer {
 
             ReferenceIterator refIter = refManager.getReferencesTo(addr);
 
-            List<String> refs = new ArrayList<>();
-            while (refIter.hasNext()) {
-                Reference ref = refIter.next();
-                Address fromAddr = ref.getFromAddress();
-                RefType refType = ref.getReferenceType();
+            if (includeInstruction) {
+                // Use grouped format when instructions are included
+                Map<String, List<String>> refsByType = new LinkedHashMap<>();
 
-                Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
-                String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
+                while (refIter.hasNext()) {
+                    Reference ref = refIter.next();
+                    Address fromAddr = ref.getFromAddress();
+                    RefType refType = ref.getReferenceType();
+                    String typeName = refType.getName();
 
-                if (includeInstruction) {
+                    Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+                    String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
                     String instrStr = getInstructionString(listing, fromAddr);
-                    refs.add(String.format("From %s%s [%s] %s", fromAddr, funcInfo, refType.getName(), instrStr));
-                } else {
+
+                    String refEntry = String.format("  %s%s: %s", fromAddr, funcInfo, instrStr);
+
+                    refsByType.computeIfAbsent(typeName, k -> new ArrayList<>()).add(refEntry);
+                }
+
+                return formatGroupedRefs(refsByType, offset, limit);
+            } else {
+                // Use simple list format when instructions are not included
+                List<String> refs = new ArrayList<>();
+                while (refIter.hasNext()) {
+                    Reference ref = refIter.next();
+                    Address fromAddr = ref.getFromAddress();
+                    RefType refType = ref.getReferenceType();
+
+                    Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+                    String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
                     refs.add(String.format("From %s%s [%s]", fromAddr, funcInfo, refType.getName()));
                 }
+                return PluginUtils.paginateList(refs, offset, limit);
             }
-
-            return PluginUtils.paginateList(refs, offset, limit);
         } catch (Exception e) {
             return "Error getting references to address: " + e.getMessage();
         }
@@ -101,31 +119,55 @@ public class CrossReferenceAnalyzer {
 
             Reference[] references = refManager.getReferencesFrom(addr);
 
-            List<String> refs = new ArrayList<>();
-            for (Reference ref : references) {
-                Address toAddr = ref.getToAddress();
-                RefType refType = ref.getReferenceType();
+            if (includeInstruction) {
+                // Use grouped format when instructions are included
+                Map<String, List<String>> refsByType = new LinkedHashMap<>();
 
-                String targetInfo = "";
-                Function toFunc = program.getFunctionManager().getFunctionAt(toAddr);
-                if (toFunc != null) {
-                    targetInfo = " to function " + toFunc.getName();
-                } else {
-                    Data data = listing.getDataAt(toAddr);
-                    if (data != null) {
-                        targetInfo = " to data " + (data.getLabel() != null ? data.getLabel() : data.getPathName());
+                for (Reference ref : references) {
+                    Address toAddr = ref.getToAddress();
+                    RefType refType = ref.getReferenceType();
+                    String typeName = refType.getName();
+
+                    String targetInfo = "";
+                    Function toFunc = program.getFunctionManager().getFunctionAt(toAddr);
+                    if (toFunc != null) {
+                        targetInfo = " to function " + toFunc.getName();
+                    } else {
+                        Data data = listing.getDataAt(toAddr);
+                        if (data != null) {
+                            targetInfo = " to data " + (data.getLabel() != null ? data.getLabel() : data.getPathName());
+                        }
                     }
+
+                    String instrStr = getInstructionString(listing, addr);
+                    String refEntry = String.format("  %s%s: %s", toAddr, targetInfo, instrStr);
+
+                    refsByType.computeIfAbsent(typeName, k -> new ArrayList<>()).add(refEntry);
                 }
 
-                if (includeInstruction) {
-                    String instrStr = getInstructionString(listing, addr);
-                    refs.add(String.format("To %s%s [%s] %s", toAddr, targetInfo, refType.getName(), instrStr));
-                } else {
+                return formatGroupedRefs(refsByType, offset, limit);
+            } else {
+                // Use simple list format when instructions are not included
+                List<String> refs = new ArrayList<>();
+                for (Reference ref : references) {
+                    Address toAddr = ref.getToAddress();
+                    RefType refType = ref.getReferenceType();
+
+                    String targetInfo = "";
+                    Function toFunc = program.getFunctionManager().getFunctionAt(toAddr);
+                    if (toFunc != null) {
+                        targetInfo = " to function " + toFunc.getName();
+                    } else {
+                        Data data = listing.getDataAt(toAddr);
+                        if (data != null) {
+                            targetInfo = " to data " + (data.getLabel() != null ? data.getLabel() : data.getPathName());
+                        }
+                    }
+
                     refs.add(String.format("To %s%s [%s]", toAddr, targetInfo, refType.getName()));
                 }
+                return PluginUtils.paginateList(refs, offset, limit);
             }
-
-            return PluginUtils.paginateList(refs, offset, limit);
         } catch (Exception e) {
             return "Error getting references from address: " + e.getMessage();
         }
@@ -156,37 +198,65 @@ public class CrossReferenceAnalyzer {
         if (functionName == null || functionName.isEmpty()) return "Function name is required";
 
         try {
-            List<String> refs = new ArrayList<>();
             FunctionManager funcManager = program.getFunctionManager();
             Listing listing = program.getListing();
-            for (Function function : funcManager.getFunctions(true)) {
-                if (function.getName().equals(functionName)) {
-                    Address entryPoint = function.getEntryPoint();
-                    ReferenceIterator refIter = program.getReferenceManager().getReferencesTo(entryPoint);
 
-                    while (refIter.hasNext()) {
-                        Reference ref = refIter.next();
-                        Address fromAddr = ref.getFromAddress();
-                        RefType refType = ref.getReferenceType();
+            if (includeInstruction) {
+                // Use grouped format when instructions are included
+                Map<String, List<String>> refsByType = new LinkedHashMap<>();
 
-                        Function fromFunc = funcManager.getFunctionContaining(fromAddr);
-                        String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
+                for (Function function : funcManager.getFunctions(true)) {
+                    if (function.getName().equals(functionName)) {
+                        Address entryPoint = function.getEntryPoint();
+                        ReferenceIterator refIter = program.getReferenceManager().getReferencesTo(entryPoint);
 
-                        if (includeInstruction) {
+                        while (refIter.hasNext()) {
+                            Reference ref = refIter.next();
+                            Address fromAddr = ref.getFromAddress();
+                            RefType refType = ref.getReferenceType();
+                            String typeName = refType.getName();
+
+                            Function fromFunc = funcManager.getFunctionContaining(fromAddr);
+                            String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
                             String instrStr = getInstructionString(listing, fromAddr);
-                            refs.add(String.format("From %s%s [%s] %s", fromAddr, funcInfo, refType.getName(), instrStr));
-                        } else {
+
+                            String refEntry = String.format("  %s%s: %s", fromAddr, funcInfo, instrStr);
+                            refsByType.computeIfAbsent(typeName, k -> new ArrayList<>()).add(refEntry);
+                        }
+                    }
+                }
+
+                if (refsByType.isEmpty()) {
+                    return "No references found to function: " + functionName;
+                }
+
+                return formatGroupedRefs(refsByType, offset, limit);
+            } else {
+                // Use simple list format when instructions are not included
+                List<String> refs = new ArrayList<>();
+                for (Function function : funcManager.getFunctions(true)) {
+                    if (function.getName().equals(functionName)) {
+                        Address entryPoint = function.getEntryPoint();
+                        ReferenceIterator refIter = program.getReferenceManager().getReferencesTo(entryPoint);
+
+                        while (refIter.hasNext()) {
+                            Reference ref = refIter.next();
+                            Address fromAddr = ref.getFromAddress();
+                            RefType refType = ref.getReferenceType();
+
+                            Function fromFunc = funcManager.getFunctionContaining(fromAddr);
+                            String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
                             refs.add(String.format("From %s%s [%s]", fromAddr, funcInfo, refType.getName()));
                         }
                     }
                 }
-            }
 
-            if (refs.isEmpty()) {
-                return "No references found to function: " + functionName;
-            }
+                if (refs.isEmpty()) {
+                    return "No references found to function: " + functionName;
+                }
 
-            return PluginUtils.paginateList(refs, offset, limit);
+                return PluginUtils.paginateList(refs, offset, limit);
+            }
         } catch (Exception e) {
             return "Error getting function references: " + e.getMessage();
         }
@@ -231,5 +301,75 @@ public class CrossReferenceAnalyzer {
             }
             return "[UNDEFINED]";
         }
+    }
+
+    /**
+     * Format references grouped by type
+     * @param refsByType Map of reference type to list of reference entries
+     * @param offset Pagination offset
+     * @param limit Pagination limit
+     * @return Formatted string with grouped references
+     */
+    private String formatGroupedRefs(Map<String, List<String>> refsByType, int offset, int limit) {
+        StringBuilder result = new StringBuilder();
+
+        // Calculate total count
+        int totalCount = 0;
+        for (List<String> refs : refsByType.values()) {
+            totalCount += refs.size();
+        }
+
+        // Apply pagination to groups
+        int currentIndex = 0;
+        int itemsAdded = 0;
+
+        for (Map.Entry<String, List<String>> entry : refsByType.entrySet()) {
+            String typeName = entry.getKey();
+            List<String> refs = entry.getValue();
+
+            // Skip entries before offset
+            if (currentIndex + refs.size() <= offset) {
+                currentIndex += refs.size();
+                continue;
+            }
+
+            // Calculate how many items from this group to include
+            int startIdx = Math.max(0, offset - currentIndex);
+            int endIdx = Math.min(refs.size(), startIdx + (limit - itemsAdded));
+
+            if (startIdx >= refs.size()) {
+                currentIndex += refs.size();
+                continue;
+            }
+
+            // Add group header
+            int groupCount = refs.size();
+            if (result.length() > 0) {
+                result.append("\n");
+            }
+            result.append(String.format("%s (%d):\n", typeName, groupCount));
+
+            // Add references from this group
+            for (int i = startIdx; i < endIdx; i++) {
+                result.append(refs.get(i)).append("\n");
+                itemsAdded++;
+            }
+
+            currentIndex += refs.size();
+
+            // Stop if we've reached the limit
+            if (itemsAdded >= limit) {
+                break;
+            }
+        }
+
+        // Add pagination info
+        if (totalCount > limit) {
+            int showing = Math.min(limit, totalCount - offset);
+            result.append(String.format("\n[Showing %d-%d of %d total references]",
+                offset + 1, offset + showing, totalCount));
+        }
+
+        return result.toString().trim();
     }
 }
