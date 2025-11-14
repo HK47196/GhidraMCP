@@ -275,6 +275,23 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, decompilationService.disassembleFunction(address));
         });
 
+        server.createContext("/get_function_data", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String address = qparams.get("address");
+            String name = qparams.get("name");
+
+            String response;
+            if (address != null && !address.isEmpty()) {
+                response = decompilationService.getDataReferencesFromFunctionByAddress(address);
+            } else if (name != null && !name.isEmpty()) {
+                response = decompilationService.getDataReferencesFromFunctionByName(name);
+            } else {
+                response = "Error: Either 'address' or 'name' parameter is required";
+            }
+
+            sendResponse(exchange, response);
+        });
+
         server.createContext("/set_decompiler_comment", exchange -> {
             Map<String, String> params = PluginUtils.parsePostParams(exchange);
             String address = params.get("address");
@@ -770,6 +787,17 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/disassemble_function":
                     return decompilationService.disassembleFunction(params.get("address"));
+
+                case "/get_function_data":
+                    String dataAddress = params.get("address");
+                    String dataName = params.get("name");
+                    if (dataAddress != null && !dataAddress.isEmpty()) {
+                        return decompilationService.getDataReferencesFromFunctionByAddress(dataAddress);
+                    } else if (dataName != null && !dataName.isEmpty()) {
+                        return decompilationService.getDataReferencesFromFunctionByName(dataName);
+                    } else {
+                        return "Error: Either 'address' or 'name' parameter is required";
+                    }
 
                 case "/set_decompiler_comment":
                     return commentService.setDecompilerComment(params.get("address"), params.get("comment"))
