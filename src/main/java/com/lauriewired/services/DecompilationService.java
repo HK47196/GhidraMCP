@@ -1029,11 +1029,13 @@ public class DecompilationService {
     }
 
     /**
-     * Get detailed disassembly context around a specific address
+     * Get detailed disassembly context around a specific address.
+     * Displays code units (instructions AND data) in memory order, matching Ghidra UI listing view.
+     *
      * @param addressStr Address as string
-     * @param before Number of instructions before the address (default: 5)
-     * @param after Number of instructions after the address (default: 5)
-     * @return Detailed disassembly with context
+     * @param before Number of code units before the address (default: 5)
+     * @param after Number of code units after the address (default: 5)
+     * @return Detailed disassembly with context showing both instructions and data
      */
     public String getAddressContext(String addressStr, int before, int after) {
         Program program = navigator.getCurrentProgram();
@@ -1052,7 +1054,7 @@ public class DecompilationService {
 
             StringBuilder result = new StringBuilder();
             result.append("Disassembly context for address: ").append(targetAddr).append("\n");
-            result.append("Context window: -").append(before).append(" to +").append(after).append(" instructions\n\n");
+            result.append("Context window: -").append(before).append(" to +").append(after).append(" code units\n\n");
 
             // Find the function containing this address (if any)
             Function containingFunc = program.getFunctionManager().getFunctionContaining(targetAddr);
@@ -1061,173 +1063,325 @@ public class DecompilationService {
                 result.append(" @ ").append(containingFunc.getEntryPoint()).append("\n\n");
             }
 
-            // Get the instruction at the target address
-            Instruction targetInstr = listing.getInstructionAt(targetAddr);
-            if (targetInstr == null) {
-                // Maybe it's data or undefined
-                Data data = listing.getDataAt(targetAddr);
-                if (data != null) {
-                    result.append("Note: Target address contains data, not an instruction\n");
-                    result.append("Data type: ").append(data.getDataType().getDisplayName()).append("\n\n");
-                } else {
-                    result.append("Note: Target address is undefined or not an instruction\n\n");
-                }
-                // Try to show context anyway by finding nearest instruction
-                targetInstr = listing.getInstructionBefore(targetAddr);
-                if (targetInstr == null) {
-                    targetInstr = listing.getInstructionAfter(targetAddr);
-                }
-                if (targetInstr == null) {
-                    return result.append("Error: No instructions found near the target address").toString();
-                }
-                result.append("Showing context from nearest instruction\n\n");
+            // Get the CODE UNIT at the target address (could be instruction OR data)
+            CodeUnit targetUnit = listing.getCodeUnitContaining(targetAddr);
+            if (targetUnit == null) {
+                return "Error: No code unit found at address " + targetAddr;
             }
 
-            // Collect instructions before target
-            List<Instruction> beforeInstructions = new ArrayList<>();
-            Instruction instr = targetInstr;
-            for (int i = 0; i < before && instr != null; i++) {
-                instr = listing.getInstructionBefore(instr.getAddress());
-                if (instr != null) {
-                    beforeInstructions.add(0, instr); // Add to beginning to maintain order
+            // Collect code units BEFORE the target (in memory order)
+            List<CodeUnit> beforeUnits = new ArrayList<>();
+            CodeUnit unit = targetUnit;
+            for (int i = 0; i < before && unit != null; i++) {
+                unit = listing.getCodeUnitBefore(unit.getMinAddress());
+                if (unit != null) {
+                    beforeUnits.add(0, unit); // Add to beginning to maintain order
                 }
             }
 
-            // Collect instructions after target (including target)
-            List<Instruction> afterInstructions = new ArrayList<>();
-            InstructionIterator instrIter = listing.getInstructions(targetAddr, true);
+            // Collect code units AFTER the target (including target itself)
+            List<CodeUnit> afterUnits = new ArrayList<>();
+            CodeUnitIterator unitIter = listing.getCodeUnits(targetAddr, true);
             int count = 0;
-            while (instrIter.hasNext() && count <= after) {
-                afterInstructions.add(instrIter.next());
-                count++;
+            while (unitIter.hasNext() && count <= after) {
+                CodeUnit cu = unitIter.next();
+                if (cu != null) {
+                    afterUnits.add(cu);
+                    count++;
+                }
             }
 
-            // Display all instructions with enhanced formatting
-            List<Instruction> allInstructions = new ArrayList<>(beforeInstructions);
-            allInstructions.addAll(afterInstructions);
+            // Combine all units
+            List<CodeUnit> allUnits = new ArrayList<>(beforeUnits);
+            allUnits.addAll(afterUnits);
 
-            for (Instruction instruction : allInstructions) {
-                Address addr = instruction.getAddress();
-                boolean isTarget = addr.equals(targetAddr);
+            // Display all code units (instructions AND data)
+            for (CodeUnit cu : allUnits) {
+                Address addr = cu.getMinAddress();
+                boolean isTarget = addr.equals(targetAddr) ||
+                                   (addr.compareTo(targetAddr) <= 0 &&
+                                    cu.getMaxAddress().compareTo(targetAddr) >= 0);
 
-                // Show label at this address if any
-                Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
-                if (primarySymbol != null && (containingFunc == null || !primarySymbol.getName().equals(containingFunc.getName()))) {
-                    result.append("                             ");
-                    result.append(primarySymbol.getName());
-
-                    // Add XREFs for labels
-                    ReferenceIterator labelXrefs = refManager.getReferencesTo(addr);
-                    List<String> jumpRefs = new ArrayList<>();
-                    while (labelXrefs.hasNext()) {
-                        Reference ref = labelXrefs.next();
-                        if (ref.getReferenceType().isJump() || ref.getReferenceType().isConditional()) {
-                            String refTypeStr = getRefTypeDisplayString(ref);
-                            jumpRefs.add(ref.getFromAddress().toString() + refTypeStr);
-                        }
-                    }
-
-                    if (!jumpRefs.isEmpty()) {
-                        result.append("                                    XREF[").append(jumpRefs.size()).append("]:     ");
-                        result.append(String.join(", ", jumpRefs.stream().limit(5).collect(java.util.stream.Collectors.toList())));
-                    }
-
-                    result.append("\n");
-                }
-
-                // Mark target instruction with arrow
-                if (isTarget) {
-                    result.append("  --> ");
-                } else {
-                    result.append("       ");
-                }
-
-                // Get instruction bytes
-                byte[] bytes = null;
-                try {
-                    bytes = instruction.getBytes();
-                } catch (ghidra.program.model.mem.MemoryAccessException e) {
-                    // Memory access failed
-                }
-
-                StringBuilder bytesStr = new StringBuilder();
-                if (bytes != null) {
-                    for (byte b : bytes) {
-                        bytesStr.append(String.format("%02x ", b & 0xFF));
-                    }
-                } else {
-                    bytesStr.append("??");
-                }
-
-                String bytesField = String.format("%-12s", bytesStr.toString().trim());
-
-                // Build instruction mnemonic and operands
-                String mnemonicStr = instruction.getMnemonicString();
-                String enhancedOperands = buildEnhancedOperands(instruction, program, containingFunc);
-
-                // Format the instruction
-                result.append(String.format("%-10s", addr.toString()));  // address
-                result.append(bytesField);  // bytes
-                result.append(String.format("%-10s", mnemonicStr));  // mnemonic
-                result.append(enhancedOperands);  // operands
-
-                // Add function names for CALL instructions
-                if (instruction.getFlowType().isCall()) {
-                    Reference[] refs = refManager.getReferencesFrom(addr);
-                    for (Reference ref : refs) {
-                        if (ref.getReferenceType().isCall()) {
-                            Function calledFunc = program.getFunctionManager().getFunctionAt(ref.getToAddress());
-                            if (calledFunc != null) {
-                                result.append("              ").append(calledFunc.getName());
-                                String signature = calledFunc.getSignature().toString();
-                                if (signature != null && !signature.isEmpty()) {
-                                    result.append("\n");
-                                    result.append("                                                                                       ");
-                                    result.append(signature);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Add comments
-                appendAllComments(result, listing, addr);
-
-                result.append("\n");
-
-                // Show XREFs TO this address (limit to 3 for context view)
-                if (!isTarget) {  // Skip XREFs for non-target to reduce clutter, or include if desired
-                    continue;
-                }
-
-                ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
-                List<String> xrefList = new ArrayList<>();
-                while (xrefsTo.hasNext()) {
-                    Reference ref = xrefsTo.next();
-                    Address fromAddr = ref.getFromAddress();
-                    if (!ref.getReferenceType().isFlow()) {
-                        Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
-                        String xrefStr = fromAddr.toString();
-                        if (fromFunc != null) {
-                            xrefStr = fromFunc.getName() + ":" + xrefStr;
-                        }
-                        xrefStr += " (" + ref.getReferenceType().getName() + ")";
-                        xrefList.add(xrefStr);
-                    }
-                }
-
-                if (!xrefList.isEmpty() && xrefList.size() <= 3) {
-                    for (String xref : xrefList) {
-                        result.append("                     XREF from: ").append(xref).append("\n");
-                    }
-                } else if (xrefList.size() > 3) {
-                    result.append("                     XREF from: [").append(xrefList.size()).append(" references]\n");
+                // Check if this is an instruction or data
+                if (cu instanceof Instruction) {
+                    displayInstruction((Instruction)cu, isTarget, result, program, listing,
+                                      refManager, symbolTable, containingFunc);
+                } else if (cu instanceof Data) {
+                    displayData((Data)cu, isTarget, result, program, listing,
+                               refManager, symbolTable);
                 }
             }
 
             return result.toString();
         } catch (Exception e) {
             return "Error getting address context: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Display an instruction in Ghidra UI format
+     */
+    private void displayInstruction(Instruction instruction, boolean isTarget, StringBuilder result,
+                                    Program program, Listing listing,
+                                    ReferenceManager refManager, SymbolTable symbolTable,
+                                    Function containingFunc) {
+        Address addr = instruction.getAddress();
+
+        // Show label at this address if any
+        Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
+        if (primarySymbol != null && (containingFunc == null || !primarySymbol.getName().equals(containingFunc.getName()))) {
+            result.append("                             ");
+            result.append(primarySymbol.getName());
+
+            // Add XREFs for labels
+            ReferenceIterator labelXrefs = refManager.getReferencesTo(addr);
+            List<String> jumpRefs = new ArrayList<>();
+            while (labelXrefs.hasNext()) {
+                Reference ref = labelXrefs.next();
+                if (ref.getReferenceType().isJump() || ref.getReferenceType().isConditional()) {
+                    String refTypeStr = getRefTypeDisplayString(ref);
+                    jumpRefs.add(ref.getFromAddress().toString() + refTypeStr);
+                }
+            }
+
+            if (!jumpRefs.isEmpty()) {
+                result.append("                                    XREF[").append(jumpRefs.size()).append("]:     ");
+                result.append(String.join(", ", jumpRefs.stream().limit(5).collect(java.util.stream.Collectors.toList())));
+            }
+
+            result.append("\n");
+        }
+
+        // Mark target instruction with arrow
+        if (isTarget) {
+            result.append("  --> ");
+        } else {
+            result.append("       ");
+        }
+
+        // Get instruction bytes
+        byte[] bytes = null;
+        try {
+            bytes = instruction.getBytes();
+        } catch (ghidra.program.model.mem.MemoryAccessException e) {
+            // Memory access failed
+        }
+
+        StringBuilder bytesStr = new StringBuilder();
+        if (bytes != null) {
+            for (byte b : bytes) {
+                bytesStr.append(String.format("%02x ", b & 0xFF));
+            }
+        } else {
+            bytesStr.append("??");
+        }
+
+        String bytesField = String.format("%-12s", bytesStr.toString().trim());
+
+        // Build instruction mnemonic and operands
+        String mnemonicStr = instruction.getMnemonicString();
+        String enhancedOperands = buildEnhancedOperands(instruction, program, containingFunc);
+
+        // Format the instruction
+        result.append(String.format("%-10s", addr.toString()));  // address
+        result.append(bytesField);  // bytes
+        result.append(String.format("%-10s", mnemonicStr));  // mnemonic
+        result.append(enhancedOperands);  // operands
+
+        // Add function names for CALL instructions
+        if (instruction.getFlowType().isCall()) {
+            Reference[] refs = refManager.getReferencesFrom(addr);
+            for (Reference ref : refs) {
+                if (ref.getReferenceType().isCall()) {
+                    Function calledFunc = program.getFunctionManager().getFunctionAt(ref.getToAddress());
+                    if (calledFunc != null) {
+                        result.append("              ").append(calledFunc.getName());
+                        String signature = calledFunc.getSignature().toString();
+                        if (signature != null && !signature.isEmpty()) {
+                            result.append("\n");
+                            result.append("                                                                                       ");
+                            result.append(signature);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add comments
+        appendAllComments(result, listing, addr);
+
+        result.append("\n");
+
+        // Show XREFs TO this address (limit to 3 for context view)
+        if (isTarget) {
+            ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
+            List<String> xrefList = new ArrayList<>();
+            while (xrefsTo.hasNext()) {
+                Reference ref = xrefsTo.next();
+                Address fromAddr = ref.getFromAddress();
+                if (!ref.getReferenceType().isFlow()) {
+                    Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+                    String xrefStr = fromAddr.toString();
+                    if (fromFunc != null) {
+                        xrefStr = fromFunc.getName() + ":" + xrefStr;
+                    }
+                    xrefStr += " (" + ref.getReferenceType().getName() + ")";
+                    xrefList.add(xrefStr);
+                }
+            }
+
+            if (!xrefList.isEmpty() && xrefList.size() <= 3) {
+                for (String xref : xrefList) {
+                    result.append("                     XREF from: ").append(xref).append("\n");
+                }
+            } else if (xrefList.size() > 3) {
+                result.append("                     XREF from: [").append(xrefList.size()).append(" references]\n");
+            }
+        }
+    }
+
+    /**
+     * Display a data item in Ghidra UI format
+     */
+    private void displayData(Data data, boolean isTarget, StringBuilder result,
+                            Program program, Listing listing,
+                            ReferenceManager refManager, SymbolTable symbolTable) {
+        Address addr = data.getMinAddress();
+
+        // 1. Show PLATE COMMENT if present (bordered comment box)
+        String plateComment = listing.getComment(CodeUnit.PLATE_COMMENT, addr);
+        if (plateComment != null && !plateComment.isEmpty()) {
+            String[] lines = plateComment.split("\n");
+            int maxLength = Arrays.stream(lines).mapToInt(String::length).max().orElse(60);
+            maxLength = Math.max(maxLength, 60);
+
+            result.append("                             ");
+            result.append("*".repeat(maxLength + 4)).append("\n");
+
+            for (String line : lines) {
+                result.append("                             * ");
+                result.append(String.format("%-" + maxLength + "s", line));
+                result.append(" *\n");
+            }
+
+            result.append("                             ");
+            result.append("*".repeat(maxLength + 4)).append("\n");
+        }
+
+        // 2. Show LABEL/SYMBOL with XREFs
+        Symbol[] symbols = symbolTable.getSymbols(addr);
+        if (symbols != null && symbols.length > 0) {
+            for (Symbol symbol : symbols) {
+                // Skip function symbols and other non-label types
+                SymbolType symType = symbol.getSymbolType();
+                if (symType != SymbolType.LABEL &&
+                    symType != SymbolType.GLOBAL &&
+                    symType != SymbolType.LOCAL_VAR) {
+                    continue;
+                }
+
+                result.append("                             ");
+
+                // Add namespace if present
+                Namespace namespace = symbol.getParentNamespace();
+                if (namespace != null && !namespace.isGlobal()) {
+                    result.append(namespace.getName()).append("::");
+                }
+
+                result.append(symbol.getName());
+
+                // Show XREFs to this symbol (limit to first 3)
+                ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
+                List<String> xrefList = new ArrayList<>();
+                while (xrefsTo.hasNext()) {
+                    Reference ref = xrefsTo.next();
+                    String xrefStr = ref.getFromAddress().toString();
+                    xrefStr += getRefTypeDisplayString(ref);
+                    xrefList.add(xrefStr);
+                }
+
+                if (!xrefList.isEmpty()) {
+                    result.append("                          XREF[").append(xrefList.size()).append("]:     ");
+                    // Show first 3 XREFs
+                    result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+                    if (xrefList.size() > 3) {
+                        result.append(", [more]");
+                    }
+                }
+
+                result.append("\n");
+            }
+        }
+
+        // 3. Show the DATA LINE with proper formatting
+
+        // Mark target with arrow
+        if (isTarget) {
+            result.append("  --> ");
+        } else {
+            result.append("       ");
+        }
+
+        // Get data bytes
+        byte[] bytes = null;
+        try {
+            bytes = data.getBytes();
+        } catch (Exception e) {
+            // Memory access failed
+        }
+
+        // Format bytes (show first few bytes like Ghidra UI)
+        StringBuilder bytesStr = new StringBuilder();
+        if (bytes != null) {
+            int bytesToShow = Math.min(bytes.length, 4); // Show max 4 bytes like UI
+            for (int i = 0; i < bytesToShow; i++) {
+                bytesStr.append(String.format("%02x ", bytes[i] & 0xFF));
+            }
+            if (bytes.length > bytesToShow) {
+                bytesStr.append("..."); // Indicate there are more bytes
+            }
+        } else {
+            bytesStr.append("??");
+        }
+
+        String bytesField = String.format("%-12s", bytesStr.toString().trim());
+
+        // Get data type using CodeUnitFormat
+        String dataTypeStr = codeUnitFormatter.getMnemonicRepresentation(data);
+
+        // Get data value using CodeUnitFormat
+        String valueStr = "";
+        try {
+            valueStr = codeUnitFormatter.getDataValueRepresentationString(data);
+        } catch (Exception e) {
+            // Fallback to default representation
+            Object value = data.getValue();
+            if (value != null) {
+                valueStr = value.toString();
+            }
+        }
+
+        // Format the data line
+        result.append(String.format("%-10s", addr.toString()));  // address (10 chars)
+        result.append(bytesField);  // bytes (12 chars)
+        result.append(String.format("%-10s", dataTypeStr));  // data type (10 chars)
+        result.append("  ");
+        result.append(valueStr);  // value
+
+        // 4. Add comments (EOL, POST, PRE if on same line)
+        String eolComment = listing.getComment(CodeUnit.EOL_COMMENT, addr);
+        if (eolComment != null && !eolComment.isEmpty()) {
+            result.append(" ; ").append(eolComment);
+        }
+
+        result.append("\n");
+
+        // 5. Show POST COMMENT if present (on separate line below)
+        String postComment = listing.getComment(CodeUnit.POST_COMMENT, addr);
+        if (postComment != null && !postComment.isEmpty()) {
+            result.append("                             ; [POST] ");
+            result.append(postComment.replace("\n", "\n                             ; "));
+            result.append("\n");
         }
     }
 }

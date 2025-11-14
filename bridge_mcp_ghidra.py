@@ -492,6 +492,53 @@ Params:
 Returns:
     JSON string with result"""
 
+MANUAL["get_address_context"] = """Get disassembly context around an address showing both code and data.
+
+Displays listing items (instructions AND data) in strict memory order, exactly like the Ghidra
+UI listing view. This tool is ideal for understanding what's at a specific address and its
+surrounding context.
+
+Params:
+    address: Target address in hex format (e.g., "0x00231fec", "5356:3cd8")
+    before: Number of code units to show before the address (default: 5)
+    after: Number of code units to show after the address (default: 5)
+
+Returns:
+    Formatted disassembly showing:
+    - Instructions with mnemonics, operands, and bytes
+    - Data items with type, value, and bytes
+    - Labels and symbols with namespaces
+    - XREFs (cross-references) showing where items are used
+    - Plate comments (bordered documentation boxes)
+    - EOL and POST comments
+    - Proper column alignment matching Ghidra UI
+
+Key Features:
+    - Shows BOTH instructions and data in memory order (not just instructions)
+    - If address points to data, shows the data (doesn't jump to nearest instruction)
+    - Data formatting includes type (uint8_t, dword, etc.), value, and symbol names
+    - Large data items (arrays) show first few bytes with ellipsis
+    - Target address marked with "  --> " arrow
+    - Function context displayed when address is within a function
+
+Use Cases:
+    - Examining data structures and their surrounding context
+    - Understanding mixed code/data regions
+    - Following pointers and references in memory
+    - Verifying data types and values at specific addresses
+    - Getting comprehensive context for reverse engineering analysis
+
+Example Output:
+    Disassembly context for address: 00231fec
+    Context window: -5 to +5 code units
+
+                                 g_FileDialog_SavedDrawMode                      XREF[2]: File_SaveGraphicsState:0022bf12(*), ...
+           00231fe4  00 00 00 00    uint32_t   0h
+                                 Script::g_Bytecode_Stack                        XREF[24]: Stack_PushWord:00224762(*), ...
+      --> 00231fec  00 00 00 ...   uint8_t[   ""
+           002320e6  00 00          uint16_t   0h
+           00224832  41 ec 38 34    lea       (0x3834,A4)=>g_Bytecode_Stack,A0"""
+
 @conditional_tool
 def man(tool_name: str) -> str:
     """Get detailed documentation for a tool. Returns the full manual page with parameters and examples."""
@@ -759,10 +806,7 @@ def disassemble_function(address: str) -> list:
 
 @conditional_tool
 def get_address_context(address: str, before: int = 5, after: int = 5) -> list:
-    """
-    Get detailed Ghidra-style disassembly around an address with context window.
-    Shows bytes, mnemonics, operands, symbols, XREFs, and comments.
-    """
+    """Get disassembly context around an address with instructions and data."""
     return safe_get("get_address_context", {"address": address, "before": before, "after": after})
 
 @conditional_tool
