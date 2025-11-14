@@ -494,10 +494,21 @@ public class DecompilationService {
             }
 
             // Get instruction bytes
-            byte[] bytes = instr.getBytes();
+            byte[] bytes = null;
+            try {
+                bytes = instr.getBytes();
+            } catch (ghidra.program.model.mem.MemoryAccessException e) {
+                // Memory access failed - we'll show "??" placeholders like Ghidra UI does
+            }
+
             StringBuilder bytesStr = new StringBuilder();
-            for (byte b : bytes) {
-                bytesStr.append(String.format("%02x ", b & 0xFF));
+            if (bytes != null) {
+                for (byte b : bytes) {
+                    bytesStr.append(String.format("%02x ", b & 0xFF));
+                }
+            } else {
+                // Show "??" to indicate bytes couldn't be read (matches Ghidra UI behavior)
+                bytesStr.append("??");
             }
 
             // Format the bytes field (limit to ~12 chars worth of bytes to match Ghidra)
