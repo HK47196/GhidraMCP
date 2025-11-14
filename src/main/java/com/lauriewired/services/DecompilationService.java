@@ -3,8 +3,14 @@ package com.lauriewired.services;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
+import ghidra.app.util.XReferenceUtils;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
+import ghidra.program.model.listing.CodeUnitFormat;
+import ghidra.program.model.listing.CodeUnitFormatOptions;
+import ghidra.program.model.listing.CodeUnitFormatOptions.ShowBlockName;
+import ghidra.program.model.listing.CodeUnitFormatOptions.ShowNamespace;
+import ghidra.program.model.listing.OperandRepresentationList;
 import ghidra.program.model.pcode.*;
 import ghidra.program.model.symbol.*;
 import ghidra.program.model.lang.Register;
@@ -22,10 +28,25 @@ public class DecompilationService {
 
     private final FunctionNavigator navigator;
     private final int decompileTimeout;
+    private final CodeUnitFormat codeUnitFormatter;
 
     public DecompilationService(FunctionNavigator navigator, int decompileTimeout) {
         this.navigator = navigator;
         this.decompileTimeout = decompileTimeout;
+
+        // Initialize CodeUnitFormat with comprehensive formatting options
+        CodeUnitFormatOptions formatOptions = new CodeUnitFormatOptions(
+            ShowBlockName.NEVER,
+            ShowNamespace.NON_LOCAL  // Show namespace for non-local references
+        );
+        formatOptions.alwaysShowPrimaryReference = true;  // Enable "=>" notation
+        formatOptions.followReferencedPointers = true;    // Enable "->" for pointers
+        formatOptions.doStackVariableMarkup = true;       // Enable stack variable names
+        formatOptions.doRegVariableMarkup = true;         // Enable register variable names
+        formatOptions.includeInferredVariableMarkup = true; // Infer variables when possible
+        formatOptions.includeScalarReferenceAdjustment = true; // Show offset adjustments
+
+        this.codeUnitFormatter = new CodeUnitFormat(formatOptions);
     }
 
     /**
@@ -475,13 +496,14 @@ public class DecompilationService {
                 result.append("                             ");
                 result.append(primarySymbol.getName());
 
-                // Add XREFs for labels (jump targets)
+                // Add XREFs for labels using reference type display strings
                 ReferenceIterator labelXrefs = refManager.getReferencesTo(addr);
                 List<String> jumpRefs = new ArrayList<>();
                 while (labelXrefs.hasNext()) {
                     Reference ref = labelXrefs.next();
                     if (ref.getReferenceType().isJump() || ref.getReferenceType().isConditional()) {
-                        jumpRefs.add(ref.getFromAddress().toString() + "(j)");
+                        String refTypeStr = getRefTypeDisplayString(ref);
+                        jumpRefs.add(ref.getFromAddress().toString() + refTypeStr);
                     }
                 }
 
@@ -564,111 +586,36 @@ public class DecompilationService {
     }
 
     /**
-     * Build enhanced operand string with resolved references and symbols
+     * Build enhanced operand string using Ghidra's CodeUnitFormat
+     * This automatically handles variable names, symbols, and reference markup
      */
     private String buildEnhancedOperands(Instruction instr, Program program, Function func) {
-        StringBuilder operands = new StringBuilder();
-
+        StringBuilder result = new StringBuilder();
         int numOperands = instr.getNumOperands();
+
         for (int i = 0; i < numOperands; i++) {
-            if (i > 0) operands.append(",");
+            if (i > 0) {
+                // Use instruction's separator if available, otherwise use comma
+                String separator = instr.getSeparator(i);
+                result.append(separator != null ? separator : ",");
+            }
 
-            String opStr = instr.getDefaultOperandRepresentation(i);
-
-            // Get references for this operand
-            Reference[] refs = instr.getOperandReferences(i);
-            if (refs.length > 0) {
-                for (Reference ref : refs) {
-                    Address toAddr = ref.getToAddress();
-
-                    // Try to get symbol at target address
-                    Symbol targetSymbol = program.getSymbolTable().getPrimarySymbol(toAddr);
-
-                    // Check if it's a data reference and get the value
-                    ghidra.program.model.listing.Data data = null;
-                    try {
-                        data = program.getListing().getDataAt(toAddr);
-                    } catch (Exception e) {
-                        // Ignore - data will be null
-                    }
-
-                    // Enhanced operand format: operand=>symbol
-                    if (targetSymbol != null) {
-                        operands.append(opStr).append("=>").append(targetSymbol.getName());
-
-                        // Add data value if available
-                        if (data != null && data.isDefined()) {
-                            try {
-                                Object value = data.getValue();
-                                if (value != null) {
-                                    operands.append("                        = ").append(value);
-                                }
-                            } catch (Exception e) {
-                                // Ignore - just don't show value
-                            }
-                        }
-                    } else {
-                        operands.append(opStr);
-
-                        // Just add value if no symbol
-                        if (data != null && data.isDefined()) {
-                            try {
-                                Object value = data.getValue();
-                                if (value != null) {
-                                    operands.append("                        = ").append(value);
-                                }
-                            } catch (Exception e) {
-                                // Ignore - just don't show value
-                            }
-                        }
-                    }
-                }
+            // Get formatted operand representation using CodeUnitFormat
+            // This handles:
+            // - Variable name replacement (VariableOffset objects)
+            // - Symbol/label resolution (LabelString objects)
+            // - Arrow notation (=> and ->)
+            // - Data value display
+            OperandRepresentationList repList = codeUnitFormatter.getOperandRepresentationList(instr, i);
+            if (repList != null) {
+                result.append(repList.toString());
             } else {
-                // No references, just use default operand
-                operands.append(opStr);
-
-                // Check if operand references a local variable (stack offset)
-                // Try to replace stack offsets with variable names
-                String withVarNames = replaceStackOffsetsWithVarNames(opStr, func);
-                if (!withVarNames.equals(opStr)) {
-                    operands.setLength(operands.length() - opStr.length());
-                    operands.append(withVarNames);
-                }
+                // Fallback for unsupported languages
+                result.append(instr.getDefaultOperandRepresentation(i));
             }
         }
 
-        return operands.toString();
-    }
-
-    /**
-     * Replace stack offsets in operand strings with variable names
-     */
-    private String replaceStackOffsetsWithVarNames(String operandStr, Function func) {
-        // Look for patterns like (-0x18,A5) or (0x10,SP) and replace with variable names
-        Variable[] vars = func.getAllVariables();
-
-        for (Variable var : vars) {
-            if (var.isStackVariable()) {
-                int offset = var.getStackOffset();
-                String hexOffset = offset < 0 ? "-0x" + Integer.toHexString(-offset) : "0x" + Integer.toHexString(offset);
-
-                // Try to find this offset in the operand string
-                if (operandStr.contains(hexOffset)) {
-                    // Handle multiple formats:
-                    // 1. (-0x28,A5) -> (-0x28=>local_28,A5)
-                    // 2. -0x28,A5 -> -0x28=>local_28,A5
-                    // 3. (0x10,SP) -> (0x10=>param_10,SP)
-
-                    // Replace hex offset followed by comma with offset=>varname,
-                    operandStr = operandStr.replace(hexOffset + ",", hexOffset + "=>" + var.getName() + ",");
-
-                    // Also handle case where it's followed by closing paren
-                    operandStr = operandStr.replace(hexOffset + ")", hexOffset + "=>" + var.getName() + ")");
-                }
-            }
-        }
-
-        return operandStr;
+        return result.toString();
     }
 
     /**
@@ -735,6 +682,38 @@ public class DecompilationService {
         if (!comments.isEmpty()) {
             result.append(" ").append(String.join(" ", comments));
         }
+    }
+
+    /**
+     * Get reference type display string (adapted from XRefFieldFactory.java:680-703)
+     * Returns type indicators: (j)=jump, (c)=call, (R)=read, (W)=write, (RW)=read-write,
+     * (T)=thunk, (*)=data
+     */
+    private String getRefTypeDisplayString(Reference reference) {
+        RefType refType = reference.getReferenceType();
+
+        if (reference instanceof ThunkReference) {
+            return "(T)";
+        }
+        if (refType.isCall()) {
+            return "(c)";
+        }
+        else if (refType.isJump()) {
+            return "(j)";
+        }
+        else if (refType.isRead() && refType.isWrite()) {
+            return "(RW)";
+        }
+        else if (refType.isRead() || refType.isIndirect()) {
+            return "(R)";
+        }
+        else if (refType.isWrite()) {
+            return "(W)";
+        }
+        else if (refType.isData()) {
+            return "(*)";
+        }
+        return "";
     }
 
     /**
