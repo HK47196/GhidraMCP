@@ -275,4 +275,93 @@ class PluginUtilsTest {
 
         assertNull(result);
     }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should parse 'true' as true")
+    void testParseBoolOrDefaultTrue() {
+        boolean result = PluginUtils.parseBoolOrDefault("true", false);
+
+        assertTrue(result);
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should parse 'false' as false")
+    void testParseBoolOrDefaultFalse() {
+        boolean result = PluginUtils.parseBoolOrDefault("false", true);
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should parse '1' as true")
+    void testParseBoolOrDefaultOne() {
+        boolean result = PluginUtils.parseBoolOrDefault("1", false);
+
+        assertTrue(result);
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should parse '0' as false")
+    void testParseBoolOrDefaultZero() {
+        boolean result = PluginUtils.parseBoolOrDefault("0", true);
+
+        assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should be case-insensitive for 'true'")
+    void testParseBoolOrDefaultTrueCaseInsensitive() {
+        assertTrue(PluginUtils.parseBoolOrDefault("TRUE", false));
+        assertTrue(PluginUtils.parseBoolOrDefault("True", false));
+        assertTrue(PluginUtils.parseBoolOrDefault("TrUe", false));
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should be case-insensitive for 'false'")
+    void testParseBoolOrDefaultFalseCaseInsensitive() {
+        assertFalse(PluginUtils.parseBoolOrDefault("FALSE", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("False", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("FaLsE", true));
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should handle whitespace")
+    void testParseBoolOrDefaultWhitespace() {
+        assertTrue(PluginUtils.parseBoolOrDefault("  true  ", false));
+        assertFalse(PluginUtils.parseBoolOrDefault("  false  ", true));
+        assertTrue(PluginUtils.parseBoolOrDefault("  1  ", false));
+        assertFalse(PluginUtils.parseBoolOrDefault("  0  ", true));
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should return default for null")
+    void testParseBoolOrDefaultNull() {
+        assertTrue(PluginUtils.parseBoolOrDefault(null, true));
+        assertFalse(PluginUtils.parseBoolOrDefault(null, false));
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should return default for invalid string")
+    void testParseBoolOrDefaultInvalidString() {
+        assertTrue(PluginUtils.parseBoolOrDefault("invalid", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("invalid", false));
+        assertTrue(PluginUtils.parseBoolOrDefault("yes", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("no", false));
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should return default for empty string")
+    void testParseBoolOrDefaultEmptyString() {
+        assertTrue(PluginUtils.parseBoolOrDefault("", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("", false));
+    }
+
+    @Test
+    @DisplayName("parseBoolOrDefault should return default for numeric values other than 0 and 1")
+    void testParseBoolOrDefaultOtherNumbers() {
+        assertTrue(PluginUtils.parseBoolOrDefault("2", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("2", false));
+        assertTrue(PluginUtils.parseBoolOrDefault("-1", true));
+        assertFalse(PluginUtils.parseBoolOrDefault("-1", false));
+    }
 }

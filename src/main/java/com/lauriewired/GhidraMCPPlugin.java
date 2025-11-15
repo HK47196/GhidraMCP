@@ -280,7 +280,8 @@ public class GhidraMCPPlugin extends Plugin {
         server.createContext("/disassemble_function", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String address = qparams.get("address");
-            sendResponse(exchange, decompilationService.disassembleFunction(address));
+            boolean includeBytes = PluginUtils.parseBoolOrDefault(qparams.get("include_bytes"), false);
+            sendResponse(exchange, decompilationService.disassembleFunction(address, includeBytes));
         });
 
         server.createContext("/get_address_context", exchange -> {
@@ -288,7 +289,8 @@ public class GhidraMCPPlugin extends Plugin {
             String address = qparams.get("address");
             int before = PluginUtils.parseIntOrDefault(qparams.get("before"), 5);
             int after = PluginUtils.parseIntOrDefault(qparams.get("after"), 5);
-            sendResponse(exchange, decompilationService.getAddressContext(address, before, after));
+            boolean includeBytes = PluginUtils.parseBoolOrDefault(qparams.get("include_bytes"), false);
+            sendResponse(exchange, decompilationService.getAddressContext(address, before, after, includeBytes));
         });
 
         server.createContext("/get_function_data", exchange -> {
@@ -813,13 +815,17 @@ public class GhidraMCPPlugin extends Plugin {
                     return decompilationService.decompileFunctionByAddress(params.get("address"));
 
                 case "/disassemble_function":
-                    return decompilationService.disassembleFunction(params.get("address"));
+                    return decompilationService.disassembleFunction(
+                        params.get("address"),
+                        PluginUtils.parseBoolOrDefault(params.get("include_bytes"), false)
+                    );
 
                 case "/get_address_context":
                     return decompilationService.getAddressContext(
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("before"), 5),
-                        PluginUtils.parseIntOrDefault(params.get("after"), 5)
+                        PluginUtils.parseIntOrDefault(params.get("after"), 5),
+                        PluginUtils.parseBoolOrDefault(params.get("include_bytes"), false)
                     );
 
                 case "/get_function_data":

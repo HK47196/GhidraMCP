@@ -124,6 +124,23 @@ public class PluginUtils {
     }
 
     /**
+     * Parse boolean with default value
+     * @param val String value to parse (accepts "true", "false", "1", "0")
+     * @param defaultValue Default value if parsing fails or value is null
+     * @return Parsed boolean or default value
+     */
+    public static boolean parseBoolOrDefault(String val, boolean defaultValue) {
+        if (val == null) return defaultValue;
+        String normalized = val.toLowerCase().trim();
+        if (normalized.equals("true") || normalized.equals("1")) {
+            return true;
+        } else if (normalized.equals("false") || normalized.equals("0")) {
+            return false;
+        }
+        return defaultValue;
+    }
+
+    /**
      * Escape non-ASCII characters
      * @param input String to escape
      * @return Escaped string

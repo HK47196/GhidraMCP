@@ -506,13 +506,14 @@ Displays enhanced Ghidra-style disassembly including:
 - Register assumptions (e.g., assume CS = 0x2a0a)
 - Local variables table with XREFs
 - Function labels with caller XREFs
-- Assembly instructions with bytes, mnemonics, and operands
+- Assembly instructions with mnemonics and operands
 - Enhanced annotations, labels, and cross-references
 - EOL, PRE, POST, and REPEATABLE comments
 - Call destinations with function signatures
 
 Params:
     address: Single address string (e.g., "0x401000") or list of addresses for bulk disassembly
+    include_bytes: Include raw instruction bytes in output (default: False)
 
 Returns:
     - For single address: List of assembly lines with full disassembly details
@@ -520,6 +521,7 @@ Returns:
 
 Example (single):
     disassemble_function("0x401000")
+    disassemble_function("0x401000", include_bytes=True)  # With instruction bytes
 
 Example (bulk):
     disassemble_function(["0x401000", "0x402000", "0x403000"])
@@ -536,11 +538,12 @@ Params:
     address: Target address in hex format (e.g., "0x00231fec", "5356:3cd8")
     before: Number of code units to show before the address (default: 5)
     after: Number of code units to show after the address (default: 5)
+    include_bytes: Include raw instruction/data bytes in output (default: False)
 
 Returns:
     Formatted disassembly showing:
-    - Instructions with mnemonics, operands, and bytes
-    - Data items with type, value, and bytes
+    - Instructions with mnemonics and operands
+    - Data items with type and value
     - Labels and symbols with namespaces
     - XREFs (cross-references) showing where items are used
     - Plate comments (bordered documentation boxes)
@@ -567,11 +570,11 @@ Example Output:
     Context window: -5 to +5 code units
 
                                  g_FileDialog_SavedDrawMode                      XREF[2]: File_SaveGraphicsState:0022bf12(*), ...
-           00231fe4  00 00 00 00    uint32_t   0h
+           00231fe4  uint32_t   0h
                                  Script::g_Bytecode_Stack                        XREF[24]: Stack_PushWord:00224762(*), ...
-      --> 00231fec  00 00 00 ...   uint8_t[   ""
-           002320e6  00 00          uint16_t   0h
-           00224832  41 ec 38 34    lea       (0x3834,A4)=>g_Bytecode_Stack,A0"""
+      --> 00231fec  uint8_t[   ""
+           002320e6  uint16_t   0h
+           00224832  lea       (0x3834,A4)=>g_Bytecode_Stack,A0"""
 
 @conditional_tool
 def man(tool_name: str) -> str:
@@ -832,7 +835,7 @@ def decompile_function_by_address(address: str) -> str:
     return "\n".join(safe_get("decompile_function", {"address": address}))
 
 @conditional_tool
-def disassemble_function(address: str | list[str]) -> str | list:
+def disassemble_function(address: str | list[str], include_bytes: bool = False) -> str | list:
     """
     Get assembly code (address: instruction; comment) for one or more functions.
     """
@@ -843,7 +846,7 @@ def disassemble_function(address: str | list[str]) -> str | list:
 
         # Build bulk operations for each address
         operations = [
-            {"endpoint": "/disassemble_function", "params": {"address": addr}}
+            {"endpoint": "/disassemble_function", "params": {"address": addr, "include_bytes": str(include_bytes).lower()}}
             for addr in address
         ]
 
@@ -851,12 +854,12 @@ def disassemble_function(address: str | list[str]) -> str | list:
         return bulk_operations(operations)
 
     # Single address - original behavior
-    return safe_get("disassemble_function", {"address": address})
+    return safe_get("disassemble_function", {"address": address, "include_bytes": str(include_bytes).lower()})
 
 @conditional_tool
-def get_address_context(address: str, before: int = 5, after: int = 5) -> list:
+def get_address_context(address: str, before: int = 5, after: int = 5, include_bytes: bool = False) -> list:
     """Get disassembly context around an address with instructions and data."""
-    return safe_get("get_address_context", {"address": address, "before": before, "after": after})
+    return safe_get("get_address_context", {"address": address, "before": before, "after": after, "include_bytes": str(include_bytes).lower()})
 
 @conditional_tool
 def get_function_data(address: str = None, name: str = None) -> list:

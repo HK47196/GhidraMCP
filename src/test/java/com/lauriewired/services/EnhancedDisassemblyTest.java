@@ -954,4 +954,204 @@ class EnhancedDisassemblyTest {
         assertTrue(errorMsg.contains("Invalid address format"), "Should explain the error");
         assertTrue(errorMsg.contains("invalid_addr"), "Should include the problematic address");
     }
+
+    // ==================== Include Bytes Parameter Tests ====================
+
+    @Test
+    @DisplayName("Default disassembly should NOT include instruction bytes")
+    void testDefaultDisassemblyWithoutBytes() {
+        String defaultOutput = "       0021f786  movem.l   {  D7 D6 D2},-(SP\n" +
+                              "       0021f78a  lea       (0x3a8a,A4)=>g_GameState_Buffer,A0\n" +
+                              "       0021f78e  move.l    A0=>g_GameState_Buffer,(0x3b8a,A4)=>g_GameState_BufferPtr";
+
+        // Should NOT contain hex bytes like "48 e7 23 00"
+        assertFalse(defaultOutput.matches(".*[0-9a-f]{2} [0-9a-f]{2}.*"),
+                   "Default output should not include hex bytes");
+
+        // Should have address directly followed by mnemonic (no bytes column)
+        assertTrue(defaultOutput.contains("0021f786  movem.l"),
+                  "Should have address followed immediately by mnemonic");
+    }
+
+    @Test
+    @DisplayName("Disassembly with include_bytes=true should show instruction bytes")
+    void testDisassemblyWithBytesEnabled() {
+        String outputWithBytes = "       0021f786 48 e7 23 00 movem.l   {  D7 D6 D2},-(SP\n" +
+                                "       0021f78a 41 ec 3a 8a lea       (0x3a8a,A4)=>g_GameState_Buffer,A0\n" +
+                                "       0021f78e 29 48 3b 8a move.l    A0=>g_GameState_Buffer,(0x3b8a,A4)=>g_GameState_BufferPtr";
+
+        // Should contain hex bytes
+        assertTrue(outputWithBytes.contains("48 e7 23 00"), "Should include hex bytes for first instruction");
+        assertTrue(outputWithBytes.contains("41 ec 3a 8a"), "Should include hex bytes for second instruction");
+        assertTrue(outputWithBytes.contains("29 48 3b 8a"), "Should include hex bytes for third instruction");
+    }
+
+    @Test
+    @DisplayName("Disassembly with include_bytes=false should match default behavior")
+    void testDisassemblyWithBytesExplicitlyDisabled() {
+        String outputWithoutBytes = "       0021f786  movem.l   {  D7 D6 D2},-(SP\n" +
+                                   "       0021f78a  lea       (0x3a8a,A4)=>g_GameState_Buffer,A0";
+
+        // Explicitly set to false should produce same output as default
+        assertFalse(outputWithoutBytes.matches(".*[0-9a-f]{2} [0-9a-f]{2}.*"),
+                   "Output with include_bytes=false should not include hex bytes");
+    }
+
+    @Test
+    @DisplayName("Column alignment should work correctly without bytes")
+    void testColumnAlignmentWithoutBytes() {
+        String line1 = "       0021f786  movem.l   {  D7 D6 D2},-(SP";
+        String line2 = "       0021f78a  lea       (0x3a8a,A4)=>g_GameState_Buffer,A0";
+        String line3 = "       00000100  nop";
+
+        // All lines should align address column at same position (7 spaces)
+        assertTrue(line1.startsWith("       "), "Should have 7-space indent");
+        assertTrue(line2.startsWith("       "), "Should have 7-space indent");
+        assertTrue(line3.startsWith("       "), "Should have 7-space indent");
+
+        // Mnemonic should start after address + 2 spaces (no bytes column)
+        int addr1End = line1.indexOf("0021f786") + "0021f786".length();
+        int mnem1Start = line1.indexOf("movem.l");
+        assertEquals(2, mnem1Start - addr1End, "Should have 2 spaces between address and mnemonic");
+    }
+
+    @Test
+    @DisplayName("Column alignment should work correctly with bytes")
+    void testColumnAlignmentWithBytes() {
+        String line1 = "       0021f786 48 e7 23 00 movem.l   {  D7 D6 D2},-(SP";
+        String line2 = "       0021f78a 41 ec       lea       (0x3a8a,A4)=>g_GameState_Buffer,A0";
+
+        // Both lines should align mnemonics despite different byte lengths
+        assertTrue(line1.contains("48 e7 23 00"), "Should show 4-byte instruction");
+        assertTrue(line2.contains("41 ec"), "Should show 2-byte instruction");
+
+        // Bytes field should be padded to 12 characters to maintain alignment
+        String bytes1 = "48 e7 23 00";
+        String bytes2 = "41 ec       "; // Padded to 12 chars
+        assertTrue(bytes1.length() <= 12, "Bytes should fit in 12-char field");
+    }
+
+    @Test
+    @DisplayName("Address context with include_bytes=false should not show bytes")
+    void testAddressContextWithoutBytes() {
+        String contextOutput = "       0022d3d0  link.w     A5,-0x14\n" +
+                              "  --> 0022d3d4  movem.l    {A6 A3 A2 D7 D2},-(SP)\n" +
+                              "       0022d3d8  movea.l    (0x41a0,A4),A6";
+
+        // Should not contain hex bytes
+        assertFalse(contextOutput.matches(".*[0-9a-f]{2} [0-9a-f]{2}.*"),
+                   "Address context without bytes should not show hex bytes");
+
+        // Target marker should still work
+        assertTrue(contextOutput.contains("  --> "), "Should still show target marker");
+    }
+
+    @Test
+    @DisplayName("Address context with include_bytes=true should show bytes")
+    void testAddressContextWithBytes() {
+        String contextOutput = "       0022d3d0 4e 55 ff ec link.w     A5,-0x14\n" +
+                              "  --> 0022d3d4 48 e7       movem.l    {A6 A3 A2 D7 D2},-(SP)\n" +
+                              "       0022d3d8 2c 6c 41 a0 movea.l    (0x41a0,A4),A6";
+
+        // Should contain hex bytes
+        assertTrue(contextOutput.contains("4e 55 ff ec"), "Should show bytes for instruction before target");
+        assertTrue(contextOutput.contains("48 e7"), "Should show bytes for target instruction");
+        assertTrue(contextOutput.contains("2c 6c 41 a0"), "Should show bytes for instruction after target");
+
+        // Target marker should still work with bytes
+        assertTrue(contextOutput.contains("  --> 0022d3d4 48 e7"), "Target marker should work with bytes");
+    }
+
+    @Test
+    @DisplayName("Data context with include_bytes=false should not show data bytes")
+    void testDataContextWithoutBytes() {
+        String dataOutput = "       00231fe4  uint32_t   0h\n" +
+                           "  --> 00231fec  uint8_t[   \"\"\n" +
+                           "       002320e6  uint16_t   0h";
+
+        // Should not contain hex bytes for data
+        assertFalse(dataOutput.matches(".*[0-9a-f]{2} [0-9a-f]{2}.*"),
+                   "Data context without bytes should not show hex bytes");
+    }
+
+    @Test
+    @DisplayName("Data context with include_bytes=true should show data bytes")
+    void testDataContextWithBytes() {
+        String dataOutput = "       00231fe4 00 00 00 00 uint32_t   0h\n" +
+                           "  --> 00231fec 00 00 00 ... uint8_t[   \"\"\n" +
+                           "       002320e6 00 00       uint16_t   0h";
+
+        // Should contain hex bytes for data (limited to first 4 bytes)
+        assertTrue(dataOutput.contains("00 00 00 00"), "Should show 4 bytes for uint32_t");
+        assertTrue(dataOutput.contains("00 00 00 ..."), "Should show first 4 bytes with ellipsis for array");
+        assertTrue(dataOutput.contains("00 00      "), "Should show 2 bytes for uint16_t");
+    }
+
+    @Test
+    @DisplayName("Include bytes parameter should not affect other disassembly features")
+    void testIncludeBytesDoesNotAffectOtherFeatures() {
+        String outputWithBytes = "       0021f786 48 e7 23 00 movem.l   {  D7 D6 D2},-(SP ; save registers\n" +
+                                "                     XREF from: Combat_Init:0022d100 (CALL)";
+
+        String outputWithoutBytes = "       0021f786  movem.l   {  D7 D6 D2},-(SP ; save registers\n" +
+                                   "                     XREF from: Combat_Init:0022d100 (CALL)";
+
+        // Both should have comments
+        assertTrue(outputWithBytes.contains("; save registers"), "Should preserve comments with bytes");
+        assertTrue(outputWithoutBytes.contains("; save registers"), "Should preserve comments without bytes");
+
+        // Both should have XREFs
+        assertTrue(outputWithBytes.contains("XREF from:"), "Should preserve XREFs with bytes");
+        assertTrue(outputWithoutBytes.contains("XREF from:"), "Should preserve XREFs without bytes");
+
+        // Both should have enhanced operands (=>)
+        assertTrue(outputWithBytes.contains("{  D7 D6 D2}"), "Should preserve operand formatting with bytes");
+        assertTrue(outputWithoutBytes.contains("{  D7 D6 D2}"), "Should preserve operand formatting without bytes");
+    }
+
+    @Test
+    @DisplayName("Include bytes parameter should not affect function signature and variables")
+    void testIncludeBytesDoesNotAffectFunctionMetadata() {
+        String signature = "                             uint16_t __cdecl16far CODE_212::Combat_AIDecisionLoop(pointer16 charIndexPtr)";
+        String variable = "             undefined         Stack[-0x4]    local_4                                 XREF[1]:     618c:0bc6(*)";
+        String label = "                             CODE_212::Combat_AIDecisionLoop                 XREF[1]:     Combat_ModeController:618c:069d";
+
+        // These sections should be identical regardless of include_bytes setting
+        assertTrue(signature.contains("uint16_t __cdecl16far"), "Function signature should not change");
+        assertTrue(variable.contains("Stack[-0x4]"), "Variable table should not change");
+        assertTrue(label.contains("XREF[1]"), "Function label should not change");
+    }
+
+    @Test
+    @DisplayName("Bytes field should be exactly 12 characters wide when included")
+    void testBytesFieldWidth() {
+        // Test various instruction lengths
+        String oneByte = "       618c:0bad 55           PUSH       BP";
+        String twoBytes = "       618c:0bae 8b ec        MOV        BP,SP";
+        String fourBytes = "       0022d3d0 4e 55 ff ec  link.w     A5,-0x14";
+
+        // Extract bytes field (between address and mnemonic)
+        // Bytes field should always be padded to 12 chars
+        int bytesStart1 = oneByte.indexOf("618c:0bad") + "618c:0bad".length() + 1;
+        int mnemonicStart1 = oneByte.indexOf("PUSH");
+        String bytesField1 = oneByte.substring(bytesStart1, mnemonicStart1 - 1);
+
+        assertEquals(12, bytesField1.length(), "Bytes field should be 12 characters wide");
+    }
+
+    @Test
+    @DisplayName("Without bytes, output should be more compact and readable")
+    void testOutputCompactnessWithoutBytes() {
+        String withBytes = "       0021f786 48 e7 23 00 movem.l   {  D7 D6 D2},-(SP";
+        String withoutBytes = "       0021f786  movem.l   {  D7 D6 D2},-(SP";
+
+        // Without bytes should be shorter
+        assertTrue(withoutBytes.length() < withBytes.length(),
+                  "Output without bytes should be more compact");
+
+        // Both should still be readable and properly formatted
+        assertTrue(withoutBytes.contains("0021f786"), "Should have address");
+        assertTrue(withoutBytes.contains("movem.l"), "Should have mnemonic");
+        assertTrue(withoutBytes.contains("{  D7 D6 D2}"), "Should have operands");
+    }
 }

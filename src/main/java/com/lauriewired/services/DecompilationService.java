@@ -110,9 +110,10 @@ public class DecompilationService {
     /**
      * Disassemble a function by address
      * @param addressStr Address as string
+     * @param includeBytes Include raw instruction bytes in output (default: false)
      * @return Disassembly or error message
      */
-    public String disassembleFunction(String addressStr) {
+    public String disassembleFunction(String addressStr, boolean includeBytes) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
         if (addressStr == null || addressStr.isEmpty()) return "Address is required";
@@ -122,7 +123,7 @@ public class DecompilationService {
             Function func = navigator.getFunctionForAddress(program, addr);
             if (func == null) return "No function found at or containing address " + addressStr;
 
-            return disassembleFunctionInProgram(func, program);
+            return disassembleFunctionInProgram(func, program, includeBytes);
         } catch (Exception e) {
             return "Error disassembling function: " + e.getMessage();
         }
@@ -156,9 +157,10 @@ public class DecompilationService {
      * Disassemble a function within a program with comprehensive Ghidra-style information
      * @param func Function to disassemble
      * @param program Program containing the function
+     * @param includeBytes Include raw instruction bytes in output
      * @return Enhanced disassembly or null
      */
-    public String disassembleFunctionInProgram(Function func, Program program) {
+    public String disassembleFunctionInProgram(Function func, Program program, boolean includeBytes) {
         try {
             StringBuilder result = new StringBuilder();
             Listing listing = program.getListing();
@@ -187,7 +189,7 @@ public class DecompilationService {
             appendFunctionLabel(result, func, program);
 
             // 6. Add disassembly with enhanced annotations
-            appendEnhancedDisassembly(result, func, program, listing, entryPoint, end);
+            appendEnhancedDisassembly(result, func, program, listing, entryPoint, end, includeBytes);
 
             return result.toString();
         } catch (Exception e) {
@@ -562,7 +564,7 @@ public class DecompilationService {
      * Append enhanced disassembly with annotations
      */
     private void appendEnhancedDisassembly(StringBuilder result, Function func, Program program,
-                                          Listing listing, Address start, Address end) {
+                                          Listing listing, Address start, Address end, boolean includeBytes) {
         ReferenceManager refManager = program.getReferenceManager();
         SymbolTable symbolTable = program.getSymbolTable();
 
@@ -600,26 +602,29 @@ public class DecompilationService {
                 result.append("\n");
             }
 
-            // Get instruction bytes
-            byte[] bytes = null;
-            try {
-                bytes = instr.getBytes();
-            } catch (ghidra.program.model.mem.MemoryAccessException e) {
-                // Memory access failed - we'll show "??" placeholders like Ghidra UI does
-            }
-
-            StringBuilder bytesStr = new StringBuilder();
-            if (bytes != null) {
-                for (byte b : bytes) {
-                    bytesStr.append(String.format("%02x ", b & 0xFF));
+            // Get instruction bytes (only if requested)
+            String bytesField = "";
+            if (includeBytes) {
+                byte[] bytes = null;
+                try {
+                    bytes = instr.getBytes();
+                } catch (ghidra.program.model.mem.MemoryAccessException e) {
+                    // Memory access failed - we'll show "??" placeholders like Ghidra UI does
                 }
-            } else {
-                // Show "??" to indicate bytes couldn't be read (matches Ghidra UI behavior)
-                bytesStr.append("??");
-            }
 
-            // Format the bytes field (limit to ~12 chars worth of bytes to match Ghidra)
-            String bytesField = String.format("%-12s", bytesStr.toString().trim());
+                StringBuilder bytesStr = new StringBuilder();
+                if (bytes != null) {
+                    for (byte b : bytes) {
+                        bytesStr.append(String.format("%02x ", b & 0xFF));
+                    }
+                } else {
+                    // Show "??" to indicate bytes couldn't be read (matches Ghidra UI behavior)
+                    bytesStr.append("??");
+                }
+
+                // Format the bytes field (limit to ~12 chars worth of bytes to match Ghidra)
+                bytesField = String.format("%-12s", bytesStr.toString().trim());
+            }
 
             // Build instruction mnemonic and operands with enhanced references
             String mnemonicStr = instr.getMnemonicString();
@@ -628,7 +633,9 @@ public class DecompilationService {
             // Calculate proper column widths
             result.append("       ");  // 7 spaces
             result.append(String.format("%-10s", addr.toString()));  // address (10 chars)
-            result.append(bytesField);  // instruction bytes (12 chars)
+            if (includeBytes) {
+                result.append(bytesField);  // instruction bytes (12 chars) - only if requested
+            }
             result.append(String.format("%-10s", mnemonicStr));  // mnemonic (10 chars)
 
             // Add operands with references and symbols
@@ -1035,9 +1042,10 @@ public class DecompilationService {
      * @param addressStr Address as string
      * @param before Number of code units before the address (default: 5)
      * @param after Number of code units after the address (default: 5)
+     * @param includeBytes Include raw instruction/data bytes in output (default: false)
      * @return Detailed disassembly with context showing both instructions and data
      */
-    public String getAddressContext(String addressStr, int before, int after) {
+    public String getAddressContext(String addressStr, int before, int after, boolean includeBytes) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
         if (addressStr == null || addressStr.isEmpty()) return "Address is required";
@@ -1105,10 +1113,10 @@ public class DecompilationService {
                 // Check if this is an instruction or data
                 if (cu instanceof Instruction) {
                     displayInstruction((Instruction)cu, isTarget, result, program, listing,
-                                      refManager, symbolTable, containingFunc);
+                                      refManager, symbolTable, containingFunc, includeBytes);
                 } else if (cu instanceof Data) {
                     displayData((Data)cu, isTarget, result, program, listing,
-                               refManager, symbolTable);
+                               refManager, symbolTable, includeBytes);
                 }
             }
 
@@ -1124,7 +1132,7 @@ public class DecompilationService {
     private void displayInstruction(Instruction instruction, boolean isTarget, StringBuilder result,
                                     Program program, Listing listing,
                                     ReferenceManager refManager, SymbolTable symbolTable,
-                                    Function containingFunc) {
+                                    Function containingFunc, boolean includeBytes) {
         Address addr = instruction.getAddress();
 
         // Show label at this address if any
@@ -1159,24 +1167,27 @@ public class DecompilationService {
             result.append("       ");
         }
 
-        // Get instruction bytes
-        byte[] bytes = null;
-        try {
-            bytes = instruction.getBytes();
-        } catch (ghidra.program.model.mem.MemoryAccessException e) {
-            // Memory access failed
-        }
-
-        StringBuilder bytesStr = new StringBuilder();
-        if (bytes != null) {
-            for (byte b : bytes) {
-                bytesStr.append(String.format("%02x ", b & 0xFF));
+        // Get instruction bytes (only if requested)
+        String bytesField = "";
+        if (includeBytes) {
+            byte[] bytes = null;
+            try {
+                bytes = instruction.getBytes();
+            } catch (ghidra.program.model.mem.MemoryAccessException e) {
+                // Memory access failed
             }
-        } else {
-            bytesStr.append("??");
-        }
 
-        String bytesField = String.format("%-12s", bytesStr.toString().trim());
+            StringBuilder bytesStr = new StringBuilder();
+            if (bytes != null) {
+                for (byte b : bytes) {
+                    bytesStr.append(String.format("%02x ", b & 0xFF));
+                }
+            } else {
+                bytesStr.append("??");
+            }
+
+            bytesField = String.format("%-12s", bytesStr.toString().trim());
+        }
 
         // Build instruction mnemonic and operands
         String mnemonicStr = instruction.getMnemonicString();
@@ -1184,7 +1195,9 @@ public class DecompilationService {
 
         // Format the instruction
         result.append(String.format("%-10s", addr.toString()));  // address
-        result.append(bytesField);  // bytes
+        if (includeBytes) {
+            result.append(bytesField);  // bytes - only if requested
+        }
         result.append(String.format("%-10s", mnemonicStr));  // mnemonic
         result.append(enhancedOperands);  // operands
 
@@ -1245,7 +1258,7 @@ public class DecompilationService {
      */
     private void displayData(Data data, boolean isTarget, StringBuilder result,
                             Program program, Listing listing,
-                            ReferenceManager refManager, SymbolTable symbolTable) {
+                            ReferenceManager refManager, SymbolTable symbolTable, boolean includeBytes) {
         Address addr = data.getMinAddress();
 
         // 1. Show PLATE COMMENT if present (bordered comment box)
@@ -1322,29 +1335,32 @@ public class DecompilationService {
             result.append("       ");
         }
 
-        // Get data bytes
-        byte[] bytes = null;
-        try {
-            bytes = data.getBytes();
-        } catch (Exception e) {
-            // Memory access failed
-        }
-
-        // Format bytes (show first few bytes like Ghidra UI)
-        StringBuilder bytesStr = new StringBuilder();
-        if (bytes != null) {
-            int bytesToShow = Math.min(bytes.length, 4); // Show max 4 bytes like UI
-            for (int i = 0; i < bytesToShow; i++) {
-                bytesStr.append(String.format("%02x ", bytes[i] & 0xFF));
+        // Get data bytes (only if requested)
+        String bytesField = "";
+        if (includeBytes) {
+            byte[] bytes = null;
+            try {
+                bytes = data.getBytes();
+            } catch (Exception e) {
+                // Memory access failed
             }
-            if (bytes.length > bytesToShow) {
-                bytesStr.append("..."); // Indicate there are more bytes
-            }
-        } else {
-            bytesStr.append("??");
-        }
 
-        String bytesField = String.format("%-12s", bytesStr.toString().trim());
+            // Format bytes (show first few bytes like Ghidra UI)
+            StringBuilder bytesStr = new StringBuilder();
+            if (bytes != null) {
+                int bytesToShow = Math.min(bytes.length, 4); // Show max 4 bytes like UI
+                for (int i = 0; i < bytesToShow; i++) {
+                    bytesStr.append(String.format("%02x ", bytes[i] & 0xFF));
+                }
+                if (bytes.length > bytesToShow) {
+                    bytesStr.append("..."); // Indicate there are more bytes
+                }
+            } else {
+                bytesStr.append("??");
+            }
+
+            bytesField = String.format("%-12s", bytesStr.toString().trim());
+        }
 
         // Get data type using CodeUnitFormat
         String dataTypeStr = codeUnitFormatter.getMnemonicRepresentation(data);
@@ -1363,7 +1379,9 @@ public class DecompilationService {
 
         // Format the data line
         result.append(String.format("%-10s", addr.toString()));  // address (10 chars)
-        result.append(bytesField);  // bytes (12 chars)
+        if (includeBytes) {
+            result.append(bytesField);  // bytes (12 chars) - only if requested
+        }
         result.append(String.format("%-10s", dataTypeStr));  // data type (10 chars)
         result.append("  ");
         result.append(valueStr);  // value
