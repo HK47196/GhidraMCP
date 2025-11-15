@@ -835,13 +835,6 @@ def decompile_function_by_address(address: str) -> str:
 def disassemble_function(address: str | list[str]) -> str | list:
     """
     Get assembly code (address: instruction; comment) for one or more functions.
-
-    Args:
-        address: Single address string (e.g., "0x401000") or list of addresses for bulk disassembly
-
-    Returns:
-        For single address: list of assembly lines
-        For multiple addresses: JSON string with results for each address
     """
     # Handle bulk disassemble
     if isinstance(address, list):
