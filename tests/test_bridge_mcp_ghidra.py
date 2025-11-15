@@ -1561,3 +1561,96 @@ class TestToolTrackerIntegration:
         result = wrapped("test", 20)
         assert result == "Result: test, 20"
         mock_tracker.increment.assert_called_once_with("sample_tool")
+
+
+class TestBulkDisassemble:
+    """Test suite for disassemble_function with bulk support."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_disassemble_function_single_address(self, mock_safe_get):
+        """Test disassemble_function with a single address (original behavior)."""
+        mock_safe_get.return_value = [
+            "uint16_t myFunc()",
+            "0x401000 55              PUSH       BP",
+            "0x401001 8b ec           MOV        BP,SP"
+        ]
+
+        result = bridge_mcp_ghidra.disassemble_function("0x401000")
+
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert "PUSH       BP" in result[1]
+        mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000"})
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_disassemble_function_bulk_addresses(self, mock_bulk_operations):
+        """Test disassemble_function with multiple addresses."""
+        mock_bulk_operations.return_value = '{"results": [{"success": true}, {"success": true}]}'
+
+        addresses = ["0x401000", "0x402000", "0x403000"]
+        result = bridge_mcp_ghidra.disassemble_function(addresses)
+
+        # Should call bulk_operations
+        mock_bulk_operations.assert_called_once()
+        call_args = mock_bulk_operations.call_args[0][0]
+
+        # Verify all addresses are in the operations
+        assert len(call_args) == 3
+        assert call_args[0]["endpoint"] == "/disassemble_function"
+        assert call_args[0]["params"]["address"] == "0x401000"
+        assert call_args[1]["params"]["address"] == "0x402000"
+        assert call_args[2]["params"]["address"] == "0x403000"
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_disassemble_function_bulk_empty_list(self, mock_bulk_operations):
+        """Test disassemble_function with empty list returns error."""
+        result = bridge_mcp_ghidra.disassemble_function([])
+
+        assert "Error" in result
+        assert "cannot be empty" in result
+        mock_bulk_operations.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_disassemble_function_bulk_single_item_list(self, mock_bulk_operations):
+        """Test disassemble_function with single-item list."""
+        mock_bulk_operations.return_value = '{"results": [{"success": true}]}'
+
+        result = bridge_mcp_ghidra.disassemble_function(["0x401000"])
+
+        # Even single item in list uses bulk operations
+        mock_bulk_operations.assert_called_once()
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert len(call_args) == 1
+        assert call_args[0]["params"]["address"] == "0x401000"
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_disassemble_function_bulk_return_type(self, mock_bulk_operations):
+        """Test that bulk disassemble returns JSON string."""
+        mock_response = '{"results": [{"result": "disassembly1"}, {"result": "disassembly2"}]}'
+        mock_bulk_operations.return_value = mock_response
+
+        result = bridge_mcp_ghidra.disassemble_function(["0x401000", "0x402000"])
+
+        assert result == mock_response
+        assert isinstance(result, str)
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_disassemble_function_bulk_preserves_order(self, mock_bulk_operations):
+        """Test that bulk operations preserve address order."""
+        addresses = ["0x405000", "0x401000", "0x403000", "0x402000"]
+        bridge_mcp_ghidra.disassemble_function(addresses)
+
+        call_args = mock_bulk_operations.call_args[0][0]
+        for i, addr in enumerate(addresses):
+            assert call_args[i]["params"]["address"] == addr
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_disassemble_function_bulk_hex_and_segment_addresses(self, mock_bulk_operations):
+        """Test bulk disassemble with mixed address formats."""
+        addresses = ["0x401000", "5356:3cd8", "0x1400010a0"]
+        bridge_mcp_ghidra.disassemble_function(addresses)
+
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert call_args[0]["params"]["address"] == "0x401000"
+        assert call_args[1]["params"]["address"] == "5356:3cd8"
+        assert call_args[2]["params"]["address"] == "0x1400010a0"
