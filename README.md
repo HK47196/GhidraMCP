@@ -209,30 +209,3 @@ enabled_tools = [
     "get_xrefs_from",
 ]
 ```
-
-# Building from Source
-1. Copy the following files from your Ghidra directory to this project's `lib/` directory:
-- `Ghidra/Features/Base/lib/Base.jar`
-- `Ghidra/Features/Decompiler/lib/Decompiler.jar`
-- `Ghidra/Framework/Docking/lib/Docking.jar`
-- `Ghidra/Framework/Generic/lib/Generic.jar`
-- `Ghidra/Framework/Project/lib/Project.jar`
-- `Ghidra/Framework/SoftwareModeling/lib/SoftwareModeling.jar`
-- `Ghidra/Framework/Utility/lib/Utility.jar`
-- `Ghidra/Framework/Gui/lib/Gui.jar`
-- `Ghidra/Features/BSim/lib/BSim.jar lib/BSim.jar`
-- `Ghidra/Features/BSim/lib/commons-dbcp2-2.9.0.jar lib/commons-dbcp2-2.9.0.jar`
-- `Ghidra/Features/BSim/lib/commons-logging-1.2.jar lib/commons-logging-1.2.jar`
-- `Ghidra/Features/BSim/lib/commons-pool2-2.11.1.jar lib/commons-pool2-2.11.1.jar`
-- `Ghidra/Features/BSim/lib/h2-2.2.220.jar lib/h2-2.2.220.jar`
-- `Ghidra/Features/BSim/lib/postgresql-42.7.6.jar lib/postgresql-42.7.6.jar`
-
-2. Build with Maven by running:
-
-`mvn clean package assembly:single`
-
-The generated zip file includes the built Ghidra plugin and its resources. These files are required for Ghidra to recognize the new extension.
-
-- lib/GhidraMCP.jar
-- extensions.properties
-- Module.manifest
