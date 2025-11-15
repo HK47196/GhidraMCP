@@ -1,1 +1,1 @@
-`mvn clean package`
+`./build_and_test.sh`
