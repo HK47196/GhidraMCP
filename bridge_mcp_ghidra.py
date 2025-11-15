@@ -722,11 +722,19 @@ def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100
 
         # Add namespace-specific parameters
         if namespace:
+            # We have a real namespace (not empty)
             params["namespace"] = namespace
-        # Only send function_name if it's not empty
-        # When empty (e.g., "BardsTale::"), the backend will return all functions in the namespace
-        if function_name:
+            # Always send function_name when doing namespace search, even if empty
+            # Empty function_name means "all functions in this namespace"
             params["function_name"] = function_name
+        else:
+            # Empty namespace (e.g., "::func" for global namespace)
+            # Treat as regular function name search
+            if function_name:
+                params["query"] = function_name
+            else:
+                # Edge case: just "::" with nothing else
+                return ["Error: query string is required"]
     else:
         # No namespace syntax, use standard substring search
         params["query"] = query_str

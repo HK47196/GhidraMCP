@@ -188,18 +188,57 @@ public class ProgramAnalyzer {
     }
 
     /**
-     * Search for functions by name
-     * @param searchTerm Search term (substring match)
+     * Search for functions by name with optional namespace support
+     * @param searchTerm Search term (substring match) - used when not doing namespace search
+     * @param namespace Namespace to search within (e.g., "Compression" for C++)
+     * @param functionName Function name within namespace (can be null/empty for all functions in namespace)
      * @param offset Pagination offset
      * @param limit Pagination limit
      * @return Paginated list of matching functions
      */
-    public String searchFunctionsByName(String searchTerm, int offset, int limit) {
+    public String searchFunctionsByName(String searchTerm, String namespace, String functionName, int offset, int limit) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
-        if (searchTerm == null || searchTerm.isEmpty()) return "Search term is required";
 
         List<String> matches = new ArrayList<>();
+
+        // Namespace-based search
+        if (namespace != null && !namespace.isEmpty()) {
+            // Search for functions in a specific namespace
+            for (Function func : program.getFunctionManager().getFunctions(true)) {
+                Namespace funcNamespace = func.getParentNamespace();
+
+                // Check if function is in the specified namespace
+                if (funcNamespace != null && matchesNamespace(funcNamespace, namespace)) {
+                    String funcName = func.getName();
+
+                    // If functionName is specified, filter by it (substring match)
+                    if (functionName == null || functionName.isEmpty() ||
+                        funcName.toLowerCase().contains(functionName.toLowerCase())) {
+                        // Format with full namespace path
+                        String fullName = getFullyQualifiedName(func);
+                        matches.add(String.format("%s @ %s", fullName, func.getEntryPoint()));
+                    }
+                }
+            }
+
+            Collections.sort(matches);
+
+            if (matches.isEmpty()) {
+                if (functionName != null && !functionName.isEmpty()) {
+                    return "No functions matching '" + functionName + "' in namespace '" + namespace + "'";
+                } else {
+                    return "No functions found in namespace '" + namespace + "'";
+                }
+            }
+            return PluginUtils.paginateList(matches, offset, limit);
+        }
+
+        // Standard substring search (original behavior)
+        if (searchTerm == null || searchTerm.isEmpty()) {
+            return "Search term is required";
+        }
+
         for (Function func : program.getFunctionManager().getFunctions(true)) {
             String name = func.getName();
             // simple substring match
@@ -214,6 +253,71 @@ public class ProgramAnalyzer {
             return "No functions matching '" + searchTerm + "'";
         }
         return PluginUtils.paginateList(matches, offset, limit);
+    }
+
+    /**
+     * Check if a namespace matches the target namespace name
+     * Handles nested namespaces by checking the full path
+     * @param funcNamespace The function's namespace
+     * @param targetNamespace The target namespace to match (e.g., "Compression" or "std::vector")
+     * @return true if namespace matches
+     */
+    private boolean matchesNamespace(Namespace funcNamespace, String targetNamespace) {
+        if (funcNamespace == null || targetNamespace == null) {
+            return false;
+        }
+
+        // Build the full namespace path for this function
+        String fullPath = getNamespacePath(funcNamespace);
+
+        // Check for exact match or if it starts with the target namespace
+        // This handles both "Compression" and "std::vector" style namespaces
+        return fullPath.equals(targetNamespace) ||
+               fullPath.startsWith(targetNamespace + "::");
+    }
+
+    /**
+     * Get the full namespace path for a namespace
+     * @param namespace The namespace
+     * @return Full path (e.g., "std::vector" or "Compression")
+     */
+    private String getNamespacePath(Namespace namespace) {
+        if (namespace == null || namespace.isGlobal()) {
+            return "";
+        }
+
+        List<String> parts = new ArrayList<>();
+        Namespace current = namespace;
+
+        while (current != null && !current.isGlobal()) {
+            parts.add(0, current.getName());
+            current = current.getParentNamespace();
+        }
+
+        return String.join("::", parts);
+    }
+
+    /**
+     * Get the fully qualified name of a function (including namespace)
+     * @param func The function
+     * @return Fully qualified name (e.g., "Compression::compress" or "std::vector::push_back")
+     */
+    private String getFullyQualifiedName(Function func) {
+        if (func == null) {
+            return "";
+        }
+
+        Namespace namespace = func.getParentNamespace();
+        if (namespace == null || namespace.isGlobal()) {
+            return func.getName();
+        }
+
+        String namespacePath = getNamespacePath(namespace);
+        if (namespacePath.isEmpty()) {
+            return func.getName();
+        }
+
+        return namespacePath + "::" + func.getName();
     }
 
     /**
