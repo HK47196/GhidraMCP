@@ -1600,7 +1600,7 @@ class TestBulkDisassemble:
         assert isinstance(result, list)
         assert len(result) == 3
         assert "PUSH       BP" in result[1]
-        mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000"})
+        mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000", "include_bytes": "false"})
 
     @patch('bridge_mcp_ghidra.bulk_operations')
     def test_disassemble_function_bulk_addresses(self, mock_bulk_operations):
