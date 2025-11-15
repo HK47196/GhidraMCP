@@ -145,40 +145,40 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_methods(self, mock_safe_get):
-        """Test list_methods tool."""
+        """Test query tool for methods type."""
         mock_safe_get.return_value = ["method1", "method2", "method3"]
 
-        result = bridge_mcp_ghidra.list_methods(offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", offset=0, limit=100)
 
         assert result == ["method1", "method2", "method3"]
         mock_safe_get.assert_called_once_with("methods", {"offset": 0, "limit": 100})
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_methods_with_pagination(self, mock_safe_get):
-        """Test list_methods with custom pagination."""
+        """Test query tool for methods with custom pagination."""
         mock_safe_get.return_value = ["method4", "method5"]
 
-        result = bridge_mcp_ghidra.list_methods(offset=10, limit=2)
+        result = bridge_mcp_ghidra.query(type="methods", offset=10, limit=2)
 
         assert result == ["method4", "method5"]
         mock_safe_get.assert_called_once_with("methods", {"offset": 10, "limit": 2})
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_classes(self, mock_safe_get):
-        """Test list_classes tool."""
+        """Test query tool for classes type."""
         mock_safe_get.return_value = ["ClassA", "ClassB"]
 
-        result = bridge_mcp_ghidra.list_classes(offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="classes", offset=0, limit=100)
 
         assert result == ["ClassA", "ClassB"]
         mock_safe_get.assert_called_once_with("classes", {"offset": 0, "limit": 100})
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_segments(self, mock_safe_get):
-        """Test list_segments tool."""
+        """Test query tool for segments type."""
         mock_safe_get.return_value = [".text", ".data", ".bss"]
 
-        result = bridge_mcp_ghidra.list_segments(offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="segments", offset=0, limit=100)
 
         assert result == [".text", ".data", ".bss"]
         mock_safe_get.assert_called_once_with("segments", {"offset": 0, "limit": 100})
@@ -253,13 +253,14 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_functions_by_segment_with_segment_name(self, mock_safe_get):
-        """Test list_functions_by_segment with segment_name parameter."""
+        """Test query tool for methods with segment_name filter."""
         mock_safe_get.return_value = [
             "func1 @ CODE_70:001a (size: 42 bytes)",
             "func2 @ CODE_70:003c (size: 28 bytes)"
         ]
 
-        result = bridge_mcp_ghidra.list_functions_by_segment(
+        result = bridge_mcp_ghidra.query(
+            type="methods",
             segment_name="CODE_70",
             offset=0,
             limit=100
@@ -276,10 +277,11 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_functions_by_segment_with_address_range(self, mock_safe_get):
-        """Test list_functions_by_segment with address range."""
+        """Test query tool for methods with address range filter."""
         mock_safe_get.return_value = ["func1 @ 4592:000e (size: 100 bytes)"]
 
-        result = bridge_mcp_ghidra.list_functions_by_segment(
+        result = bridge_mcp_ghidra.query(
+            type="methods",
             start_address="4592:000e",
             end_address="4592:0399",
             offset=0,
@@ -296,20 +298,19 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_functions_by_segment_missing_params(self, mock_safe_get):
-        """Test list_functions_by_segment with missing required parameters."""
-        result = bridge_mcp_ghidra.list_functions_by_segment()
+        """Test query tool for methods with missing segment parameters."""
+        result = bridge_mcp_ghidra.query(type="methods")
 
-        assert len(result) == 1
-        assert "Error" in result[0]
-        assert "segment_name or both start_address and end_address" in result[0]
-        mock_safe_get.assert_not_called()
+        # Should succeed - queries all methods without filtering
+        mock_safe_get.assert_called_once()
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_functions_by_segment_with_pagination(self, mock_safe_get):
-        """Test list_functions_by_segment with custom pagination."""
+        """Test query tool for methods with segment and custom pagination."""
         mock_safe_get.return_value = ["func3 @ CODE_70:0100 (size: 64 bytes)"]
 
-        result = bridge_mcp_ghidra.list_functions_by_segment(
+        result = bridge_mcp_ghidra.query(
+            type="methods",
             segment_name="CODE_70",
             offset=10,
             limit=20
@@ -323,13 +324,14 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_data_by_segment_with_segment_name(self, mock_safe_get):
-        """Test list_data_by_segment with segment_name parameter."""
+        """Test query tool for data with segment_name filter."""
         mock_safe_get.return_value = [
             "label1 @ CODE_70:0020 [word] = 0x1234",
             "label2 @ CODE_70:0022 [byte] = 0x42"
         ]
 
-        result = bridge_mcp_ghidra.list_data_by_segment(
+        result = bridge_mcp_ghidra.query(
+            type="data",
             segment_name="CODE_70",
             offset=0,
             limit=100
@@ -347,10 +349,11 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_data_by_segment_with_address_range(self, mock_safe_get):
-        """Test list_data_by_segment with address range."""
+        """Test query tool for data with address range filter."""
         mock_safe_get.return_value = ["data1 @ 4592:0010 [dword] = 0xdeadbeef"]
 
-        result = bridge_mcp_ghidra.list_data_by_segment(
+        result = bridge_mcp_ghidra.query(
+            type="data",
             start_address="4592:0000",
             end_address="4592:00ff",
             offset=0,
@@ -367,20 +370,19 @@ class TestMCPTools:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_data_by_segment_missing_params(self, mock_safe_get):
-        """Test list_data_by_segment with missing required parameters."""
-        result = bridge_mcp_ghidra.list_data_by_segment()
+        """Test query tool for data with missing segment parameters."""
+        result = bridge_mcp_ghidra.query(type="data")
 
-        assert len(result) == 1
-        assert "Error" in result[0]
-        assert "segment_name or both start_address and end_address" in result[0]
-        mock_safe_get.assert_not_called()
+        # Should succeed - queries all data without filtering
+        mock_safe_get.assert_called_once()
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_data_by_segment_with_pagination(self, mock_safe_get):
-        """Test list_data_by_segment with custom pagination."""
+        """Test query tool for data with segment and custom pagination."""
         mock_safe_get.return_value = ["data2 @ CODE_70:0050 [string] = \"test\""]
 
-        result = bridge_mcp_ghidra.list_data_by_segment(
+        result = bridge_mcp_ghidra.query(
+            type="data",
             segment_name="CODE_70",
             offset=5,
             limit=25
@@ -636,10 +638,10 @@ class TestEdgeCases:
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_methods_with_zero_limit(self, mock_safe_get):
-        """Test list_methods with limit of 0."""
+        """Test query tool for methods with limit of 0."""
         mock_safe_get.return_value = []
 
-        result = bridge_mcp_ghidra.list_methods(offset=0, limit=0)
+        result = bridge_mcp_ghidra.query(type="methods", offset=0, limit=0)
 
         assert result == []
         mock_safe_get.assert_called_once_with("methods", {"offset": 0, "limit": 0})
@@ -653,7 +655,7 @@ class TestNumericSearchQueries:
         """Test search_functions_by_name with regular string query."""
         mock_safe_get.return_value = ["function_test1", "function_test2"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("test", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="test", offset=0, limit=100)
 
         assert result == ["function_test1", "function_test2"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "test", "offset": 0, "limit": 100})
@@ -663,7 +665,7 @@ class TestNumericSearchQueries:
         """Test search_functions_by_name with numeric string query (e.g., '4140')."""
         mock_safe_get.return_value = ["function_4140", "sub_4140"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("4140", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="4140", offset=0, limit=100)
 
         assert result == ["function_4140", "sub_4140"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "4140", "offset": 0, "limit": 100})
@@ -674,7 +676,7 @@ class TestNumericSearchQueries:
         mock_safe_get.return_value = ["FUN_00004140"]
 
         # Simulate MCP client sending an integer due to JSON parsing
-        result = bridge_mcp_ghidra.search_functions_by_name(4140, offset=0, limit=20)
+        result = bridge_mcp_ghidra.query(type="methods", query=4140, offset=0, limit=20)
 
         assert result == ["FUN_00004140"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "4140", "offset": 0, "limit": 20})
@@ -684,7 +686,7 @@ class TestNumericSearchQueries:
         """Test search_functions_by_name with hexadecimal string."""
         mock_safe_get.return_value = ["function_0x1234"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("0x1234", offset=0, limit=50)
+        result = bridge_mcp_ghidra.query(type="methods", query="0x1234", offset=0, limit=50)
 
         assert result == ["function_0x1234"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "0x1234", "offset": 0, "limit": 50})
@@ -692,7 +694,7 @@ class TestNumericSearchQueries:
     @patch('bridge_mcp_ghidra.safe_get')
     def test_search_functions_by_name_with_empty_string(self, mock_safe_get):
         """Test search_functions_by_name with empty string returns error."""
-        result = bridge_mcp_ghidra.search_functions_by_name("", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="", offset=0, limit=100)
 
         assert len(result) == 1
         assert "Error" in result[0]
@@ -704,7 +706,7 @@ class TestNumericSearchQueries:
         """Test search_functions_by_name with zero (edge case for falsy value)."""
         mock_safe_get.return_value = ["function_0"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name(0, offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query=0, offset=0, limit=100)
 
         assert result == ["function_0"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "0", "offset": 0, "limit": 100})
@@ -714,7 +716,7 @@ class TestNumericSearchQueries:
         """Test search_data_by_name with regular string query."""
         mock_safe_get.return_value = ["data_label1", "data_label2"]
 
-        result = bridge_mcp_ghidra.search_data_by_name("label", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="data", query="label", offset=0, limit=100)
 
         assert result == ["data_label1", "data_label2"]
         mock_safe_get.assert_called_once_with("searchData", {"query": "label", "offset": 0, "limit": 100})
@@ -724,7 +726,7 @@ class TestNumericSearchQueries:
         """Test search_data_by_name with numeric string query."""
         mock_safe_get.return_value = ["DAT_00004140"]
 
-        result = bridge_mcp_ghidra.search_data_by_name("4140", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="data", query="4140", offset=0, limit=100)
 
         assert result == ["DAT_00004140"]
         mock_safe_get.assert_called_once_with("searchData", {"query": "4140", "offset": 0, "limit": 100})
@@ -735,7 +737,7 @@ class TestNumericSearchQueries:
         mock_safe_get.return_value = ["data_8080"]
 
         # Simulate MCP client sending an integer due to JSON parsing
-        result = bridge_mcp_ghidra.search_data_by_name(8080, offset=0, limit=50)
+        result = bridge_mcp_ghidra.query(type="data", query=8080, offset=0, limit=50)
 
         assert result == ["data_8080"]
         mock_safe_get.assert_called_once_with("searchData", {"query": "8080", "offset": 0, "limit": 50})
@@ -743,7 +745,7 @@ class TestNumericSearchQueries:
     @patch('bridge_mcp_ghidra.safe_get')
     def test_search_data_by_name_with_empty_string(self, mock_safe_get):
         """Test search_data_by_name with empty string returns error."""
-        result = bridge_mcp_ghidra.search_data_by_name("", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="data", query="", offset=0, limit=100)
 
         assert len(result) == 1
         assert "Error" in result[0]
@@ -755,7 +757,7 @@ class TestNumericSearchQueries:
         """Test search_data_by_name with negative integer."""
         mock_safe_get.return_value = []
 
-        result = bridge_mcp_ghidra.search_data_by_name(-1, offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="data", query=-1, offset=0, limit=100)
 
         assert result == []
         mock_safe_get.assert_called_once_with("searchData", {"query": "-1", "offset": 0, "limit": 100})
@@ -765,7 +767,7 @@ class TestNumericSearchQueries:
         """Test search_functions_by_name with large integer value."""
         mock_safe_get.return_value = ["FUN_deadbeef"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name(3735928559, offset=0, limit=100)  # 0xdeadbeef
+        result = bridge_mcp_ghidra.query(type="methods", query=3735928559, offset=0, limit=100)  # 0xdeadbeef
 
         assert result == ["FUN_deadbeef"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "3735928559", "offset": 0, "limit": 100})
@@ -779,7 +781,7 @@ class TestNamespaceSearch:
         """Test search with namespace only (ending with ::)."""
         mock_safe_get.return_value = ["thunk::func1", "thunk::func2", "thunk::func3"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("thunk::", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="thunk::", offset=0, limit=100)
 
         assert result == ["thunk::func1", "thunk::func2", "thunk::func3"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -794,7 +796,7 @@ class TestNamespaceSearch:
         """Test search with namespace and function name."""
         mock_safe_get.return_value = ["thunk::fun1", "thunk::fun2"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("thunk::fun", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="thunk::fun", offset=0, limit=100)
 
         assert result == ["thunk::fun1", "thunk::fun2"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -809,7 +811,7 @@ class TestNamespaceSearch:
         """Test search with nested namespace (A::B::)."""
         mock_safe_get.return_value = ["A::B::func1", "A::B::func2"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("A::B::", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="A::B::", offset=0, limit=100)
 
         assert result == ["A::B::func1", "A::B::func2"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -824,7 +826,7 @@ class TestNamespaceSearch:
         """Test search with nested namespace and function name (A::B::fun)."""
         mock_safe_get.return_value = ["A::B::fun"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("A::B::fun", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="A::B::fun", offset=0, limit=100)
 
         assert result == ["A::B::fun"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -839,7 +841,7 @@ class TestNamespaceSearch:
         """Test search with deeply nested namespace (A::B::C::D::)."""
         mock_safe_get.return_value = ["A::B::C::D::func"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("A::B::C::D::", offset=0, limit=50)
+        result = bridge_mcp_ghidra.query(type="methods", query="A::B::C::D::", offset=0, limit=50)
 
         assert result == ["A::B::C::D::func"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -854,7 +856,7 @@ class TestNamespaceSearch:
         """Test search with deeply nested namespace and function."""
         mock_safe_get.return_value = ["std::vector::iterator::begin"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("std::vector::iterator::begin")
+        result = bridge_mcp_ghidra.query(type="methods", query="std::vector::iterator::begin")
 
         assert result == ["std::vector::iterator::begin"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -869,7 +871,7 @@ class TestNamespaceSearch:
         """Test search without namespace syntax (standard search)."""
         mock_safe_get.return_value = ["my_function", "another_function"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("function", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="function", offset=0, limit=100)
 
         assert result == ["my_function", "another_function"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -883,7 +885,7 @@ class TestNamespaceSearch:
         """Test search with std namespace (common C++ namespace)."""
         mock_safe_get.return_value = ["std::vector", "std::string", "std::map"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("std::", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="std::", offset=0, limit=100)
 
         assert result == ["std::vector", "std::string", "std::map"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -898,7 +900,7 @@ class TestNamespaceSearch:
         """Test namespace search with custom pagination."""
         mock_safe_get.return_value = ["ns::func10"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("ns::", offset=10, limit=20)
+        result = bridge_mcp_ghidra.query(type="methods", query="ns::", offset=10, limit=20)
 
         assert result == ["ns::func10"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -913,7 +915,7 @@ class TestNamespaceSearch:
         """Test search for Audio namespace (regression test for issue)."""
         mock_safe_get.return_value = ["Audio::PlaySound", "Audio::StopSound", "Audio::SetVolume"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("Audio::", offset=0, limit=200)
+        result = bridge_mcp_ghidra.query(type="methods", query="Audio::", offset=0, limit=200)
 
         assert result == ["Audio::PlaySound", "Audio::StopSound", "Audio::SetVolume"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -928,7 +930,7 @@ class TestNamespaceSearch:
         """Test search for BardsTale namespace (regression test for reported issue)."""
         mock_safe_get.return_value = ["BardsTale::InitGame", "BardsTale::ProcessInput", "BardsTale::UpdateWorld"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("BardsTale::", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="BardsTale::", offset=0, limit=100)
 
         assert result == ["BardsTale::InitGame", "BardsTale::ProcessInput", "BardsTale::UpdateWorld"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -943,7 +945,7 @@ class TestNamespaceSearch:
         """Test search with single colon (not namespace syntax)."""
         mock_safe_get.return_value = ["func:label"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("func:label", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="func:label", offset=0, limit=100)
 
         assert result == ["func:label"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -957,7 +959,7 @@ class TestNamespaceSearch:
         """Test namespace search when query looks numeric but has namespace."""
         mock_safe_get.return_value = ["ns::4140"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("ns::4140", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="ns::4140", offset=0, limit=100)
 
         assert result == ["ns::4140"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -972,7 +974,7 @@ class TestNamespaceSearch:
         """Test namespace with underscores."""
         mock_safe_get.return_value = ["my_namespace::my_func"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("my_namespace::my_func")
+        result = bridge_mcp_ghidra.query(type="methods", query="my_namespace::my_func")
 
         assert result == ["my_namespace::my_func"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
@@ -987,7 +989,7 @@ class TestNamespaceSearch:
         """Test search with global namespace prefix (::func)."""
         mock_safe_get.return_value = ["::global_func"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("::global_func")
+        result = bridge_mcp_ghidra.query(type="methods", query="::global_func")
 
         assert result == ["::global_func"]
         # Empty namespace before ::, so it's treated as regular query search
@@ -1005,7 +1007,7 @@ class TestNamespaceSearch:
             "Compression::init @ 0x401200"
         ]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("Compression::", offset=0, limit=100)
+        result = bridge_mcp_ghidra.query(type="methods", query="Compression::", offset=0, limit=100)
 
         assert len(result) == 3
         assert "Compression::compress @ 0x401000" in result
@@ -1021,7 +1023,7 @@ class TestNamespaceSearch:
         """Test that empty namespace is handled correctly."""
         mock_safe_get.return_value = ["func"]
 
-        result = bridge_mcp_ghidra.search_functions_by_name("::func")
+        result = bridge_mcp_ghidra.query(type="methods", query="::func")
 
         assert result == ["func"]
         # Should use query parameter, not namespace (since namespace is empty)

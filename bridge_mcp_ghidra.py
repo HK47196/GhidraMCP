@@ -40,9 +40,7 @@ ghidra_request_timeout = DEFAULT_REQUEST_TIMEOUT
 # Tool categories for configuration
 TOOL_CATEGORIES = {
     "query": [
-        "list_methods", "list_classes", "list_segments", "list_imports",
-        "list_exports", "list_namespaces", "list_data_items", "list_functions",
-        "list_strings", "get_current_address", "get_current_function",
+        "query", "get_current_address", "get_current_function",
         "get_function_by_address", "get_data_by_address", "get_data_in_range",
         "get_function_data", "get_xrefs_to", "get_xrefs_from", "get_function_xrefs",
         "man"
@@ -52,8 +50,7 @@ TOOL_CATEGORIES = {
         "get_address_context"
     ],
     "search": [
-        "search_functions_by_name", "search_data_by_name",
-        "list_functions_by_segment", "list_data_by_segment", "search_decompiled_text"
+        "search_decompiled_text"
     ],
     "modification": [
         "rename_function", "rename_function_by_address", "rename_data",
@@ -70,7 +67,7 @@ TOOL_CATEGORIES = {
         "create_struct", "parse_c_struct", "add_struct_field",
         "insert_struct_field_at_offset", "replace_struct_field",
         "delete_struct_field", "clear_struct_field", "get_struct_info",
-        "list_structs", "rename_struct", "delete_struct"
+        "rename_struct", "delete_struct"
     ],
     "bulk": ["bulk_operations"]
 }
@@ -498,6 +495,36 @@ Params:
 Returns:
     JSON string with result"""
 
+MANUAL["query"] = """Query/list items of a specified type from the program with optional filtering.
+
+Params:
+    type: Type of items to query. Options:
+        - "methods": Function names (supports query with namespace:: syntax)
+        - "classes": Namespace/class names
+        - "segments": Memory segments
+        - "imports": Imported symbols
+        - "exports": Exported functions/symbols
+        - "namespaces": Non-global namespaces
+        - "data": Data labels and values (supports query search)
+        - "functions": All functions (no pagination)
+        - "strings": Defined strings with addresses (supports filter)
+        - "structs": Struct types (supports category_path)
+    query: Optional search query. For "methods", supports namespace syntax:
+        - "funcName" - substring search
+        - "MyClass::" - all functions in namespace
+        - "MyClass::funcName" - search within namespace
+        For "data", performs substring search on data labels.
+    segment_name: Filter "methods" or "data" by segment name
+    start_address: Start address for range filter (requires end_address)
+    end_address: End address for range filter (requires start_address)
+    offset: Pagination offset (default: 0, not used for "functions")
+    limit: Max results (default: 100 for most types, 2000 for strings)
+    filter: String content filter for "strings" type
+    category_path: Category filter for "structs" type
+
+Returns:
+    List of items matching type and filters with pagination"""
+
 MANUAL["disassemble_function"] = """Disassemble one or more functions showing comprehensive assembly information.
 
 Displays enhanced Ghidra-style disassembly including:
@@ -607,18 +634,127 @@ Note: Some tools may not have extended documentation in the manual.
 Use the tool's inline docstring for basic information."""
 
 @conditional_tool
-def list_methods(offset: int = 0, limit: int = 100) -> list:
-    """
-    List all function names in the program with pagination.
-    """
-    return safe_get("methods", {"offset": offset, "limit": limit})
+def query(
+    type: str,
+    query: str = None,
+    segment_name: str = None,
+    start_address: str = None,
+    end_address: str = None,
+    offset: int = 0,
+    limit: int = None,
+    filter: str = None,
+    category_path: str = None
+) -> list | str:
+    """Query items by type with filtering. Supports search (query param with namespace::), segment, and address range filters."""
+    valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "functions", "strings", "structs"]
 
-@conditional_tool
-def list_classes(offset: int = 0, limit: int = 100) -> list:
-    """
-    List all namespace/class names in the program with pagination.
-    """
-    return safe_get("classes", {"offset": offset, "limit": limit})
+    if type not in valid_types:
+        return [f"Error: Invalid type '{type}'. Valid types: {', '.join(valid_types)}"]
+
+    # Handle query/search filtering
+    if query is not None:
+        if type == "methods":
+            # Use search endpoint with namespace support
+            query_str = str(query) if query is not None else ""
+            if not query_str:
+                return ["Error: query string is required"]
+
+            params = {"offset": offset, "limit": limit if limit else 100}
+
+            # Check if query contains namespace syntax (::)
+            if "::" in query_str:
+                if query_str.endswith("::"):
+                    # Query ends with ::, search for all functions in namespace
+                    namespace = query_str[:-2]
+                    function_name = ""
+                else:
+                    # Split by :: and take last part as function name
+                    parts = query_str.rsplit("::", 1)
+                    namespace = parts[0] if len(parts) > 1 else ""
+                    function_name = parts[1] if len(parts) > 1 else parts[0]
+
+                if namespace:
+                    params["namespace"] = namespace
+                    params["function_name"] = function_name
+                else:
+                    # Empty namespace (e.g., "::func" for global namespace)
+                    if function_name:
+                        params["query"] = function_name
+                    else:
+                        return ["Error: query string is required"]
+            else:
+                # No namespace syntax, use standard substring search
+                params["query"] = query_str
+
+            return safe_get("searchFunctions", params)
+        elif type == "data":
+            # Use search endpoint for data
+            query_str = str(query) if query is not None else ""
+            if not query_str:
+                return ["Error: query string is required"]
+            params = {"query": query_str, "offset": offset, "limit": limit if limit else 100}
+            return safe_get("searchData", params)
+        else:
+            return [f"Error: query parameter not supported for type '{type}'"]
+
+    # Handle segment filtering
+    if segment_name is not None or (start_address is not None and end_address is not None):
+        if type == "methods":
+            params = {"offset": offset, "limit": limit if limit else 100}
+            if segment_name:
+                params["segment_name"] = segment_name
+            elif start_address and end_address:
+                params["start_address"] = start_address
+                params["end_address"] = end_address
+            else:
+                return ["Error: Either segment_name or both start_address and end_address must be provided"]
+            return safe_get("functions_by_segment", params)
+        elif type == "data":
+            params = {"offset": offset, "limit": limit if limit else 100}
+            if segment_name:
+                params["segment_name"] = segment_name
+            elif start_address and end_address:
+                params["start_address"] = start_address
+                params["end_address"] = end_address
+            else:
+                return ["Error: Either segment_name or both start_address and end_address must be provided"]
+            return safe_get("data_by_segment", params)
+        else:
+            return [f"Error: segment/address filtering not supported for type '{type}'"]
+
+    # Standard list endpoints (no filtering)
+    endpoint_mapping = {
+        "methods": "methods",
+        "classes": "classes",
+        "segments": "segments",
+        "imports": "imports",
+        "exports": "exports",
+        "namespaces": "namespaces",
+        "data": "data",
+        "functions": "list_functions",
+        "strings": "strings",
+        "structs": "struct/list",
+    }
+
+    endpoint = endpoint_mapping[type]
+    params = {}
+
+    # Add pagination for all types except 'functions'
+    if type != "functions":
+        if limit is None:
+            limit = 2000 if type == "strings" else 100
+        params["offset"] = offset
+        params["limit"] = limit
+
+    # Add type-specific parameters
+    if type == "strings" and filter:
+        params["filter"] = filter
+
+    if type == "structs" and category_path:
+        params["category_path"] = category_path
+
+    return safe_get(endpoint, params)
+
 
 @conditional_tool
 def decompile_function(name: str) -> str:
@@ -641,40 +777,6 @@ def rename_data(address: str, new_name: str) -> str:
     """
     return safe_post("renameData", {"address": address, "newName": new_name})
 
-@conditional_tool
-def list_segments(offset: int = 0, limit: int = 100) -> list:
-    """
-    List all memory segments in the program with pagination.
-    """
-    return safe_get("segments", {"offset": offset, "limit": limit})
-
-@conditional_tool
-def list_imports(offset: int = 0, limit: int = 100) -> list:
-    """
-    List imported symbols in the program with pagination.
-    """
-    return safe_get("imports", {"offset": offset, "limit": limit})
-
-@conditional_tool
-def list_exports(offset: int = 0, limit: int = 100) -> list:
-    """
-    List exported functions/symbols with pagination.
-    """
-    return safe_get("exports", {"offset": offset, "limit": limit})
-
-@conditional_tool
-def list_namespaces(offset: int = 0, limit: int = 100) -> list:
-    """
-    List all non-global namespaces in the program with pagination.
-    """
-    return safe_get("namespaces", {"offset": offset, "limit": limit})
-
-@conditional_tool
-def list_data_items(offset: int = 0, limit: int = 100) -> list:
-    """
-    List defined data labels and their values with pagination.
-    """
-    return safe_get("data", {"offset": offset, "limit": limit})
 
 @conditional_tool
 def get_data_by_address(address: str) -> str:
@@ -693,109 +795,6 @@ def get_data_in_range(start_address: str, end_address: str, include_undefined: b
     }
     return "\n".join(safe_get("data_in_range", params))
 
-@conditional_tool
-def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
-    """
-    Search for functions whose name contains the given substring.
-    """
-    # Convert query to string to handle numeric inputs (e.g., "4140" parsed as int 4140)
-    # Use 'is not None' check instead of truthiness to handle zero and empty strings correctly
-    query_str = str(query) if query is not None else ""
-    if not query_str:
-        return ["Error: query string is required"]
-
-    params = {"offset": offset, "limit": limit}
-
-    # Check if query contains namespace syntax (::)
-    if "::" in query_str:
-        # Parse namespace and function name
-        if query_str.endswith("::"):
-            # Query ends with ::, search for all functions in namespace
-            namespace = query_str[:-2]  # Remove trailing ::
-            function_name = ""
-        else:
-            # Split by :: and take last part as function name
-            # Use rsplit with maxsplit=1 to handle nested namespaces correctly
-            parts = query_str.rsplit("::", 1)
-            namespace = parts[0] if len(parts) > 1 else ""
-            function_name = parts[1] if len(parts) > 1 else parts[0]
-
-        # Add namespace-specific parameters
-        if namespace:
-            # We have a real namespace (not empty)
-            params["namespace"] = namespace
-            # Always send function_name when doing namespace search, even if empty
-            # Empty function_name means "all functions in this namespace"
-            params["function_name"] = function_name
-        else:
-            # Empty namespace (e.g., "::func" for global namespace)
-            # Treat as regular function name search
-            if function_name:
-                params["query"] = function_name
-            else:
-                # Edge case: just "::" with nothing else
-                return ["Error: query string is required"]
-    else:
-        # No namespace syntax, use standard substring search
-        params["query"] = query_str
-
-    return safe_get("searchFunctions", params)
-
-@conditional_tool
-def search_data_by_name(query: str | int, offset: int = 0, limit: int = 100) -> list:
-    """Search for data variables whose label/name contains the query substring."""
-    # Convert query to string to handle numeric inputs (e.g., "4140" parsed as int 4140)
-    # Use 'is not None' check instead of truthiness to handle zero and empty strings correctly
-    query_str = str(query) if query is not None else ""
-    if not query_str:
-        return ["Error: query string is required"]
-    return safe_get("searchData", {"query": query_str, "offset": offset, "limit": limit})
-
-@conditional_tool
-def list_functions_by_segment(
-    segment_name: str = None,
-    start_address: str = None,
-    end_address: str = None,
-    offset: int = 0,
-    limit: int = 100
-) -> list:
-    """
-    List functions within a specific memory segment or address range.
-    """
-    params = {"offset": offset, "limit": limit}
-
-    if segment_name:
-        params["segment_name"] = segment_name
-    elif start_address and end_address:
-        params["start_address"] = start_address
-        params["end_address"] = end_address
-    else:
-        return ["Error: Either segment_name or both start_address and end_address must be provided"]
-
-    return safe_get("functions_by_segment", params)
-
-@conditional_tool
-def list_data_by_segment(
-    segment_name: str = None,
-    start_address: str = None,
-    end_address: str = None,
-    offset: int = 0,
-    limit: int = 100
-) -> list:
-    """
-    List defined data items within a specific memory segment or address range.
-    """
-    params = {"offset": offset, "limit": limit}
-
-    if segment_name:
-        params["segment_name"] = segment_name
-    elif start_address and end_address:
-        params["start_address"] = start_address
-        params["end_address"] = end_address
-    else:
-        return ["Error: Either segment_name or both start_address and end_address must be provided"]
-
-    return safe_get("data_by_segment", params)
 
 @conditional_tool
 def rename_variable(function_name: str, old_name: str, new_name: str) -> str:
@@ -829,12 +828,6 @@ def get_current_function() -> str:
     """
     return "\n".join(safe_get("get_current_function"))
 
-@conditional_tool
-def list_functions() -> list:
-    """
-    List all functions in the database.
-    """
-    return safe_get("list_functions")
 
 @conditional_tool
 def decompile_function_by_address(address: str) -> str:
