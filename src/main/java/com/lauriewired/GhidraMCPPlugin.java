@@ -422,7 +422,9 @@ public class GhidraMCPPlugin extends Plugin {
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
             boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
-            sendResponse(exchange, crossReferenceAnalyzer.getXrefsTo(address, offset, limit, includeInstruction));
+            boolean includeIndirect = PluginUtils.parseBoolOrDefault(qparams.get("include_indirect"), true);
+            int analysisDepth = PluginUtils.parseIntOrDefault(qparams.get("analysis_depth"), 10);
+            sendResponse(exchange, crossReferenceAnalyzer.getXrefsTo(address, offset, limit, includeInstruction, includeIndirect, analysisDepth));
         });
 
         server.createContext("/xrefs_from", exchange -> {
@@ -918,7 +920,9 @@ public class GhidraMCPPlugin extends Plugin {
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100),
-                        "true".equalsIgnoreCase(params.get("include_instruction"))
+                        "true".equalsIgnoreCase(params.get("include_instruction")),
+                        PluginUtils.parseBoolOrDefault(params.get("include_indirect"), true),
+                        PluginUtils.parseIntOrDefault(params.get("analysis_depth"), 10)
                     );
 
                 case "/xrefs_from":
