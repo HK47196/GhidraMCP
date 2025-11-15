@@ -951,10 +951,10 @@ public class StructService {
                 else if (sizeStr.isEmpty()) {
                     DataType baseType = resolveDataType(dtm, baseTypeName);
                     if (baseType != null) {
-                        return new PointerDataType(baseType);
+                        return new PointerDataType(baseType, dtm);
                     }
                     // Default to void*
-                    return new PointerDataType(dtm.getDataType("/void"));
+                    return new PointerDataType(dtm.getDataType("/void"), dtm);
                 }
             }
         }

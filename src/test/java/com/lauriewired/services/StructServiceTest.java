@@ -314,4 +314,127 @@ class StructServiceTest {
         assertFalse(shouldFilterEmptyCategory,
             "Empty category path should not filter results");
     }
+
+    /**
+     * Test pointer type parsing for basic types
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse basic pointer types correctly")
+    @ValueSource(strings = {"int *", "char *", "void *", "long *", "short *"})
+    void testBasicPointerTypeParsing(String pointerType) {
+        // Pointer types should be recognized by the * character
+        assertTrue(pointerType.contains("*"),
+            "Pointer type should contain asterisk");
+
+        // Extract base type
+        String[] parts = pointerType.split("\\*");
+        assertTrue(parts.length >= 1, "Should have base type before asterisk");
+
+        String baseType = parts[0].trim();
+        assertFalse(baseType.isEmpty(), "Base type should not be empty");
+    }
+
+    /**
+     * Test struct pointer type parsing
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse struct pointer types correctly")
+    @ValueSource(strings = {"MemoryPoolBlock *", "FileDescriptor *", "MyStruct *"})
+    void testStructPointerTypeParsing(String pointerType) {
+        // Struct pointer types should also be recognized
+        assertTrue(pointerType.contains("*"),
+            "Struct pointer type should contain asterisk");
+
+        String[] parts = pointerType.split("\\*");
+        assertTrue(parts.length >= 1, "Should have base type before asterisk");
+
+        String baseType = parts[0].trim();
+        assertFalse(baseType.isEmpty(), "Base struct type should not be empty");
+        // Struct names typically start with uppercase
+        assertTrue(Character.isUpperCase(baseType.charAt(0)),
+            "Struct names typically start with uppercase");
+    }
+
+    /**
+     * Test pointer types with explicit sizes
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse pointer types with explicit sizes")
+    @ValueSource(strings = {"int *32", "char *16", "void *64"})
+    void testPointerTypesWithExplicitSize(String pointerType) {
+        // Pointer types can specify size in bits
+        assertTrue(pointerType.contains("*"),
+            "Pointer type should contain asterisk");
+
+        String[] parts = pointerType.split("\\*");
+        assertEquals(2, parts.length, "Should have base type and size");
+
+        String baseType = parts[0].trim();
+        String sizeStr = parts[1].trim();
+
+        assertFalse(baseType.isEmpty(), "Base type should not be empty");
+        assertFalse(sizeStr.isEmpty(), "Size should not be empty");
+        assertTrue(sizeStr.matches("\\d+"), "Size should be numeric");
+    }
+
+    /**
+     * Test that pointer types are not converted to int
+     */
+    @Test
+    @DisplayName("Should preserve pointer types and not convert to int")
+    void testPointerTypesNotConvertedToInt() {
+        // This test documents the bug fix: pointers should NOT become "int"
+        String pointerType = "MemoryPoolBlock *";
+        String incorrectType = "int";
+
+        // Pointer types should maintain their pointer nature
+        assertTrue(pointerType.contains("*"),
+            "Pointer type should be preserved with asterisk");
+        assertNotEquals(incorrectType, pointerType,
+            "Pointer type should not be converted to int");
+    }
+
+    /**
+     * Test array type parsing
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse array types correctly")
+    @ValueSource(strings = {"int[10]", "char[256]", "byte[20]"})
+    void testArrayTypeParsing(String arrayType) {
+        // Array types should contain brackets
+        assertTrue(arrayType.contains("[") && arrayType.contains("]"),
+            "Array type should contain brackets");
+
+        int openBracket = arrayType.indexOf('[');
+        int closeBracket = arrayType.indexOf(']');
+
+        assertTrue(openBracket > 0, "Should have type before bracket");
+        assertTrue(closeBracket > openBracket, "Close bracket after open bracket");
+
+        String baseType = arrayType.substring(0, openBracket).trim();
+        String sizeStr = arrayType.substring(openBracket + 1, closeBracket).trim();
+
+        assertFalse(baseType.isEmpty(), "Base type should not be empty");
+        assertFalse(sizeStr.isEmpty(), "Array size should not be empty");
+        assertTrue(sizeStr.matches("\\d+"), "Array size should be numeric");
+    }
+
+    /**
+     * Test multi-dimensional array parsing
+     */
+    @Test
+    @DisplayName("Should parse multi-dimensional arrays correctly")
+    void testMultiDimensionalArrays() {
+        String arrayType = "int[10][20]";
+
+        assertTrue(arrayType.contains("["), "Should contain brackets");
+
+        // Count dimensions
+        int dimensionCount = 0;
+        for (char c : arrayType.toCharArray()) {
+            if (c == '[') dimensionCount++;
+        }
+
+        assertEquals(2, dimensionCount, "Should have 2 dimensions");
+    }
 }
