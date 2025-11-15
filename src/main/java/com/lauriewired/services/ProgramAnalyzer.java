@@ -170,24 +170,6 @@ public class ProgramAnalyzer {
     }
 
     /**
-     * List all functions (no pagination)
-     * @return Formatted list of all functions
-     */
-    public String listFunctions() {
-        Program program = navigator.getCurrentProgram();
-        if (program == null) return "No program loaded";
-
-        StringBuilder result = new StringBuilder();
-        for (Function func : program.getFunctionManager().getFunctions(true)) {
-            result.append(String.format("%s at %s\n",
-                func.getName(),
-                func.getEntryPoint()));
-        }
-
-        return result.toString();
-    }
-
-    /**
      * Search for functions by name with optional namespace support
      * @param searchTerm Search term (substring match) - used when not doing namespace search
      * @param namespace Namespace to search within (e.g., "Compression" for C++)

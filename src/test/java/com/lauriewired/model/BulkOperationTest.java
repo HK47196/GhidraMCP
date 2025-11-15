@@ -56,10 +56,10 @@ class BulkOperationTest {
     @DisplayName("BulkOperation should handle empty params")
     void testBulkOperationEmptyParams() {
         BulkOperation bulkOp = new BulkOperation();
-        bulkOp.setEndpoint("/list_functions");
+        bulkOp.setEndpoint("/methods");
         bulkOp.setParams(new HashMap<>());
 
-        assertEquals("/list_functions", bulkOp.getEndpoint());
+        assertEquals("/methods", bulkOp.getEndpoint());
         assertNotNull(bulkOp.getParams());
         assertTrue(bulkOp.getParams().isEmpty());
     }

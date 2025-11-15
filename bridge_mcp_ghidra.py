@@ -506,7 +506,6 @@ Params:
         - "exports": Exported functions/symbols
         - "namespaces": Non-global namespaces
         - "data": Data labels and values (supports search parameter)
-        - "functions": All functions (no pagination)
         - "strings": Defined strings with addresses (supports filter)
         - "structs": Struct types (supports search and category_path)
     search: Optional search query. For "methods", supports namespace syntax:
@@ -518,7 +517,7 @@ Params:
     segment_name: Filter "methods" or "data" by segment name
     start_address: Start address for range filter (requires end_address)
     end_address: End address for range filter (requires start_address)
-    offset: Pagination offset (default: 0, not used for "functions")
+    offset: Pagination offset (default: 0)
     limit: Max results (default: 100 for most types, 2000 for strings)
     filter: String content filter for "strings" type
     category_path: Category filter for "structs" type
@@ -647,7 +646,7 @@ def query(
     category_path: str = None
 ) -> list | str:
     """Query items by type with filtering. Supports search (search param with namespace::), segment, and address range filters."""
-    valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "functions", "strings", "structs"]
+    valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "strings", "structs"]
 
     if type not in valid_types:
         return [f"Error: Invalid type '{type}'. Valid types: {', '.join(valid_types)}"]
@@ -741,7 +740,6 @@ def query(
         "exports": "exports",
         "namespaces": "namespaces",
         "data": "data",
-        "functions": "list_functions",
         "strings": "strings",
         "structs": "struct/list",
     }
@@ -749,12 +747,11 @@ def query(
     endpoint = endpoint_mapping[type]
     params = {}
 
-    # Add pagination for all types except 'functions'
-    if type != "functions":
-        if limit is None:
-            limit = 2000 if type == "strings" else 100
-        params["offset"] = offset
-        params["limit"] = limit
+    # Add pagination for all types
+    if limit is None:
+        limit = 2000 if type == "strings" else 100
+    params["offset"] = offset
+    params["limit"] = limit
 
     # Add type-specific parameters
     if type == "strings" and filter:

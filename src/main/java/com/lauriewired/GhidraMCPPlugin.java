@@ -269,10 +269,6 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, functionNavigator.getCurrentFunction());
         });
 
-        server.createContext("/list_functions", exchange -> {
-            sendResponse(exchange, programAnalyzer.listFunctions());
-        });
-
         server.createContext("/decompile_function", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String address = qparams.get("address");
@@ -812,9 +808,6 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/get_current_function":
                     return functionNavigator.getCurrentFunction();
-
-                case "/list_functions":
-                    return programAnalyzer.listFunctions();
 
                 case "/decompile_function":
                     return decompilationService.decompileFunctionByAddress(params.get("address"));
