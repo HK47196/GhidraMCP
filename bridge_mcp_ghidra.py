@@ -721,12 +721,12 @@ def search_functions_by_name(query: str | int, offset: int = 0, limit: int = 100
             function_name = parts[1] if len(parts) > 1 else parts[0]
 
         # Add namespace-specific parameters
-        # Always include function_name when doing namespace search (even if empty)
-        # to provide the backend with a search term
         if namespace:
             params["namespace"] = namespace
-        params["function_name"] = function_name
-        # If no function_name (ends with ::), backend should return all functions in namespace
+        # Only send function_name if it's not empty
+        # When empty (e.g., "BardsTale::"), the backend will return all functions in the namespace
+        if function_name:
+            params["function_name"] = function_name
     else:
         # No namespace syntax, use standard substring search
         params["query"] = query_str
