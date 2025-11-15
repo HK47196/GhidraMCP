@@ -192,6 +192,19 @@ operations = [
 ]
 ```
 
+### 3b. Bulk Disassemble Multiple Functions (Native Support)
+```python
+# Using native bulk support in disassemble_function
+result = disassemble_function(["0x401000", "0x402000", "0x403000"])
+
+# Or using bulk_operations directly
+operations = [
+    {"endpoint": "/disassemble_function", "params": {"address": "0x401000"}},
+    {"endpoint": "/disassemble_function", "params": {"address": "0x402000"}},
+    {"endpoint": "/disassemble_function", "params": {"address": "0x403000"}}
+]
+```
+
 ### 4. Set Multiple Comments
 ```python
 operations = [

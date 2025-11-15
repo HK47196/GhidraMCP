@@ -498,6 +498,34 @@ Params:
 Returns:
     JSON string with result"""
 
+MANUAL["disassemble_function"] = """Disassemble one or more functions showing comprehensive assembly information.
+
+Displays enhanced Ghidra-style disassembly including:
+- PLATE comment boxes (function documentation)
+- Function signatures with calling conventions
+- Register assumptions (e.g., assume CS = 0x2a0a)
+- Local variables table with XREFs
+- Function labels with caller XREFs
+- Assembly instructions with bytes, mnemonics, and operands
+- Enhanced annotations, labels, and cross-references
+- EOL, PRE, POST, and REPEATABLE comments
+- Call destinations with function signatures
+
+Params:
+    address: Single address string (e.g., "0x401000") or list of addresses for bulk disassembly
+
+Returns:
+    - For single address: List of assembly lines with full disassembly details
+    - For multiple addresses: JSON string with array of results, each containing the disassembly for that address
+
+Example (single):
+    disassemble_function("0x401000")
+
+Example (bulk):
+    disassemble_function(["0x401000", "0x402000", "0x403000"])
+
+Note: Bulk operations are more efficient than multiple individual requests."""
+
 MANUAL["get_address_context"] = """Get disassembly context around an address showing both code and data.
 
 Displays listing items (instructions AND data) in strict memory order, exactly like the Ghidra
@@ -804,10 +832,25 @@ def decompile_function_by_address(address: str) -> str:
     return "\n".join(safe_get("decompile_function", {"address": address}))
 
 @conditional_tool
-def disassemble_function(address: str) -> list:
+def disassemble_function(address: str | list[str]) -> str | list:
     """
-    Get assembly code (address: instruction; comment) for a function.
+    Get assembly code (address: instruction; comment) for one or more functions.
     """
+    # Handle bulk disassemble
+    if isinstance(address, list):
+        if not address:
+            return "Error: address list cannot be empty"
+
+        # Build bulk operations for each address
+        operations = [
+            {"endpoint": "/disassemble_function", "params": {"address": addr}}
+            for addr in address
+        ]
+
+        # Use bulk_operations to process all at once
+        return bulk_operations(operations)
+
+    # Single address - original behavior
     return safe_get("disassemble_function", {"address": address})
 
 @conditional_tool
