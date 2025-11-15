@@ -642,11 +642,12 @@ public class StructService {
     /**
      * List all struct types in the program
      * @param categoryPath Filter by category (null for all)
+     * @param search Filter by struct name (null for all, substring match)
      * @param offset Pagination offset
      * @param limit Max results
      * @return JSON string with array of struct summaries
      */
-    public String listStructs(String categoryPath, int offset, int limit) {
+    public String listStructs(String categoryPath, String search, int offset, int limit) {
         Program program = navigator.getCurrentProgram();
         if (program == null) {
             return createErrorJson("No program loaded");
@@ -670,6 +671,12 @@ public class StructService {
                             // Filter by category if specified
                             if (categoryPath != null && !categoryPath.isEmpty() &&
                                 !dt.getCategoryPath().getPath().startsWith(categoryPath)) {
+                                continue;
+                            }
+
+                            // Filter by search string if specified (substring match)
+                            if (search != null && !search.isEmpty() &&
+                                !dt.getName().toLowerCase().contains(search.toLowerCase())) {
                                 continue;
                             }
 

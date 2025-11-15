@@ -603,9 +603,10 @@ public class GhidraMCPPlugin extends Plugin {
         server.createContext("/struct/list", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String categoryPath = qparams.get("category_path");
+            String search = qparams.get("search");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            sendResponse(exchange, structService.listStructs(categoryPath, offset, limit));
+            sendResponse(exchange, structService.listStructs(categoryPath, search, offset, limit));
         });
 
         server.createContext("/struct/rename", exchange -> {
@@ -1072,6 +1073,7 @@ public class GhidraMCPPlugin extends Plugin {
                 case "/struct/list":
                     return structService.listStructs(
                         params.get("category_path"),
+                        params.get("search"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100)
                     );

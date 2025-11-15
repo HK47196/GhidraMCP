@@ -508,12 +508,13 @@ Params:
         - "data": Data labels and values (supports search parameter)
         - "functions": All functions (no pagination)
         - "strings": Defined strings with addresses (supports filter)
-        - "structs": Struct types (supports category_path)
+        - "structs": Struct types (supports search and category_path)
     search: Optional search query. For "methods", supports namespace syntax:
         - "funcName" - substring search
         - "MyClass::" - all functions in namespace
         - "MyClass::funcName" - search within namespace
         For "data", performs substring search on data labels.
+        For "structs", performs case-insensitive substring search on struct names.
     segment_name: Filter "methods" or "data" by segment name
     start_address: Start address for range filter (requires end_address)
     end_address: End address for range filter (requires start_address)
@@ -694,6 +695,15 @@ def query(
                 return ["Error: query string is required"]
             params = {"query": query_str, "offset": offset, "limit": limit if limit else 100}
             return safe_get("searchData", params)
+        elif type == "structs":
+            # Use struct/list endpoint with search parameter
+            query_str = str(search) if search is not None else ""
+            if not query_str:
+                return ["Error: query string is required"]
+            params = {"search": query_str, "offset": offset, "limit": limit if limit else 100}
+            if category_path:
+                params["category_path"] = category_path
+            return safe_get("struct/list", params)
         else:
             return [f"Error: search parameter not supported for type '{type}'"]
 
