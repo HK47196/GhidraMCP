@@ -499,17 +499,17 @@ MANUAL["query"] = """Query/list items of a specified type from the program with 
 
 Params:
     type: Type of items to query. Options:
-        - "methods": Function names (supports query with namespace:: syntax)
+        - "methods": Function names (supports search with namespace:: syntax)
         - "classes": Namespace/class names
         - "segments": Memory segments
         - "imports": Imported symbols
         - "exports": Exported functions/symbols
         - "namespaces": Non-global namespaces
-        - "data": Data labels and values (supports query search)
+        - "data": Data labels and values (supports search parameter)
         - "functions": All functions (no pagination)
         - "strings": Defined strings with addresses (supports filter)
         - "structs": Struct types (supports category_path)
-    query: Optional search query. For "methods", supports namespace syntax:
+    search: Optional search query. For "methods", supports namespace syntax:
         - "funcName" - substring search
         - "MyClass::" - all functions in namespace
         - "MyClass::funcName" - search within namespace
@@ -636,7 +636,7 @@ Use the tool's inline docstring for basic information."""
 @conditional_tool
 def query(
     type: str,
-    query: str = None,
+    search: str = None,
     segment_name: str = None,
     start_address: str = None,
     end_address: str = None,
@@ -645,17 +645,17 @@ def query(
     filter: str = None,
     category_path: str = None
 ) -> list | str:
-    """Query items by type with filtering. Supports search (query param with namespace::), segment, and address range filters."""
+    """Query items by type with filtering. Supports search (search param with namespace::), segment, and address range filters."""
     valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "functions", "strings", "structs"]
 
     if type not in valid_types:
         return [f"Error: Invalid type '{type}'. Valid types: {', '.join(valid_types)}"]
 
     # Handle query/search filtering
-    if query is not None:
+    if search is not None:
         if type == "methods":
             # Use search endpoint with namespace support
-            query_str = str(query) if query is not None else ""
+            query_str = str(search) if search is not None else ""
             if not query_str:
                 return ["Error: query string is required"]
 
@@ -689,13 +689,13 @@ def query(
             return safe_get("searchFunctions", params)
         elif type == "data":
             # Use search endpoint for data
-            query_str = str(query) if query is not None else ""
+            query_str = str(search) if search is not None else ""
             if not query_str:
                 return ["Error: query string is required"]
             params = {"query": query_str, "offset": offset, "limit": limit if limit else 100}
             return safe_get("searchData", params)
         else:
-            return [f"Error: query parameter not supported for type '{type}'"]
+            return [f"Error: search parameter not supported for type '{type}'"]
 
     # Handle segment filtering
     if segment_name is not None or (start_address is not None and end_address is not None):
