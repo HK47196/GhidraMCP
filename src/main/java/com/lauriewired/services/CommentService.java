@@ -2,6 +2,7 @@ package com.lauriewired.services;
 
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.CodeUnit;
+import ghidra.program.model.listing.CommentType;
 import ghidra.program.model.listing.Program;
 import ghidra.util.Msg;
 
@@ -27,7 +28,7 @@ public class CommentService {
      * @return true if successful
      */
     public boolean setDecompilerComment(String addressStr, String comment) {
-        return setCommentAtAddress(addressStr, comment, CodeUnit.PRE_COMMENT, "Set decompiler comment");
+        return setCommentAtAddress(addressStr, comment, CommentType.PRE, "Set decompiler comment");
     }
 
     /**
@@ -37,7 +38,7 @@ public class CommentService {
      * @return true if successful
      */
     public boolean setDisassemblyComment(String addressStr, String comment) {
-        return setCommentAtAddress(addressStr, comment, CodeUnit.EOL_COMMENT, "Set disassembly comment");
+        return setCommentAtAddress(addressStr, comment, CommentType.EOL, "Set disassembly comment");
     }
 
     /**
@@ -47,18 +48,18 @@ public class CommentService {
      * @return true if successful
      */
     public boolean setPlateComment(String addressStr, String comment) {
-        return setCommentAtAddress(addressStr, comment, CodeUnit.PLATE_COMMENT, "Set plate comment");
+        return setCommentAtAddress(addressStr, comment, CommentType.PLATE, "Set plate comment");
     }
 
     /**
      * Core method to set a comment at an address with specified comment type
      * @param addressStr Address as string
      * @param comment Comment text
-     * @param commentType Type of comment (PRE_COMMENT, EOL_COMMENT, PLATE_COMMENT, etc.)
+     * @param commentType Type of comment (PRE, EOL, PLATE, etc.)
      * @param transactionName Name for the transaction
      * @return true if successful
      */
-    private boolean setCommentAtAddress(String addressStr, String comment, int commentType, String transactionName) {
+    private boolean setCommentAtAddress(String addressStr, String comment, CommentType commentType, String transactionName) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return false;
         if (addressStr == null || addressStr.isEmpty() || comment == null) return false;
