@@ -274,7 +274,7 @@ public class DecompilationService {
      * Append PLATE comment (function documentation box)
      */
     private void appendPlateComment(StringBuilder result, Listing listing, Address entryPoint) {
-        String plateComment = listing.getComment(CodeUnit.PLATE_COMMENT, entryPoint);
+        String plateComment = listing.getComment(CommentType.PLATE, entryPoint);
         if (plateComment != null && !plateComment.isEmpty()) {
             String[] lines = plateComment.split("\n");
             int maxLength = Arrays.stream(lines).mapToInt(String::length).max().orElse(60);
@@ -751,22 +751,22 @@ public class DecompilationService {
     private void appendAllComments(StringBuilder result, Listing listing, Address addr) {
         List<String> comments = new ArrayList<>();
 
-        String preComment = listing.getComment(CodeUnit.PRE_COMMENT, addr);
+        String preComment = listing.getComment(CommentType.PRE, addr);
         if (preComment != null && !preComment.isEmpty()) {
             comments.add("[PRE: " + preComment.replace("\n", " ") + "]");
         }
 
-        String eolComment = listing.getComment(CodeUnit.EOL_COMMENT, addr);
+        String eolComment = listing.getComment(CommentType.EOL, addr);
         if (eolComment != null && !eolComment.isEmpty()) {
             comments.add("; " + eolComment);
         }
 
-        String postComment = listing.getComment(CodeUnit.POST_COMMENT, addr);
+        String postComment = listing.getComment(CommentType.POST, addr);
         if (postComment != null && !postComment.isEmpty()) {
             comments.add("[POST: " + postComment.replace("\n", " ") + "]");
         }
 
-        String repeatableComment = listing.getComment(CodeUnit.REPEATABLE_COMMENT, addr);
+        String repeatableComment = listing.getComment(CommentType.REPEATABLE, addr);
         if (repeatableComment != null && !repeatableComment.isEmpty()) {
             comments.add("[REP: " + repeatableComment.replace("\n", " ") + "]");
         }
@@ -1262,7 +1262,7 @@ public class DecompilationService {
         Address addr = data.getMinAddress();
 
         // 1. Show PLATE COMMENT if present (bordered comment box)
-        String plateComment = listing.getComment(CodeUnit.PLATE_COMMENT, addr);
+        String plateComment = listing.getComment(CommentType.PLATE, addr);
         if (plateComment != null && !plateComment.isEmpty()) {
             String[] lines = plateComment.split("\n");
             int maxLength = Arrays.stream(lines).mapToInt(String::length).max().orElse(60);
@@ -1387,7 +1387,7 @@ public class DecompilationService {
         result.append(valueStr);  // value
 
         // 4. Add comments (EOL, POST, PRE if on same line)
-        String eolComment = listing.getComment(CodeUnit.EOL_COMMENT, addr);
+        String eolComment = listing.getComment(CommentType.EOL, addr);
         if (eolComment != null && !eolComment.isEmpty()) {
             result.append(" ; ").append(eolComment);
         }
@@ -1395,7 +1395,7 @@ public class DecompilationService {
         result.append("\n");
 
         // 5. Show POST COMMENT if present (on separate line below)
-        String postComment = listing.getComment(CodeUnit.POST_COMMENT, addr);
+        String postComment = listing.getComment(CommentType.POST, addr);
         if (postComment != null && !postComment.isEmpty()) {
             result.append("                             ; [POST] ");
             result.append(postComment.replace("\n", "\n                             ; "));
