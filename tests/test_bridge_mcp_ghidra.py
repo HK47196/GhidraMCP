@@ -784,6 +784,7 @@ class TestNamespaceSearch:
         assert result == ["thunk::func1", "thunk::func2", "thunk::func3"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "thunk",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -813,6 +814,7 @@ class TestNamespaceSearch:
         assert result == ["A::B::func1", "A::B::func2"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "A::B",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -842,6 +844,7 @@ class TestNamespaceSearch:
         assert result == ["A::B::C::D::func"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "A::B::C::D",
+            "function_name": "",
             "offset": 0,
             "limit": 50
         })
@@ -885,6 +888,7 @@ class TestNamespaceSearch:
         assert result == ["std::vector", "std::string", "std::map"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "std",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -899,6 +903,7 @@ class TestNamespaceSearch:
         assert result == ["ns::func10"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "ns",
+            "function_name": "",
             "offset": 10,
             "limit": 20
         })
@@ -913,6 +918,7 @@ class TestNamespaceSearch:
         assert result == ["Audio::PlaySound", "Audio::StopSound", "Audio::SetVolume"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "Audio",
+            "function_name": "",
             "offset": 0,
             "limit": 200
         })
@@ -927,6 +933,7 @@ class TestNamespaceSearch:
         assert result == ["BardsTale::InitGame", "BardsTale::ProcessInput", "BardsTale::UpdateWorld"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "BardsTale",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -983,10 +990,31 @@ class TestNamespaceSearch:
         result = bridge_mcp_ghidra.search_functions_by_name("::global_func")
 
         assert result == ["::global_func"]
-        # Empty namespace before ::, so only function_name is set
+        # Empty namespace before ::, so it's treated as regular query search
         call_args = mock_safe_get.call_args[0][1]
-        assert "function_name" in call_args
-        assert call_args["function_name"] == "global_func"
+        assert "query" in call_args
+        assert call_args["query"] == "global_func"
+        assert "namespace" not in call_args
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_compression_namespace(self, mock_safe_get):
+        """Test search for Compression namespace (user's reported issue)."""
+        mock_safe_get.return_value = [
+            "Compression::compress @ 0x401000",
+            "Compression::decompress @ 0x401100",
+            "Compression::init @ 0x401200"
+        ]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("Compression::", offset=0, limit=100)
+
+        assert len(result) == 3
+        assert "Compression::compress @ 0x401000" in result
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "Compression",
+            "function_name": "",
+            "offset": 0,
+            "limit": 100
+        })
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_search_empty_namespace_before_separator(self, mock_safe_get):
@@ -996,10 +1024,11 @@ class TestNamespaceSearch:
         result = bridge_mcp_ghidra.search_functions_by_name("::func")
 
         assert result == ["func"]
-        # Should only have function_name, not namespace (since namespace is empty)
+        # Should use query parameter, not namespace (since namespace is empty)
         call_args = mock_safe_get.call_args[0][1]
-        assert "namespace" not in call_args or call_args.get("namespace") == ""
-        assert call_args["function_name"] == "func"
+        assert "query" in call_args
+        assert call_args["query"] == "func"
+        assert "namespace" not in call_args
 
 
 class TestSearchDecompiledText:
