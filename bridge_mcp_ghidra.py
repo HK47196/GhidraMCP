@@ -248,10 +248,28 @@ Params:
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
     include_instruction: Include instruction text at each xref location (default: False)
+    include_indirect: Track pointer-based accesses in addition to direct references (default: True)
+    analysis_depth: Maximum depth for pointer chain tracing, range 1-50 (default: 10)
 
 Returns:
     List of references to the specified address. When include_instruction is True,
-    each reference includes the instruction text (e.g., "tst.l (0x3936,A4)")."""
+    each reference includes the instruction text (e.g., "tst.l (0x3936,A4)").
+    When include_indirect is True, the output includes two sections:
+    - DIRECT references: Instructions that directly reference the address
+    - INDIRECT ACCESS: Functions that access the address via pointers, showing:
+      * The pointer variable name
+      * Context instructions (pointer load and dereference)
+      * A label indicating manual inspection is needed
+
+Example Output:
+    DIRECT READ (4):
+      0022794e in FUN_00227940: tst.b (0x3a93,A4)=>g_GameState_Buffer.field9_0x9
+
+    INDIRECT ACCESS via g_GameState_BufferPtr (3):
+      0021f786 in Init_State:
+        0021f78a: lea (0x3a8a,A4)=>g_GameState_Buffer,A0
+        0021f7a2: clr.b (A0)
+        [Pointer-based access - inspect this function manually]"""
 
 MANUAL["get_xrefs_from"] = """Get all references from the specified address (xref from).
 
@@ -934,11 +952,18 @@ def set_data_type(address: str, type_name: str) -> str:
     return safe_post("set_data_type", {"address": address, "type_name": type_name})
 
 @conditional_tool
-def get_xrefs_to(address: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
-    """Get all references to the specified address (xref to)."""
+def get_xrefs_to(address: str, offset: int = 0, limit: int = 100, include_instruction: bool = False,
+                 include_indirect: bool = True, analysis_depth: int = 10) -> list:
+    """Get all references to the specified address (xref to), including indirect pointer-based accesses."""
     params = {"address": address, "offset": offset, "limit": limit}
     if include_instruction:
         params["include_instruction"] = "true"
+    # include_indirect defaults to true, only send if explicitly set to false
+    if not include_indirect:
+        params["include_indirect"] = "false"
+    # analysis_depth only sent if non-default
+    if analysis_depth != 10:
+        params["analysis_depth"] = str(analysis_depth)
     return safe_get("xrefs_to", params)
 
 @conditional_tool
