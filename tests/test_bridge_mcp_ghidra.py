@@ -784,6 +784,7 @@ class TestNamespaceSearch:
         assert result == ["thunk::func1", "thunk::func2", "thunk::func3"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "thunk",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -813,6 +814,7 @@ class TestNamespaceSearch:
         assert result == ["A::B::func1", "A::B::func2"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "A::B",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -842,6 +844,7 @@ class TestNamespaceSearch:
         assert result == ["A::B::C::D::func"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "A::B::C::D",
+            "function_name": "",
             "offset": 0,
             "limit": 50
         })
@@ -885,6 +888,7 @@ class TestNamespaceSearch:
         assert result == ["std::vector", "std::string", "std::map"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "std",
+            "function_name": "",
             "offset": 0,
             "limit": 100
         })
@@ -899,8 +903,24 @@ class TestNamespaceSearch:
         assert result == ["ns::func10"]
         mock_safe_get.assert_called_once_with("searchFunctions", {
             "namespace": "ns",
+            "function_name": "",
             "offset": 10,
             "limit": 20
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_audio_namespace(self, mock_safe_get):
+        """Test search for Audio namespace (regression test for issue)."""
+        mock_safe_get.return_value = ["Audio::PlaySound", "Audio::StopSound", "Audio::SetVolume"]
+
+        result = bridge_mcp_ghidra.search_functions_by_name("Audio::", offset=0, limit=200)
+
+        assert result == ["Audio::PlaySound", "Audio::StopSound", "Audio::SetVolume"]
+        mock_safe_get.assert_called_once_with("searchFunctions", {
+            "namespace": "Audio",
+            "function_name": "",
+            "offset": 0,
+            "limit": 200
         })
 
     @patch('bridge_mcp_ghidra.safe_get')
