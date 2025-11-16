@@ -83,6 +83,7 @@ def plugin_path():
     # Try multiple locations
     search_paths = [
         Path(__file__).parent / "fixtures" / "plugin",
+        Path(__file__).parent.parent / "target",  # Maven output directory
         Path(__file__).parent.parent / "dist",
         Path(__file__).parent.parent / "build",
     ]
@@ -94,7 +95,7 @@ def plugin_path():
                 if "GhidraMCP" in plugin_file.name or "ghidra" in plugin_file.name.lower():
                     return str(plugin_file)
 
-    pytest.skip("Plugin not found. Please build the plugin first.")
+    pytest.skip("Plugin not found. Please build the plugin first with: mvn clean package")
 
 
 @pytest.fixture(scope="session")
