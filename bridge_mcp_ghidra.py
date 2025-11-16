@@ -1217,15 +1217,25 @@ def bulk_operations(operations: list[dict]) -> str:
         "/search_instruction_pattern": "query",
     }
 
+    # Normalize endpoints to ensure they have a leading slash
+    normalized_operations = []
+    for operation in operations:
+        endpoint = operation.get("endpoint", "")
+        # Ensure endpoint starts with /
+        normalized_endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
+
+        normalized_operation = {
+            "endpoint": normalized_endpoint,
+            "params": operation.get("params", {})
+        }
+        normalized_operations.append(normalized_operation)
+
     # Track individual operations if tracker is available
     if _tool_tracker is not None:
-        for operation in operations:
+        for operation in normalized_operations:
             endpoint = operation.get("endpoint", "")
-            # Normalize endpoint (remove leading slash if needed for comparison)
-            normalized_endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
-
             # Get the corresponding tool name
-            tool_name = ENDPOINT_TO_TOOL.get(normalized_endpoint)
+            tool_name = ENDPOINT_TO_TOOL.get(endpoint)
 
             if tool_name:
                 _tool_tracker.increment(tool_name)
@@ -1234,9 +1244,9 @@ def bulk_operations(operations: list[dict]) -> str:
                 logger.debug(f"Bulk operation endpoint '{endpoint}' not mapped to a tool for stats tracking")
 
     try:
-        # Build JSON payload
+        # Build JSON payload with normalized operations
         payload = {
-            "operations": operations
+            "operations": normalized_operations
         }
 
         url = urljoin(ghidra_server_url, "bulk")
