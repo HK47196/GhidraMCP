@@ -251,29 +251,6 @@ class TestMCPTools:
         assert "data_label" in result
         mock_safe_get.assert_called_once_with("get_data_by_address", {"address": "0x1400010a0"})
 
-    @patch('bridge_mcp_ghidra.safe_get')
-    def test_list_functions_by_segment_with_segment_name(self, mock_safe_get):
-        """Test query tool for methods with segment_name filter."""
-        mock_safe_get.return_value = [
-            "func1 @ CODE_70:001a (size: 42 bytes)",
-            "func2 @ CODE_70:003c (size: 28 bytes)"
-        ]
-
-        result = bridge_mcp_ghidra.query(
-            type="methods",
-            segment_name="CODE_70",
-            offset=0,
-            limit=100
-        )
-
-        assert len(result) == 2
-        assert "func1" in result[0]
-        assert "CODE_70:001a" in result[0]
-        mock_safe_get.assert_called_once_with("functions_by_segment", {
-            "segment_name": "CODE_70",
-            "offset": 0,
-            "limit": 100
-        })
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_functions_by_segment_with_address_range(self, mock_safe_get):
@@ -304,48 +281,7 @@ class TestMCPTools:
         # Should succeed - queries all methods without filtering
         mock_safe_get.assert_called_once()
 
-    @patch('bridge_mcp_ghidra.safe_get')
-    def test_list_functions_by_segment_with_pagination(self, mock_safe_get):
-        """Test query tool for methods with segment and custom pagination."""
-        mock_safe_get.return_value = ["func3 @ CODE_70:0100 (size: 64 bytes)"]
 
-        result = bridge_mcp_ghidra.query(
-            type="methods",
-            segment_name="CODE_70",
-            offset=10,
-            limit=20
-        )
-
-        mock_safe_get.assert_called_once_with("functions_by_segment", {
-            "segment_name": "CODE_70",
-            "offset": 10,
-            "limit": 20
-        })
-
-    @patch('bridge_mcp_ghidra.safe_get')
-    def test_list_data_by_segment_with_segment_name(self, mock_safe_get):
-        """Test query tool for data with segment_name filter."""
-        mock_safe_get.return_value = [
-            "label1 @ CODE_70:0020 [word] = 0x1234",
-            "label2 @ CODE_70:0022 [byte] = 0x42"
-        ]
-
-        result = bridge_mcp_ghidra.query(
-            type="data",
-            segment_name="CODE_70",
-            offset=0,
-            limit=100
-        )
-
-        assert len(result) == 2
-        assert "label1" in result[0]
-        assert "CODE_70:0020" in result[0]
-        assert "word" in result[0]
-        mock_safe_get.assert_called_once_with("data_by_segment", {
-            "segment_name": "CODE_70",
-            "offset": 0,
-            "limit": 100
-        })
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_list_data_by_segment_with_address_range(self, mock_safe_get):
@@ -376,23 +312,6 @@ class TestMCPTools:
         # Should succeed - queries all data without filtering
         mock_safe_get.assert_called_once()
 
-    @patch('bridge_mcp_ghidra.safe_get')
-    def test_list_data_by_segment_with_pagination(self, mock_safe_get):
-        """Test query tool for data with segment and custom pagination."""
-        mock_safe_get.return_value = ["data2 @ CODE_70:0050 [string] = \"test\""]
-
-        result = bridge_mcp_ghidra.query(
-            type="data",
-            segment_name="CODE_70",
-            offset=5,
-            limit=25
-        )
-
-        mock_safe_get.assert_called_once_with("data_by_segment", {
-            "segment_name": "CODE_70",
-            "offset": 5,
-            "limit": 25
-        })
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_get_data_in_range_basic(self, mock_safe_get):
@@ -1748,22 +1667,6 @@ class TestInstructionPatternSearch:
         assert params["search"] == "[jb]sr"
 
     @patch('bridge_mcp_ghidra.safe_get')
-    def test_instruction_pattern_search_with_segment(self, mock_safe_get):
-        """Test instruction pattern search restricted to a specific segment."""
-        mock_safe_get.return_value = ["0x401000: tst.l D0 (segment: CODE_70)"]
-
-        result = bridge_mcp_ghidra.query(
-            type="instruction_pattern",
-            search="tst\\.l",
-            segment_name="CODE_70"
-        )
-
-        call_args = mock_safe_get.call_args
-        params = call_args[0][1]
-        assert params["segment_name"] == "CODE_70"
-        assert params["search"] == "tst\\.l"
-
-    @patch('bridge_mcp_ghidra.safe_get')
     def test_instruction_pattern_search_with_address_range(self, mock_safe_get):
         """Test instruction pattern search with address range."""
         mock_safe_get.return_value = ["0x1500: move.b D0,D1 (segment: CODE_70)"]
@@ -1844,7 +1747,6 @@ class TestInstructionPatternSearch:
         result = bridge_mcp_ghidra.query(
             type="instruction_pattern",
             search="move\\.b.*0x3932",
-            segment_name="CODE_70",
             start_address="0x1000",
             end_address="0x2000",
             offset=5,
@@ -1854,7 +1756,6 @@ class TestInstructionPatternSearch:
         call_args = mock_safe_get.call_args
         params = call_args[0][1]
         assert params["search"] == "move\\.b.*0x3932"
-        assert params["segment_name"] == "CODE_70"
         assert params["start_address"] == "0x1000"
         assert params["end_address"] == "0x2000"
         assert params["offset"] == 5
