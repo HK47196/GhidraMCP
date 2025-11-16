@@ -514,7 +514,6 @@ Params:
         - "data": Substring search on data labels
         - "structs": Case-insensitive substring search on struct names
         - "instruction_pattern": Regex pattern to match against disassembly (REQUIRED)
-    segment_name: Filter by segment name (supported by: methods, data, instruction_pattern)
     start_address: Start address of range to search (optional for instruction_pattern)
     end_address: End address of range to search (optional for instruction_pattern)
     offset: Pagination offset (default: 0)
@@ -539,9 +538,6 @@ Instruction Pattern Search:
 
         # Find instructions accessing a specific address
         query(type="instruction_pattern", search="0x3932")
-
-        # Search only in specific segment
-        query(type="instruction_pattern", search="tst\\.l", segment_name="CODE_70")
 
         # Search in specific address range
         query(type="instruction_pattern", search="move", start_address="0x1000", end_address="0x2000")
@@ -667,7 +663,6 @@ Use the tool's inline docstring for basic information."""
 def query(
     type: Literal["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "strings", "structs", "instruction_pattern"],
     search: str = None,
-    segment_name: str = None,
     start_address: str = None,
     end_address: str = None,
     offset: int = 0,
@@ -675,7 +670,7 @@ def query(
     filter: str = None,
     category_path: str = None
 ) -> list | str:
-    """Query items by type with filtering. Supports search (search param with namespace::), segment, and address range filters."""
+    """Query items by type with filtering. Supports search (search param with namespace::), instruction pattern, and address range filters."""
     valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "strings", "structs", "instruction_pattern"]
 
     if type not in valid_types:
@@ -760,30 +755,26 @@ def query(
     if type == "instruction_pattern":
         return ["Error: search parameter (regex pattern) is required for instruction_pattern search"]
 
-    # Handle segment filtering
-    if segment_name is not None or (start_address is not None and end_address is not None):
+    # Handle address range filtering
+    if start_address is not None and end_address is not None:
         if type == "methods":
-            params = {"offset": offset, "limit": limit if limit else 100}
-            if segment_name:
-                params["segment_name"] = segment_name
-            elif start_address and end_address:
-                params["start_address"] = start_address
-                params["end_address"] = end_address
-            else:
-                return ["Error: Either segment_name or both start_address and end_address must be provided"]
+            params = {
+                "start_address": start_address,
+                "end_address": end_address,
+                "offset": offset,
+                "limit": limit if limit else 100
+            }
             return safe_get("functions_by_segment", params)
         elif type == "data":
-            params = {"offset": offset, "limit": limit if limit else 100}
-            if segment_name:
-                params["segment_name"] = segment_name
-            elif start_address and end_address:
-                params["start_address"] = start_address
-                params["end_address"] = end_address
-            else:
-                return ["Error: Either segment_name or both start_address and end_address must be provided"]
+            params = {
+                "start_address": start_address,
+                "end_address": end_address,
+                "offset": offset,
+                "limit": limit if limit else 100
+            }
             return safe_get("data_by_segment", params)
         else:
-            return [f"Error: segment/address filtering not supported for type '{type}'"]
+            return [f"Error: address range filtering not supported for type '{type}'"]
 
     # Standard list endpoints (no filtering)
     endpoint_mapping = {
