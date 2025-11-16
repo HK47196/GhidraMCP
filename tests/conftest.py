@@ -140,7 +140,7 @@ def ghidra_server(ghidra_dir, test_binary, plugin_path, use_xvfb,
         test_project_dir=project_dir,
         test_binary=test_binary,
         plugin_path=plugin_path,
-        http_port=8080,
+        http_port=None,  # Auto-select free port to avoid conflicts
         use_xvfb=use_xvfb,
         verbose=verbose_ghidra,
         isolated_user_dir=isolated_dir
@@ -171,9 +171,13 @@ def mcp_client(ghidra_server):
     if not mcp_script.exists():
         pytest.skip(f"MCP script not found: {mcp_script}")
 
+    # Use the dynamically allocated port from ghidra_server
+    ghidra_url = f"http://127.0.0.1:{ghidra_server.http_port}/"
+    logging.info(f"MCP client connecting to Ghidra at {ghidra_url}")
+
     client = MCPClient(
         mcp_script_path=str(mcp_script),
-        ghidra_server="http://127.0.0.1:8080/",
+        ghidra_server=ghidra_url,
         timeout=60,
         verbose=False
     )

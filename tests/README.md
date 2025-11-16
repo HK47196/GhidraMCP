@@ -17,6 +17,8 @@ See [QUICKSTART.md](QUICKSTART.md) for detailed setup or [SANDBOX.md](SANDBOX.md
 - **Docker**: Complete isolation in container (see [SANDBOX.md](SANDBOX.md))
 - **Non-isolated**: Uses real `~/.ghidra/` (not recommended)
 
+**Note:** Tests automatically select a free port, enabling parallel test sessions without conflicts!
+
 ## Prerequisites
 
 - Ghidra installed (tested with 11.4.2)

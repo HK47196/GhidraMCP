@@ -9,6 +9,7 @@ import os
 import signal
 import requests
 import shutil
+import socket
 from pathlib import Path
 from typing import Optional
 import logging
@@ -25,7 +26,7 @@ class GhidraRunner:
         test_project_dir: str,
         test_binary: str,
         plugin_path: Optional[str] = None,
-        http_port: int = 8080,
+        http_port: Optional[int] = None,
         use_xvfb: bool = True,
         verbose: bool = False,
         isolated_user_dir: Optional[str] = None
@@ -34,7 +35,6 @@ class GhidraRunner:
         self.project_dir = Path(test_project_dir)
         self.binary_path = Path(test_binary)
         self.plugin_path = Path(plugin_path) if plugin_path else None
-        self.http_port = http_port
         self.use_xvfb = use_xvfb
         self.verbose = verbose
         self.isolated_user_dir = Path(isolated_user_dir) if isolated_user_dir else None
@@ -43,6 +43,14 @@ class GhidraRunner:
         self.xvfb_process = None
         self.display_num = None
         self.original_user_home = None
+
+        # Find a free port if not specified
+        if http_port is None:
+            self.http_port = self._find_free_port()
+            logger.info(f"Using auto-selected port: {self.http_port}")
+        else:
+            self.http_port = http_port
+            logger.info(f"Using specified port: {self.http_port}")
 
         # Validate paths
         if not self.ghidra_dir.exists():
@@ -56,6 +64,15 @@ class GhidraRunner:
             if not Path(f"/tmp/.X{i}-lock").exists():
                 return i
         raise RuntimeError("Could not find free X display")
+
+    def _find_free_port(self):
+        """Find a free port for HTTP server"""
+        # Use OS to find a free port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('127.0.0.1', 0))
+            s.listen(1)
+            port = s.getsockname()[1]
+        return port
 
     def _start_xvfb(self):
         """Start virtual X server"""

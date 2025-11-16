@@ -154,8 +154,9 @@ When tests run successfully, you should see:
 2025-11-16 10:30:15 [INFO] Binary import completed
 2025-11-16 10:30:15 [INFO] Starting Ghidra GUI with project: /tmp/ghidra_test_xyz/TestProject.gpr
 2025-11-16 10:30:20 [INFO] Ghidra GUI process started
-2025-11-16 10:30:20 [INFO] Waiting for HTTP server on port 8080
-2025-11-16 10:30:25 [INFO] HTTP server is ready on port 8080
+2025-11-16 10:30:20 [INFO] Using auto-selected port: 54321
+2025-11-16 10:30:20 [INFO] Waiting for HTTP server on port 54321
+2025-11-16 10:30:25 [INFO] HTTP server is ready on port 54321
 2025-11-16 10:30:25 [INFO] Ghidra Runner started successfully
 2025-11-16 10:30:25 [INFO] ============================================================
 2025-11-16 10:30:26 [INFO] Starting MCP bridge server
@@ -223,7 +224,11 @@ Increase timeout:
 pytest tests/e2e/ --timeout=600 --ghidra-dir=/opt/ghidra
 ```
 
-### Port 8080 already in use
+### Port conflicts
+
+**Note:** Port conflicts are automatically avoided! The test framework auto-selects a free port.
+
+If you somehow still get a port conflict error:
 
 **Error:**
 ```
@@ -231,9 +236,13 @@ Address already in use
 ```
 
 **Solution:**
+The tests automatically find a free port, so this should be rare. If it happens:
 ```bash
-# Find and kill the process using port 8080
-lsof -ti:8080 | xargs kill -9
+# Just retry - a different port will be selected
+pytest tests/e2e/ --ghidra-dir=/opt/ghidra
+
+# Or find and kill any stuck Ghidra processes
+pkill -f ghidraRun
 ```
 
 ## Test Suite Overview
