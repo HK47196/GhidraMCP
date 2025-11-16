@@ -1115,7 +1115,7 @@ public class DecompilationService {
                     displayInstruction((Instruction)cu, isTarget, result, program, listing,
                                       refManager, symbolTable, containingFunc, includeBytes);
                 } else if (cu instanceof Data) {
-                    displayData((Data)cu, isTarget, result, program, listing,
+                    displayData((Data)cu, isTarget, targetAddr, result, program, listing,
                                refManager, symbolTable, includeBytes);
                 }
             }
@@ -1255,8 +1255,9 @@ public class DecompilationService {
 
     /**
      * Display a data item in Ghidra UI format
+     * Handles composite types (structs/arrays) by showing components
      */
-    private void displayData(Data data, boolean isTarget, StringBuilder result,
+    private void displayData(Data data, boolean isTarget, Address targetAddr, StringBuilder result,
                             Program program, Listing listing,
                             ReferenceManager refManager, SymbolTable symbolTable, boolean includeBytes) {
         Address addr = data.getMinAddress();
@@ -1326,7 +1327,227 @@ public class DecompilationService {
             }
         }
 
-        // 3. Show the DATA LINE with proper formatting
+        // 3. Check if this is a composite type (struct/array) with components
+        int numComponents = data.getNumComponents();
+        boolean hasComponents = numComponents > 0;
+
+        if (hasComponents) {
+            // This is a composite type - show parent type line then components
+            displayCompositeData(data, isTarget, targetAddr, result, program, listing,
+                               refManager, symbolTable, includeBytes);
+        } else {
+            // Simple data type - show single line
+            displaySimpleData(data, isTarget, result, listing, includeBytes);
+        }
+    }
+
+    /**
+     * Display a composite data type (struct or array) with all its components
+     * For large composites, only show a subset around the target address
+     */
+    private void displayCompositeData(Data data, boolean isTarget, Address targetAddr,
+                                     StringBuilder result,
+                                     Program program, Listing listing,
+                                     ReferenceManager refManager, SymbolTable symbolTable,
+                                     boolean includeBytes) {
+        Address addr = data.getMinAddress();
+
+        // Show parent type line (e.g., "IntuiText", "addr[160]")
+        if (isTarget) {
+            result.append("  --> ");
+        } else {
+            result.append("       ");
+        }
+
+        // Get data type string
+        String dataTypeStr = codeUnitFormatter.getMnemonicRepresentation(data);
+
+        result.append(String.format("%-10s", addr.toString()));
+        if (includeBytes) {
+            result.append(String.format("%-12s", "")); // Empty bytes column for parent
+        }
+        result.append(dataTypeStr);
+
+        // Add EOL comment if present
+        String eolComment = listing.getComment(CommentType.EOL, addr);
+        if (eolComment != null && !eolComment.isEmpty()) {
+            result.append(" ; ").append(eolComment);
+        }
+        result.append("\n");
+
+        // Display components
+        int numComponents = data.getNumComponents();
+
+        // Determine which components to display
+        // If targeting a specific component within the composite, show a window around it
+        // Otherwise, show first N components
+        int startIdx = 0;
+        int endIdx = numComponents;
+        final int MAX_COMPONENTS_TO_SHOW = 20; // Limit display to avoid overwhelming output
+
+        if (isTarget && !addr.equals(targetAddr)) {
+            // Target is within this composite but not at its start
+            // Find which component contains the target
+            int targetComponentIdx = -1;
+            for (int i = 0; i < numComponents; i++) {
+                Data comp = data.getComponent(i);
+                if (comp != null &&
+                    comp.getMinAddress().compareTo(targetAddr) <= 0 &&
+                    comp.getMaxAddress().compareTo(targetAddr) >= 0) {
+                    targetComponentIdx = i;
+                    break;
+                }
+            }
+
+            if (targetComponentIdx >= 0) {
+                // Show window around target component (e.g., 5 before and 5 after)
+                startIdx = Math.max(0, targetComponentIdx - 5);
+                endIdx = Math.min(numComponents, targetComponentIdx + 6);
+            } else {
+                // Couldn't find exact component, show first few
+                endIdx = Math.min(numComponents, MAX_COMPONENTS_TO_SHOW);
+            }
+        } else {
+            // Not targeting a specific component, show first N
+            endIdx = Math.min(numComponents, MAX_COMPONENTS_TO_SHOW);
+        }
+
+        // Show indicator if we're not showing components from the beginning
+        if (startIdx > 0) {
+            result.append("      ... (").append(startIdx).append(" components omitted)\n");
+        }
+
+        // Display selected components (indented)
+        for (int i = startIdx; i < endIdx; i++) {
+            Data component = data.getComponent(i);
+            if (component == null) continue;
+
+            // Check if this component contains the target address
+            boolean isTargetComponent = (component.getMinAddress().compareTo(targetAddr) <= 0 &&
+                                        component.getMaxAddress().compareTo(targetAddr) >= 0);
+
+            displayComponent(component, i, data.isArray(), isTargetComponent, result, listing,
+                           refManager, symbolTable, includeBytes);
+        }
+
+        // Show indicator if we're not showing components to the end
+        if (endIdx < numComponents) {
+            result.append("      ... (").append(numComponents - endIdx).append(" more components)\n");
+        }
+
+        // Show POST comment if present
+        String postComment = listing.getComment(CommentType.POST, addr);
+        if (postComment != null && !postComment.isEmpty()) {
+            result.append("                             ; [POST] ");
+            result.append(postComment.replace("\n", "\n                             ; "));
+            result.append("\n");
+        }
+    }
+
+    /**
+     * Display a component of a composite data type (array element or struct field)
+     */
+    private void displayComponent(Data component, int index, boolean isArray, boolean isTargetComponent,
+                                  StringBuilder result, Listing listing,
+                                  ReferenceManager refManager, SymbolTable symbolTable,
+                                  boolean includeBytes) {
+        Address componentAddr = component.getMinAddress();
+
+        // Mark target component with arrow, otherwise indent
+        if (isTargetComponent) {
+            result.append(" --> ");
+        } else {
+            result.append("      ");
+        }
+
+        // Show address
+        result.append(String.format("%-10s", componentAddr.toString()));
+
+        // Show bytes if requested
+        if (includeBytes) {
+            byte[] bytes = null;
+            try {
+                bytes = component.getBytes();
+            } catch (Exception e) {
+                // Memory access failed
+            }
+
+            StringBuilder bytesStr = new StringBuilder();
+            if (bytes != null) {
+                int bytesToShow = Math.min(bytes.length, 4);
+                for (int i = 0; i < bytesToShow; i++) {
+                    bytesStr.append(String.format("%02x ", bytes[i] & 0xFF));
+                }
+                if (bytes.length > bytesToShow) {
+                    bytesStr.append("...");
+                }
+            } else {
+                bytesStr.append("??");
+            }
+
+            result.append(String.format("%-12s", bytesStr.toString().trim()));
+        }
+
+        // Show data type
+        String componentType = codeUnitFormatter.getMnemonicRepresentation(component);
+        result.append(String.format("%-10s", componentType));
+
+        // Show value
+        String valueStr = "";
+        try {
+            valueStr = codeUnitFormatter.getDataValueRepresentationString(component);
+        } catch (Exception e) {
+            Object value = component.getValue();
+            if (value != null) {
+                valueStr = value.toString();
+            }
+        }
+        result.append(String.format("%-20s", valueStr));
+
+        // Show field name (for structs) or index (for arrays)
+        if (isArray) {
+            result.append("[").append(index).append("]");
+        } else {
+            // Struct field
+            String fieldName = component.getFieldName();
+            if (fieldName != null && !fieldName.isEmpty()) {
+                result.append(fieldName);
+            }
+        }
+
+        // Show XREFs for this component
+        ReferenceIterator xrefsTo = refManager.getReferencesTo(componentAddr);
+        List<String> xrefList = new ArrayList<>();
+        while (xrefsTo.hasNext()) {
+            Reference ref = xrefsTo.next();
+            String xrefStr = ref.getFromAddress().toString();
+            xrefStr += getRefTypeDisplayString(ref);
+            xrefList.add(xrefStr);
+        }
+
+        if (!xrefList.isEmpty()) {
+            result.append("      XREF[").append(xrefList.size()).append("]:     ");
+            result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+            if (xrefList.size() > 3) {
+                result.append(", [more]");
+            }
+        }
+
+        // Add EOL comment if present
+        String eolComment = listing.getComment(CommentType.EOL, componentAddr);
+        if (eolComment != null && !eolComment.isEmpty()) {
+            result.append(" ; ").append(eolComment);
+        }
+
+        result.append("\n");
+    }
+
+    /**
+     * Display a simple (non-composite) data item
+     */
+    private void displaySimpleData(Data data, boolean isTarget, StringBuilder result,
+                                   Listing listing, boolean includeBytes) {
+        Address addr = data.getMinAddress();
 
         // Mark target with arrow
         if (isTarget) {
@@ -1386,7 +1607,7 @@ public class DecompilationService {
         result.append("  ");
         result.append(valueStr);  // value
 
-        // 4. Add comments (EOL, POST, PRE if on same line)
+        // Add comments (EOL, POST, PRE if on same line)
         String eolComment = listing.getComment(CommentType.EOL, addr);
         if (eolComment != null && !eolComment.isEmpty()) {
             result.append(" ; ").append(eolComment);
@@ -1394,7 +1615,7 @@ public class DecompilationService {
 
         result.append("\n");
 
-        // 5. Show POST COMMENT if present (on separate line below)
+        // Show POST COMMENT if present (on separate line below)
         String postComment = listing.getComment(CommentType.POST, addr);
         if (postComment != null && !postComment.isEmpty()) {
             result.append("                             ; [POST] ");

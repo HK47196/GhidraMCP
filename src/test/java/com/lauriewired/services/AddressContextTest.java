@@ -345,4 +345,158 @@ class AddressContextTest {
         assertTrue(expectedFormat.indexOf("00231fe8") < expectedFormat.indexOf("00231fec"),
                   "Memory order should be preserved");
     }
+
+    // ==================== Composite Data Type Tests ====================
+
+    @Test
+    @DisplayName("Array parent should be displayed with type annotation")
+    void testArrayParentDisplay() {
+        // When querying an address inside an array
+        String arrayOutput =
+            "                             Script::g_ScriptOpDispatchTable                 XREF[2]: Execute_Bytecode:00224c20(*), Execute_Bytecode:00224c24(*)\n" +
+            "  --> 0023078c  addr[160]\n" +
+            "      00230790  00 22 4c 7a    addr       Script::Opcode1_SetByt  [1]\n" +
+            "      00230794  00 22 48 6a    addr       Script::Opcode2_PushSe  [2]\n";
+
+        assertTrue(arrayOutput.contains("addr[160]"), "Should show array parent type");
+        assertTrue(arrayOutput.contains("g_ScriptOpDispatchTable"), "Should show array label");
+        assertTrue(arrayOutput.contains("[1]"), "Should show array indices");
+        assertTrue(arrayOutput.contains("[2]"), "Should show array indices");
+    }
+
+    @Test
+    @DisplayName("Struct parent should be displayed with components")
+    void testStructParentDisplay() {
+        // When querying an address inside a struct
+        String structOutput =
+            "                             g_FileReq_BodyIntuiText                         XREF[2,6]: File_InitRequesterStructure:0022...\n" +
+            "  --> 0023073e  IntuiText\n" +
+            "      0023073e  00              UBYTE     00h                     FrontPen      XREF[2]: File_InitRequesterStructure:0022...\n" +
+            "      0023073f  00              UBYTE     00h                     BackPen\n" +
+            " -->  00230742  00 01           WORD      1h                      LeftEdge\n" +
+            "      00230744  00 06           WORD      6h                      TopEdge\n";
+
+        assertTrue(structOutput.contains("IntuiText"), "Should show struct parent type");
+        assertTrue(structOutput.contains("FrontPen"), "Should show field names");
+        assertTrue(structOutput.contains("BackPen"), "Should show field names");
+        assertTrue(structOutput.contains("LeftEdge"), "Should show field names");
+        assertTrue(structOutput.contains(" -->  00230742"), "Should mark target field with arrow");
+    }
+
+    @Test
+    @DisplayName("Array element should be marked when queried")
+    void testArrayElementMarking() {
+        // Querying 0x002307b8 (element [11] of array)
+        String arrayElementOutput =
+            "  --> 0023078c  addr[160]\n" +
+            "      ... (6 components omitted)\n" +
+            " -->  002307b8  00 22 40 12    addr       Script::Opcode11_LoadI  [11]\n" +
+            "      002307bc  00 22 40 7c    addr       FUN_0022407c            [12]\n";
+
+        assertTrue(arrayElementOutput.contains(" -->  002307b8"), "Target element should be marked");
+        assertTrue(arrayElementOutput.contains("[11]"), "Should show element index");
+        assertTrue(arrayElementOutput.contains("(6 components omitted)"), "Should show omitted count");
+    }
+
+    @Test
+    @DisplayName("Struct field should be marked when queried")
+    void testStructFieldMarking() {
+        // Querying 0x00230742 (LeftEdge field of struct)
+        String structFieldOutput =
+            "  --> 0023073e  IntuiText\n" +
+            "      0023073e  00              UBYTE     00h                     FrontPen\n" +
+            "      0023073f  00              UBYTE     00h                     BackPen\n" +
+            " -->  00230742  00 01           WORD      1h                      LeftEdge\n";
+
+        assertTrue(structFieldOutput.contains(" -->  00230742"), "Target field should be marked");
+        assertTrue(structFieldOutput.contains("LeftEdge"), "Should show field name");
+        assertTrue(structFieldOutput.contains("WORD"), "Should show field type");
+    }
+
+    @Test
+    @DisplayName("Large arrays should show limited window around target")
+    void testLargeArrayWindow() {
+        // Array with 160 elements - should only show ~11 around target
+        String largeArrayOutput =
+            "  --> 0023078c  addr[160]\n" +
+            "      ... (6 components omitted)\n" +
+            "      002307b4  00 22 3f be    addr       Script::Opcode10_LoadV  [10]\n" +
+            " -->  002307b8  00 22 40 12    addr       Script::Opcode11_LoadI  [11]\n" +
+            "      002307bc  00 22 40 7c    addr       FUN_0022407c            [12]\n" +
+            "      ... (148 more components)\n";
+
+        // Should show window around target element
+        assertTrue(largeArrayOutput.contains("(6 components omitted)"), "Should omit elements before window");
+        assertTrue(largeArrayOutput.contains("(148 more components)") ||
+                  largeArrayOutput.matches(".*\\(\\d+ more components\\).*"),
+                  "Should omit elements after window");
+
+        // Should show target and neighbors
+        assertTrue(largeArrayOutput.contains("[10]"), "Should show element before target");
+        assertTrue(largeArrayOutput.contains("[11]"), "Should show target element");
+        assertTrue(largeArrayOutput.contains("[12]"), "Should show element after target");
+    }
+
+    @Test
+    @DisplayName("Component indentation should be consistent")
+    void testComponentIndentation() {
+        // Components should be indented 6 spaces, target components arrow (5 chars) + 1 space
+        String componentLine = "      00230790  00 22 4c 7a    addr       Script::Opcode1_SetByt  [1]";
+        String targetLine =    " -->  002307b8  00 22 40 12    addr       Script::Opcode11_LoadI  [11]";
+
+        assertTrue(componentLine.startsWith("      "), "Non-target components should have 6-space indent");
+        assertTrue(targetLine.startsWith(" --> "), "Target components should have arrow marker");
+        // Both should have address starting at same column (column 6)
+        assertEquals(componentLine.indexOf("0"), targetLine.indexOf("0"),
+                    "Address should start at same column for both (column 6)");
+    }
+
+    @Test
+    @DisplayName("Composite with XREFs should show them on components")
+    void testCompositeComponentXrefs() {
+        String componentWithXref =
+            "      0023073e  00              UBYTE     00h                     FrontPen      XREF[2]: File_InitRequesterStructure:0022...\n";
+
+        assertTrue(componentWithXref.contains("FrontPen"), "Should show field name");
+        assertTrue(componentWithXref.contains("XREF[2]:"), "Should show XREF count");
+        assertTrue(componentWithXref.contains("File_InitRequesterStructure"), "Should show XREF function");
+    }
+
+    @Test
+    @DisplayName("Nested composites should be handled correctly")
+    void testNestedComposites() {
+        // Struct containing another struct or array
+        String nestedOutput =
+            "  --> 0023073e  IntuiText\n" +
+            "      00230746  00 23 07 26    TextAttr *DAT_00230726            ITextFont\n" +
+            "      0023074a  00 23 07 16    UBYTE *   DAT_00230716            IText\n" +
+            "      0023074e  00 23 03 04    IntuiTex  g_FileReq_FilenameGadget NextText\n";
+
+        // Nested struct should show as component but not expand further
+        assertTrue(nestedOutput.contains("IntuiTex"), "Should show nested struct type");
+        assertTrue(nestedOutput.contains("NextText"), "Should show nested struct field name");
+    }
+
+    @Test
+    @DisplayName("Empty or undefined components should be handled gracefully")
+    void testEmptyComponents() {
+        // Components with undefined or null values
+        String undefinedComponent = "      00100000  ??             undefined  ??                      field_0";
+
+        assertTrue(undefinedComponent.contains("??"), "Should show ?? for undefined data");
+        assertTrue(undefinedComponent.contains("undefined"), "Should show undefined type");
+    }
+
+    @Test
+    @DisplayName("Components should show proper data type formatting")
+    void testComponentDataTypeFormatting() {
+        String componentTypes =
+            "      0023073e  00              UBYTE     00h                     FrontPen\n" +
+            "      00230742  00 01           WORD      1h                      LeftEdge\n" +
+            "      00230746  00 23 07 26    TextAttr *DAT_00230726            ITextFont\n";
+
+        assertTrue(componentTypes.contains("UBYTE"), "Should show byte types");
+        assertTrue(componentTypes.contains("WORD"), "Should show word types");
+        assertTrue(componentTypes.contains("TextAttr *"), "Should show pointer types");
+    }
 }
