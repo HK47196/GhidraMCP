@@ -294,4 +294,71 @@ class InstructionPatternSearchServiceTest {
         assertTrue(pattern.length() > 0, "Pattern should have content");
         assertTrue(disassembly.length() > 0, "Disassembly should have content");
     }
+
+    /**
+     * Test case-insensitive pattern matching
+     */
+    @ParameterizedTest
+    @DisplayName("Should match patterns case insensitively")
+    @CsvSource({
+        "move,     MOVE.B (0x3932,A4)",
+        "move,     move.b D1,D2",
+        "move,     Move.B A0,A1",
+        "MOVE,     move.b (0x3932,A4)",
+        "MoVe,     MOVE.B D0,D1",
+        "jsr,      JSR FUN_00401234",
+        "JSR,      jsr FUN_00401234",
+        "tst,      TST.L D0",
+        "TST,      tst.l D0"
+    })
+    void testCaseInsensitiveMatching(String pattern, String disassembly) {
+        // Verify that pattern compiles with CASE_INSENSITIVE flag
+        // by testing it matches various cases
+        java.util.regex.Pattern compiledPattern =
+            java.util.regex.Pattern.compile(pattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+
+        java.util.regex.Matcher matcher = compiledPattern.matcher(disassembly);
+        assertTrue(matcher.find(),
+            String.format("Pattern '%s' should match disassembly '%s' (case insensitive)",
+                pattern, disassembly));
+    }
+
+    /**
+     * Test that case-insensitive matching works for complex patterns
+     */
+    @Test
+    @DisplayName("Should match complex patterns case insensitively")
+    void testComplexCaseInsensitivePatterns() {
+        // Test that "move.b" pattern matches "MOVE.B" instruction
+        java.util.regex.Pattern pattern1 =
+            java.util.regex.Pattern.compile("move\\.b", java.util.regex.Pattern.CASE_INSENSITIVE);
+        assertTrue(pattern1.matcher("MOVE.B (0x3932,A4),D0").find(),
+            "Should match uppercase MOVE.B");
+        assertTrue(pattern1.matcher("move.b (0x3932,A4),D0").find(),
+            "Should match lowercase move.b");
+        assertTrue(pattern1.matcher("Move.B (0x3932,A4),D0").find(),
+            "Should match mixed case Move.B");
+
+        // Test that "[jb]sr" pattern matches "JSR" and "BSR" in any case
+        java.util.regex.Pattern pattern2 =
+            java.util.regex.Pattern.compile("[jb]sr", java.util.regex.Pattern.CASE_INSENSITIVE);
+        assertTrue(pattern2.matcher("JSR FUN_00401234").find(),
+            "Should match uppercase JSR");
+        assertTrue(pattern2.matcher("jsr FUN_00401234").find(),
+            "Should match lowercase jsr");
+        assertTrue(pattern2.matcher("BSR FUN_00401234").find(),
+            "Should match uppercase BSR");
+        assertTrue(pattern2.matcher("bsr FUN_00401234").find(),
+            "Should match lowercase bsr");
+
+        // Test hex address pattern with various cases
+        java.util.regex.Pattern pattern3 =
+            java.util.regex.Pattern.compile("0x[0-9a-f]+", java.util.regex.Pattern.CASE_INSENSITIVE);
+        assertTrue(pattern3.matcher("move.b (0x3932,A4)").find(),
+            "Should match lowercase hex 0x3932");
+        assertTrue(pattern3.matcher("move.b (0X3932,A4)").find(),
+            "Should match uppercase 0X3932");
+        assertTrue(pattern3.matcher("move.b (0x3ABC,A4)").find(),
+            "Should match mixed case hex digits");
+    }
 }

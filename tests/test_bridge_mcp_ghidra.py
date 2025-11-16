@@ -2081,6 +2081,30 @@ class TestInstructionPatternSearch:
         params = call_args[0][1]
         assert params["search"] == "0x[0-9a-fA-F]+"
 
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_case_insensitive(self, mock_safe_get):
+        """Test instruction pattern search is case insensitive."""
+        # Mock response showing matches for both upper and lowercase
+        mock_safe_get.return_value = [
+            "0x401000: MOVE.B (0x3932,A4),D0 (segment: CODE_70)",
+            "0x401010: move.b D1,D2 (segment: CODE_70)",
+            "0x401020: Move.B A0,A1 (segment: CODE_70)"
+        ]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="move"
+        )
+
+        # Verify the search parameter was passed correctly
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["search"] == "move"
+
+        # The actual case-insensitive matching happens in Java,
+        # but we verify the parameter is passed through correctly
+        assert result == mock_safe_get.return_value
+
     def test_query_invalid_type(self):
         """Test query with invalid type returns error."""
         result = bridge_mcp_ghidra.query(type="invalid_type")
