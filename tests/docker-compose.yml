@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  ghidra-mcp-tests:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile
+    volumes:
+      # Mount source code for development
+      - ..:/workspace
+      # Preserve Maven build artifacts
+      - maven-target:/workspace/target
+    environment:
+      - DISPLAY=:99
+    command: pytest tests/e2e/ --ghidra-dir=/opt/ghidra -v
+
+volumes:
+  maven-target:

@@ -42,6 +42,18 @@ def pytest_addoption(parser):
         default=False,
         help="Enable verbose Ghidra output"
     )
+    parser.addoption(
+        "--isolated",
+        action="store_true",
+        default=True,
+        help="Use isolated Ghidra user directory (default: True, prevents interference with desktop Ghidra)"
+    )
+    parser.addoption(
+        "--no-isolated",
+        action="store_true",
+        default=False,
+        help="Don't use isolated directory (use your actual ~/.ghidra)"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -66,6 +78,14 @@ def keep_project(request):
 def verbose_ghidra(request):
     """Whether to enable verbose Ghidra output"""
     return request.config.getoption("--verbose-ghidra")
+
+
+@pytest.fixture(scope="session")
+def use_isolated(request):
+    """Whether to use isolated Ghidra user directory"""
+    if request.config.getoption("--no-isolated"):
+        return False
+    return True  # Default to isolated mode
 
 
 @pytest.fixture(scope="session")
@@ -100,11 +120,20 @@ def plugin_path():
 
 @pytest.fixture(scope="session")
 def ghidra_server(ghidra_dir, test_binary, plugin_path, use_xvfb,
-                   keep_project, verbose_ghidra):
+                   keep_project, verbose_ghidra, use_isolated):
     """Start Ghidra server for entire test session"""
     import tempfile
+    import shutil
 
-    project_dir = tempfile.mkdtemp(prefix="ghidra_test_")
+    project_dir = tempfile.mkdtemp(prefix="ghidra_test_project_")
+
+    # Create isolated user directory if requested (default)
+    isolated_dir = None
+    if use_isolated:
+        isolated_dir = tempfile.mkdtemp(prefix="ghidra_test_home_")
+        logging.info(f"Using isolated Ghidra user directory: {isolated_dir}")
+    else:
+        logging.warning("NOT using isolated mode - tests will use your real ~/.ghidra directory!")
 
     runner = GhidraRunner(
         ghidra_install_dir=ghidra_dir,
@@ -113,7 +142,8 @@ def ghidra_server(ghidra_dir, test_binary, plugin_path, use_xvfb,
         plugin_path=plugin_path,
         http_port=8080,
         use_xvfb=use_xvfb,
-        verbose=verbose_ghidra
+        verbose=verbose_ghidra,
+        isolated_user_dir=isolated_dir
     )
 
     runner.start(timeout=120)
@@ -123,6 +153,14 @@ def ghidra_server(ghidra_dir, test_binary, plugin_path, use_xvfb,
     runner.stop()
     if not keep_project:
         runner.cleanup_project()
+
+    # Clean up isolated directory
+    if use_isolated and isolated_dir and Path(isolated_dir).exists():
+        if keep_project:
+            logging.info(f"Keeping isolated directory: {isolated_dir}")
+        else:
+            logging.info(f"Cleaning up isolated directory: {isolated_dir}")
+            shutil.rmtree(isolated_dir)
 
 
 @pytest.fixture(scope="session")

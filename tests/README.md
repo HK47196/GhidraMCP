@@ -1,8 +1,24 @@
 # GhidraMCP Integration Tests
 
-## Quick Start
+## 🎯 Quick Start
 
-### Prerequisites
+**Tests are automatically sandboxed - they won't interfere with your desktop Ghidra!**
+
+```bash
+mvn clean package                           # Build plugin
+pytest tests/e2e/ --ghidra-dir=/opt/ghidra  # Run tests
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for detailed setup or [SANDBOX.md](SANDBOX.md) for sandboxing details.
+
+## Sandboxing Options
+
+- **Isolated Mode (Default)**: Uses temporary directory, doesn't touch `~/.ghidra/`
+- **Docker**: Complete isolation in container (see [SANDBOX.md](SANDBOX.md))
+- **Non-isolated**: Uses real `~/.ghidra/` (not recommended)
+
+## Prerequisites
+
 - Ghidra installed (tested with 11.4.2)
 - Python 3.11+
 - Xvfb (Linux) or XQuartz (macOS)

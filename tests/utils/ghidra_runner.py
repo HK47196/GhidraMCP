@@ -27,7 +27,8 @@ class GhidraRunner:
         plugin_path: Optional[str] = None,
         http_port: int = 8080,
         use_xvfb: bool = True,
-        verbose: bool = False
+        verbose: bool = False,
+        isolated_user_dir: Optional[str] = None
     ):
         self.ghidra_dir = Path(ghidra_install_dir)
         self.project_dir = Path(test_project_dir)
@@ -36,10 +37,12 @@ class GhidraRunner:
         self.http_port = http_port
         self.use_xvfb = use_xvfb
         self.verbose = verbose
+        self.isolated_user_dir = Path(isolated_user_dir) if isolated_user_dir else None
 
         self.ghidra_process = None
         self.xvfb_process = None
         self.display_num = None
+        self.original_user_home = None
 
         # Validate paths
         if not self.ghidra_dir.exists():
@@ -103,7 +106,15 @@ class GhidraRunner:
         # Detect Ghidra version from directory name
         ghidra_version = self.ghidra_dir.name.replace("ghidra_", "").replace("_PUBLIC", "")
 
-        extensions_dir = Path.home() / ".ghidra" / f".ghidra_{ghidra_version}" / "Extensions"
+        # Use isolated directory if specified, otherwise use user home
+        if self.isolated_user_dir:
+            base_dir = self.isolated_user_dir
+            logger.info(f"Using isolated Ghidra user directory: {base_dir}")
+        else:
+            base_dir = Path.home()
+            logger.info("Using default user home directory")
+
+        extensions_dir = base_dir / ".ghidra" / f".ghidra_{ghidra_version}" / "Extensions"
         extensions_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Installing plugin to {extensions_dir}")
@@ -170,6 +181,12 @@ class GhidraRunner:
 
         cmd = [str(ghidra_run), str(project_path)]
         env = os.environ.copy()
+
+        # Set isolated HOME directory if specified
+        if self.isolated_user_dir:
+            self.original_user_home = env.get('HOME')
+            env['HOME'] = str(self.isolated_user_dir)
+            logger.info(f"Setting isolated HOME={env['HOME']} (original: {self.original_user_home})")
 
         self.ghidra_process = subprocess.Popen(
             cmd,

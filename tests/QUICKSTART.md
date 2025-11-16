@@ -1,5 +1,19 @@
 # E2E Testing Quick Start Guide
 
+## 🎯 TL;DR - Just Run This
+
+```bash
+# Build plugin
+mvn clean package
+
+# Run tests (automatically sandboxed - won't touch your desktop Ghidra!)
+pytest tests/e2e/ --ghidra-dir=/opt/ghidra
+```
+
+**✅ Your desktop Ghidra is safe!** Tests run in an isolated directory by default. See [SANDBOX.md](SANDBOX.md) for details.
+
+---
+
 ## Prerequisites Check
 
 Before running the tests, ensure you have:
