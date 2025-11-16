@@ -268,6 +268,37 @@ Returns:
     List of references from the specified address. When include_instruction is enabled,
     each reference includes the instruction text at the source address with optional context."""
 
+MANUAL["get_xrefs_through"] = """Find all locations where code accesses memory through a pointer (dereferences).
+
+This tool tracks pointer values through data flow and identifies where the pointer is actually dereferenced (memory read/write operations), not just where the pointer variable itself is referenced.
+
+Example:
+    BYTE *g_FileLoadBuffer = malloc(0x300);         // get_xrefs_to finds this
+    Read(file, g_FileLoadBuffer, 0x300);            // get_xrefs_through finds this!
+    *g_FileLoadBuffer = 0x42;                       // get_xrefs_through finds this!
+
+Params:
+    address: Address or symbol name of the pointer (e.g. "0x00232116" or "g_FileLoadBuffer")
+    max_depth: Search depth - 1=current function only (default), -1=full program (default: 1)
+    access_type: Filter results - "all", "read", or "write" (default: "all")
+    follow_aliases: Track pointer copies through registers (default: True)
+    max_results: Maximum number of results to return (default: 100)
+
+Returns:
+    Formatted string showing all dereferences found with:
+    - Address where dereference occurs
+    - Access type (READ/WRITE)
+    - Instruction performing the access
+    - Function containing the dereference
+    - Confidence level (HIGH/MEDIUM/LOW)
+    - Data flow trace showing how pointer reached that point
+
+Technical Details:
+    - Works WITHOUT decompiler (68000/Amiga compatible)
+    - Uses raw PCode from instructions for analysis
+    - Tracks pointer values through registers and memory
+    - Phase 1 MVP: Intra-procedural analysis only (max_depth=1)"""
+
 MANUAL["get_function_xrefs"] = """Get all references to the specified function by name.
 
 Params:
@@ -1008,6 +1039,19 @@ def get_xrefs_from(address: str, offset: int = 0, limit: int = 100, include_inst
         elif isinstance(include_instruction, int):
             params["include_instruction"] = str(include_instruction)
     return safe_get("xrefs_from", params)
+
+@conditional_tool
+def get_xrefs_through(address: str, max_depth: int = 1, access_type: str = "all",
+                       follow_aliases: bool = True, max_results: int = 100) -> str:
+    """Find all locations where code accesses memory through a pointer (dereferences)."""
+    params = {
+        "address": address,
+        "max_depth": max_depth,
+        "access_type": access_type,
+        "follow_aliases": str(follow_aliases).lower(),
+        "max_results": max_results
+    }
+    return "\n".join(safe_get("xrefs_through", params))
 
 @conditional_tool
 def get_function_xrefs(name: str, offset: int = 0, limit: int = 100, include_instruction: Union[bool, int] = False) -> list:

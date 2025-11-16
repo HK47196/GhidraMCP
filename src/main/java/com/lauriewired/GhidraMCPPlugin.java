@@ -71,6 +71,7 @@ public class GhidraMCPPlugin extends Plugin {
     private StructService structService;
     private DecompiledTextSearchService decompiledTextSearchService;
     private InstructionPatternSearchService instructionPatternSearchService;
+    private PointerFlowService pointerFlowService;
 
     public GhidraMCPPlugin(PluginTool tool) {
         super(tool);
@@ -120,6 +121,7 @@ public class GhidraMCPPlugin extends Plugin {
         structService = new StructService(functionNavigator);
         decompiledTextSearchService = new DecompiledTextSearchService(functionNavigator, decompileTimeout);
         instructionPatternSearchService = new InstructionPatternSearchService(functionNavigator);
+        pointerFlowService = new PointerFlowService(functionNavigator);
 
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -442,6 +444,16 @@ public class GhidraMCPPlugin extends Plugin {
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
             int includeInstruction = PluginUtils.parseIncludeInstructionParam(qparams.get("include_instruction"));
             sendResponse(exchange, crossReferenceAnalyzer.getXrefsFrom(address, offset, limit, includeInstruction));
+        });
+
+        server.createContext("/xrefs_through", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String address = qparams.get("address");
+            int maxDepth = PluginUtils.parseIntOrDefault(qparams.get("max_depth"), 1);
+            String accessType = qparams.getOrDefault("access_type", "all");
+            boolean followAliases = !"false".equalsIgnoreCase(qparams.get("follow_aliases"));
+            int maxResults = PluginUtils.parseIntOrDefault(qparams.get("max_results"), 100);
+            sendResponse(exchange, pointerFlowService.getXRefsThrough(address, maxDepth, accessType, followAliases, maxResults));
         });
 
         server.createContext("/function_xrefs", exchange -> {
