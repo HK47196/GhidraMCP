@@ -14,7 +14,7 @@ import os
 import functools
 from pathlib import Path
 from urllib.parse import urljoin
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, Literal
 
 # TOML support for config files
 try:
@@ -508,19 +508,49 @@ Params:
         - "data": Data labels and values (supports search parameter)
         - "strings": Defined strings with addresses (supports filter)
         - "structs": Struct types (supports search and category_path)
-    search: Optional search query. For "methods", supports namespace syntax:
-        - "funcName" - substring search
-        - "MyClass::" - all functions in namespace
-        - "MyClass::funcName" - search within namespace
-        For "data", performs substring search on data labels.
-        For "structs", performs case-insensitive substring search on struct names.
-    segment_name: Filter "methods" or "data" by segment name
-    start_address: Start address for range filter (requires end_address)
-    end_address: End address for range filter (requires start_address)
+        - "instruction_pattern": Instruction patterns (requires search parameter with regex)
+    search: Search/filter query. Usage varies by type:
+        - "methods": Supports namespace syntax (e.g., "funcName", "MyClass::", "MyClass::funcName")
+        - "data": Substring search on data labels
+        - "structs": Case-insensitive substring search on struct names
+        - "instruction_pattern": Regex pattern to match against disassembly (REQUIRED)
+    segment_name: Filter by segment name (supported by: methods, data, instruction_pattern)
+    start_address: Start address of range to search (optional for instruction_pattern)
+    end_address: End address of range to search (optional for instruction_pattern)
     offset: Pagination offset (default: 0)
     limit: Max results (default: 100 for most types, 2000 for strings)
     filter: String content filter for "strings" type
     category_path: Category filter for "structs" type
+
+Instruction Pattern Search:
+    Uses Java regex (java.util.regex.Pattern) to match against disassembly text.
+    Regex syntax: Standard Java regex with full support for lookahead, lookbehind,
+    character classes, quantifiers, etc. Case-sensitive by default.
+
+    Note: Special regex characters must be escaped (e.g., "\\." for literal dot,
+    "\\(" for literal parenthesis). Backslashes need to be escaped in Python strings.
+
+    Examples:
+        # Find all "move.b" instructions with A4 register
+        query(type="instruction_pattern", search="move\\.b.*A4")
+
+        # Find all JSR/BSR calls
+        query(type="instruction_pattern", search="[jb]sr")
+
+        # Find instructions accessing a specific address
+        query(type="instruction_pattern", search="0x3932")
+
+        # Search only in specific segment
+        query(type="instruction_pattern", search="tst\\.l", segment_name="CODE_70")
+
+        # Search in specific address range
+        query(type="instruction_pattern", search="move", start_address="0x1000", end_address="0x2000")
+
+        # Find indirect addressing with parentheses
+        query(type="instruction_pattern", search=".*\\(.*,.*\\)")
+
+        # Find hex addresses (0x followed by hex digits)
+        query(type="instruction_pattern", search="0x[0-9a-fA-F]+")
 
 Returns:
     List of items matching type and filters with pagination"""
@@ -635,7 +665,7 @@ Use the tool's inline docstring for basic information."""
 
 @conditional_tool
 def query(
-    type: str,
+    type: Literal["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "strings", "structs", "instruction_pattern"],
     search: str = None,
     segment_name: str = None,
     start_address: str = None,
@@ -646,7 +676,7 @@ def query(
     category_path: str = None
 ) -> list | str:
     """Query items by type with filtering. Supports search (search param with namespace::), segment, and address range filters."""
-    valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "strings", "structs"]
+    valid_types = ["methods", "classes", "segments", "imports", "exports", "namespaces", "data", "strings", "structs", "instruction_pattern"]
 
     if type not in valid_types:
         return [f"Error: Invalid type '{type}'. Valid types: {', '.join(valid_types)}"]
@@ -703,8 +733,32 @@ def query(
             if category_path:
                 params["category_path"] = category_path
             return safe_get("struct/list", params)
+        elif type == "instruction_pattern":
+            # Handle instruction pattern search with regex
+            # Validate that search is not empty
+            if not search or str(search).strip() == "":
+                return ["Error: search parameter (regex pattern) is required for instruction_pattern search"]
+
+            params = {
+                "search": search,
+                "offset": offset,
+                "limit": limit if limit else 100
+            }
+
+            if segment_name:
+                params["segment_name"] = segment_name
+            if start_address:
+                params["start_address"] = start_address
+            if end_address:
+                params["end_address"] = end_address
+
+            return safe_get("search_instruction_pattern", params)
         else:
             return [f"Error: search parameter not supported for type '{type}'"]
+
+    # Handle instruction pattern search (when search parameter is not provided)
+    if type == "instruction_pattern":
+        return ["Error: search parameter (regex pattern) is required for instruction_pattern search"]
 
     # Handle segment filtering
     if segment_name is not None or (start_address is not None and end_address is not None):
