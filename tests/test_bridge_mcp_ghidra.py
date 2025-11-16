@@ -1667,22 +1667,6 @@ class TestInstructionPatternSearch:
         assert params["search"] == "[jb]sr"
 
     @patch('bridge_mcp_ghidra.safe_get')
-    def test_instruction_pattern_search_with_segment(self, mock_safe_get):
-        """Test instruction pattern search restricted to a specific segment."""
-        mock_safe_get.return_value = ["0x401000: tst.l D0 (segment: CODE_70)"]
-
-        result = bridge_mcp_ghidra.query(
-            type="instruction_pattern",
-            search="tst\\.l",
-            segment_name="CODE_70"
-        )
-
-        call_args = mock_safe_get.call_args
-        params = call_args[0][1]
-        assert params["segment_name"] == "CODE_70"
-        assert params["search"] == "tst\\.l"
-
-    @patch('bridge_mcp_ghidra.safe_get')
     def test_instruction_pattern_search_with_address_range(self, mock_safe_get):
         """Test instruction pattern search with address range."""
         mock_safe_get.return_value = ["0x1500: move.b D0,D1 (segment: CODE_70)"]
@@ -1763,7 +1747,6 @@ class TestInstructionPatternSearch:
         result = bridge_mcp_ghidra.query(
             type="instruction_pattern",
             search="move\\.b.*0x3932",
-            segment_name="CODE_70",
             start_address="0x1000",
             end_address="0x2000",
             offset=5,
@@ -1773,7 +1756,6 @@ class TestInstructionPatternSearch:
         call_args = mock_safe_get.call_args
         params = call_args[0][1]
         assert params["search"] == "move\\.b.*0x3932"
-        assert params["segment_name"] == "CODE_70"
         assert params["start_address"] == "0x1000"
         assert params["end_address"] == "0x2000"
         assert params["offset"] == 5

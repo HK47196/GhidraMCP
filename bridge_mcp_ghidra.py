@@ -740,8 +740,6 @@ def query(
                 "limit": limit if limit else 100
             }
 
-            if segment_name:
-                params["segment_name"] = segment_name
             if start_address:
                 params["start_address"] = start_address
             if end_address:
