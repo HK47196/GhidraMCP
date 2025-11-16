@@ -221,4 +221,33 @@ public class PluginUtils {
         }
         return params.get(snakeCaseName);
     }
+
+    /**
+     * Parse include_instruction parameter which can be either boolean or int.
+     * This supports flexible parameter values for backward compatibility.
+     *
+     * @param val String value to parse (e.g., "true", "false", "0", "3")
+     * @return -1 if false/null, 0 if true, or N if numeric >= 0
+     */
+    public static int parseIncludeInstructionParam(String val) {
+        if (val == null) return -1;
+
+        String normalized = val.toLowerCase().trim();
+
+        // Handle boolean values
+        if (normalized.equals("true")) {
+            return 0; // true = include instruction only, no context
+        } else if (normalized.equals("false")) {
+            return -1; // false = don't include instruction
+        }
+
+        // Try to parse as integer
+        try {
+            int intVal = Integer.parseInt(normalized);
+            // Return the integer value if >= 0, otherwise return -1
+            return (intVal >= 0) ? intVal : -1;
+        } catch (NumberFormatException e) {
+            return -1; // Invalid value, default to false
+        }
+    }
 }

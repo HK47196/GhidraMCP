@@ -1749,6 +1749,120 @@ class TestBulkDisassemble:
         assert call_args[2]["params"]["address"] == "0x1400010a0"
 
 
+class TestXrefsIncludeInstruction:
+    """Test suite for xrefs tools with include_instruction parameter."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_to_with_false(self, mock_safe_get):
+        """Test get_xrefs_to with include_instruction=False (default)."""
+        mock_safe_get.return_value = ["From 0x401000 in main [CALL]"]
+
+        result = bridge_mcp_ghidra.get_xrefs_to("0x402000", include_instruction=False)
+
+        assert result == ["From 0x401000 in main [CALL]"]
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        # Should not include include_instruction parameter when False
+        assert "include_instruction" not in params
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_to_with_true(self, mock_safe_get):
+        """Test get_xrefs_to with include_instruction=True."""
+        mock_safe_get.return_value = ["CALL (1):", "  0x401000 in main: call 0x402000"]
+
+        result = bridge_mcp_ghidra.get_xrefs_to("0x402000", include_instruction=True)
+
+        assert "CALL" in result[0]
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["include_instruction"] == "true"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_to_with_zero(self, mock_safe_get):
+        """Test get_xrefs_to with include_instruction=0 (instruction only)."""
+        mock_safe_get.return_value = ["CALL (1):", "  0x401000 in main: call 0x402000"]
+
+        result = bridge_mcp_ghidra.get_xrefs_to("0x402000", include_instruction=0)
+
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["include_instruction"] == "0"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_to_with_context_lines(self, mock_safe_get):
+        """Test get_xrefs_to with include_instruction=3 (3 context lines)."""
+        mock_safe_get.return_value = [
+            "CALL (1):",
+            "    0x400ffa: push ebp",
+            "    0x400ffb: mov ebp, esp",
+            "    0x400ffd: sub esp, 0x10",
+            "  > 0x401000: call 0x402000",
+            "    0x401005: add esp, 0x4",
+            "    0x401008: mov eax, 0",
+            "    0x40100d: leave"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_to("0x402000", include_instruction=3)
+
+        assert len(result) > 0
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["include_instruction"] == "3"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_from_with_integer(self, mock_safe_get):
+        """Test get_xrefs_from with include_instruction as integer."""
+        mock_safe_get.return_value = ["DATA_READ (1):", "  0x403000 to data label: mov eax, [0x403000]"]
+
+        result = bridge_mcp_ghidra.get_xrefs_from("0x401000", include_instruction=2)
+
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["include_instruction"] == "2"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_function_xrefs_with_true(self, mock_safe_get):
+        """Test get_function_xrefs with include_instruction=True."""
+        mock_safe_get.return_value = ["CALL (2):", "  0x401000 in main: call FUN_00402000"]
+
+        result = bridge_mcp_ghidra.get_function_xrefs("FUN_00402000", include_instruction=True)
+
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["include_instruction"] == "true"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_function_xrefs_with_integer(self, mock_safe_get):
+        """Test get_function_xrefs with include_instruction as integer."""
+        mock_safe_get.return_value = ["CALL (1):", "  0x401000 in main: call myFunc"]
+
+        result = bridge_mcp_ghidra.get_function_xrefs("myFunc", include_instruction=5)
+
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["include_instruction"] == "5"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_to_default_false(self, mock_safe_get):
+        """Test get_xrefs_to uses False as default."""
+        mock_safe_get.return_value = ["From 0x401000 in main [CALL]"]
+
+        result = bridge_mcp_ghidra.get_xrefs_to("0x402000")
+
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        # Default is False, should not include parameter
+        assert "include_instruction" not in params
+
+
 class TestInstructionPatternSearch:
     """Test suite for instruction pattern search functionality."""
 

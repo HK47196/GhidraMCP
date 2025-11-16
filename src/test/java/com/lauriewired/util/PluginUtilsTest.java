@@ -364,4 +364,103 @@ class PluginUtilsTest {
         assertTrue(PluginUtils.parseBoolOrDefault("-1", true));
         assertFalse(PluginUtils.parseBoolOrDefault("-1", false));
     }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return -1 for null")
+    void testParseIncludeInstructionParamNull() {
+        int result = PluginUtils.parseIncludeInstructionParam(null);
+
+        assertEquals(-1, result);
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return -1 for 'false'")
+    void testParseIncludeInstructionParamFalse() {
+        int result = PluginUtils.parseIncludeInstructionParam("false");
+
+        assertEquals(-1, result);
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return 0 for 'true'")
+    void testParseIncludeInstructionParamTrue() {
+        int result = PluginUtils.parseIncludeInstructionParam("true");
+
+        assertEquals(0, result);
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should be case-insensitive for boolean values")
+    void testParseIncludeInstructionParamCaseInsensitive() {
+        assertEquals(0, PluginUtils.parseIncludeInstructionParam("TRUE"));
+        assertEquals(0, PluginUtils.parseIncludeInstructionParam("True"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("FALSE"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("False"));
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should parse valid integer 0")
+    void testParseIncludeInstructionParamZero() {
+        int result = PluginUtils.parseIncludeInstructionParam("0");
+
+        assertEquals(0, result);
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should parse positive integers")
+    void testParseIncludeInstructionParamPositiveInts() {
+        assertEquals(1, PluginUtils.parseIncludeInstructionParam("1"));
+        assertEquals(3, PluginUtils.parseIncludeInstructionParam("3"));
+        assertEquals(10, PluginUtils.parseIncludeInstructionParam("10"));
+        assertEquals(100, PluginUtils.parseIncludeInstructionParam("100"));
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return -1 for negative integers")
+    void testParseIncludeInstructionParamNegativeInts() {
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("-1"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("-5"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("-100"));
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should handle whitespace")
+    void testParseIncludeInstructionParamWhitespace() {
+        assertEquals(0, PluginUtils.parseIncludeInstructionParam("  true  "));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("  false  "));
+        assertEquals(5, PluginUtils.parseIncludeInstructionParam("  5  "));
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return -1 for invalid strings")
+    void testParseIncludeInstructionParamInvalidStrings() {
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("invalid"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("yes"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("no"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("abc"));
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return -1 for empty string")
+    void testParseIncludeInstructionParamEmptyString() {
+        int result = PluginUtils.parseIncludeInstructionParam("");
+
+        assertEquals(-1, result);
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should return -1 for malformed numbers")
+    void testParseIncludeInstructionParamMalformedNumbers() {
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("1.5"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("3.14"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("1a"));
+        assertEquals(-1, PluginUtils.parseIncludeInstructionParam("a1"));
+    }
+
+    @Test
+    @DisplayName("parseIncludeInstructionParam should handle edge case large integers")
+    void testParseIncludeInstructionParamLargeIntegers() {
+        assertEquals(999, PluginUtils.parseIncludeInstructionParam("999"));
+        assertEquals(1000, PluginUtils.parseIncludeInstructionParam("1000"));
+    }
 }

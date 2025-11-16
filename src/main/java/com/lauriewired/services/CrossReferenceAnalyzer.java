@@ -34,10 +34,10 @@ public class CrossReferenceAnalyzer {
      * @param addressStr Address as string
      * @param offset Pagination offset
      * @param limit Pagination limit
-     * @param includeInstruction Whether to include instruction text at each xref location
+     * @param includeInstruction Instruction context: -1 or false = none, 0 or true = instruction only, >0 = instruction + N context lines
      * @return Formatted string of references
      */
-    public String getXrefsTo(String addressStr, int offset, int limit, boolean includeInstruction) {
+    public String getXrefsTo(String addressStr, int offset, int limit, int includeInstruction) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
         if (addressStr == null || addressStr.isEmpty()) return "Address is required";
@@ -49,7 +49,7 @@ public class CrossReferenceAnalyzer {
 
             ReferenceIterator refIter = refManager.getReferencesTo(addr);
 
-            if (includeInstruction) {
+            if (includeInstruction >= 0) {
                 // Use grouped format when instructions are included
                 Map<String, List<String>> refsByType = new LinkedHashMap<>();
 
@@ -61,7 +61,7 @@ public class CrossReferenceAnalyzer {
 
                     Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
                     String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
-                    String instrStr = getInstructionString(listing, fromAddr);
+                    String instrStr = getInstructionString(listing, fromAddr, includeInstruction);
 
                     String refEntry = String.format("  %s%s: %s", fromAddr, funcInfo, instrStr);
 
@@ -96,7 +96,7 @@ public class CrossReferenceAnalyzer {
      * @return Formatted string of references
      */
     public String getXrefsTo(String addressStr, int offset, int limit) {
-        return getXrefsTo(addressStr, offset, limit, false);
+        return getXrefsTo(addressStr, offset, limit, -1);
     }
 
     /**
@@ -104,10 +104,10 @@ public class CrossReferenceAnalyzer {
      * @param addressStr Address as string
      * @param offset Pagination offset
      * @param limit Pagination limit
-     * @param includeInstruction Whether to include instruction text at the source address
+     * @param includeInstruction Instruction context: -1 or false = none, 0 or true = instruction only, >0 = instruction + N context lines
      * @return Formatted string of references
      */
-    public String getXrefsFrom(String addressStr, int offset, int limit, boolean includeInstruction) {
+    public String getXrefsFrom(String addressStr, int offset, int limit, int includeInstruction) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
         if (addressStr == null || addressStr.isEmpty()) return "Address is required";
@@ -119,7 +119,7 @@ public class CrossReferenceAnalyzer {
 
             Reference[] references = refManager.getReferencesFrom(addr);
 
-            if (includeInstruction) {
+            if (includeInstruction >= 0) {
                 // Use grouped format when instructions are included
                 Map<String, List<String>> refsByType = new LinkedHashMap<>();
 
@@ -139,7 +139,7 @@ public class CrossReferenceAnalyzer {
                         }
                     }
 
-                    String instrStr = getInstructionString(listing, addr);
+                    String instrStr = getInstructionString(listing, addr, includeInstruction);
                     String refEntry = String.format("  %s%s: %s", toAddr, targetInfo, instrStr);
 
                     refsByType.computeIfAbsent(typeName, k -> new ArrayList<>()).add(refEntry);
@@ -181,7 +181,7 @@ public class CrossReferenceAnalyzer {
      * @return Formatted string of references
      */
     public String getXrefsFrom(String addressStr, int offset, int limit) {
-        return getXrefsFrom(addressStr, offset, limit, false);
+        return getXrefsFrom(addressStr, offset, limit, -1);
     }
 
     /**
@@ -189,10 +189,10 @@ public class CrossReferenceAnalyzer {
      * @param functionName Name of the function
      * @param offset Pagination offset
      * @param limit Pagination limit
-     * @param includeInstruction Whether to include instruction text at each xref location
+     * @param includeInstruction Instruction context: -1 or false = none, 0 or true = instruction only, >0 = instruction + N context lines
      * @return Formatted string of references
      */
-    public String getFunctionXrefs(String functionName, int offset, int limit, boolean includeInstruction) {
+    public String getFunctionXrefs(String functionName, int offset, int limit, int includeInstruction) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
         if (functionName == null || functionName.isEmpty()) return "Function name is required";
@@ -201,7 +201,7 @@ public class CrossReferenceAnalyzer {
             FunctionManager funcManager = program.getFunctionManager();
             Listing listing = program.getListing();
 
-            if (includeInstruction) {
+            if (includeInstruction >= 0) {
                 // Use grouped format when instructions are included
                 Map<String, List<String>> refsByType = new LinkedHashMap<>();
 
@@ -218,7 +218,7 @@ public class CrossReferenceAnalyzer {
 
                             Function fromFunc = funcManager.getFunctionContaining(fromAddr);
                             String funcInfo = (fromFunc != null) ? " in " + fromFunc.getName() : "";
-                            String instrStr = getInstructionString(listing, fromAddr);
+                            String instrStr = getInstructionString(listing, fromAddr, includeInstruction);
 
                             String refEntry = String.format("  %s%s: %s", fromAddr, funcInfo, instrStr);
                             refsByType.computeIfAbsent(typeName, k -> new ArrayList<>()).add(refEntry);
@@ -270,29 +270,58 @@ public class CrossReferenceAnalyzer {
      * @return Formatted string of references
      */
     public String getFunctionXrefs(String functionName, int offset, int limit) {
-        return getFunctionXrefs(functionName, offset, limit, false);
+        return getFunctionXrefs(functionName, offset, limit, -1);
     }
 
     /**
      * Helper method to get the instruction string at a given address
      * @param listing Program listing
      * @param addr Address to get instruction from
-     * @return Formatted instruction string
+     * @param contextLines Number of context lines to include before and after (0 for just the instruction)
+     * @return Formatted instruction string with optional context
      */
-    private String getInstructionString(Listing listing, Address addr) {
+    private String getInstructionString(Listing listing, Address addr, int contextLines) {
         Instruction instr = listing.getInstructionAt(addr);
         if (instr != null) {
-            // Build instruction string: mnemonic + operands
-            String mnemonic = instr.getMnemonicString();
-            String operands = "";
-            int numOperands = instr.getNumOperands();
-            for (int i = 0; i < numOperands; i++) {
-                if (i > 0) {
-                    operands += ",";
+            if (contextLines <= 0) {
+                // Just return the instruction at this address
+                return formatSingleInstruction(instr);
+            } else {
+                // Include context lines before and after
+                StringBuilder result = new StringBuilder();
+
+                // Get context before
+                Address currentAddr = addr;
+                List<String> beforeLines = new ArrayList<>();
+                for (int i = 0; i < contextLines; i++) {
+                    Instruction prevInstr = listing.getInstructionBefore(currentAddr);
+                    if (prevInstr == null) break;
+                    beforeLines.add(0, String.format("    %s: %s",
+                        prevInstr.getAddress(), formatSingleInstruction(prevInstr)));
+                    currentAddr = prevInstr.getAddress();
                 }
-                operands += instr.getDefaultOperandRepresentation(i);
+
+                // Add context before
+                for (String line : beforeLines) {
+                    result.append(line).append("\n");
+                }
+
+                // Add the main instruction (highlighted with >)
+                result.append(String.format("  > %s: %s", addr, formatSingleInstruction(instr)));
+
+                // Get context after
+                currentAddr = addr;
+                for (int i = 0; i < contextLines; i++) {
+                    Instruction nextInstr = listing.getInstructionAfter(currentAddr);
+                    if (nextInstr == null) break;
+                    result.append("\n");
+                    result.append(String.format("    %s: %s",
+                        nextInstr.getAddress(), formatSingleInstruction(nextInstr)));
+                    currentAddr = nextInstr.getAddress();
+                }
+
+                return result.toString();
             }
-            return mnemonic + " " + operands;
         } else {
             // Not an instruction, might be data
             Data data = listing.getDataAt(addr);
@@ -301,6 +330,24 @@ public class CrossReferenceAnalyzer {
             }
             return "[UNDEFINED]";
         }
+    }
+
+    /**
+     * Format a single instruction as mnemonic + operands
+     * @param instr Instruction to format
+     * @return Formatted instruction string
+     */
+    private String formatSingleInstruction(Instruction instr) {
+        String mnemonic = instr.getMnemonicString();
+        String operands = "";
+        int numOperands = instr.getNumOperands();
+        for (int i = 0; i < numOperands; i++) {
+            if (i > 0) {
+                operands += ",";
+            }
+            operands += instr.getDefaultOperandRepresentation(i);
+        }
+        return mnemonic + " " + operands;
     }
 
     /**

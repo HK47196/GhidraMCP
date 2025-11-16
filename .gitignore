@@ -51,6 +51,12 @@ replay_pid*
 
 __pycache__/
 
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+
 # User configuration files (use mcp-config.example.toml as template)
 mcp-config.toml
 
