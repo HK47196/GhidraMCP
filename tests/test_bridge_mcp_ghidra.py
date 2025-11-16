@@ -1655,6 +1655,69 @@ class TestBulkOperationsStatsTracking:
                 # Restore original tracker
                 bridge_mcp_ghidra._tool_tracker = original_tracker
 
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_bulk_operations_normalizes_endpoints_without_leading_slash(self, mock_post):
+        """Test that bulk_operations normalizes endpoints that don't start with /."""
+        # Mock the response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = '{"results": [{"success": true}, {"success": true}]}'
+        mock_post.return_value = mock_response
+
+        # Create bulk operations WITHOUT leading slashes
+        operations = [
+            {"endpoint": "rename_function_by_address", "params": {"function_address": "0x401000", "new_name": "test"}},
+            {"endpoint": "disassemble_function", "params": {"address": "0x402000"}}
+        ]
+
+        # Call bulk_operations
+        result = bridge_mcp_ghidra.bulk_operations(operations)
+
+        # Verify the request was made
+        assert mock_post.called
+
+        # Get the actual payload that was sent
+        call_args = mock_post.call_args
+        sent_payload = call_args[1]['json']  # kwargs['json']
+
+        # Verify endpoints were normalized to have leading slashes
+        assert sent_payload['operations'][0]['endpoint'] == '/rename_function_by_address', \
+            f"Expected '/rename_function_by_address', got '{sent_payload['operations'][0]['endpoint']}'"
+        assert sent_payload['operations'][1]['endpoint'] == '/disassemble_function', \
+            f"Expected '/disassemble_function', got '{sent_payload['operations'][1]['endpoint']}'"
+
+        # Verify params were preserved
+        assert sent_payload['operations'][0]['params']['function_address'] == '0x401000'
+        assert sent_payload['operations'][0]['params']['new_name'] == 'test'
+        assert sent_payload['operations'][1]['params']['address'] == '0x402000'
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_bulk_operations_preserves_endpoints_with_leading_slash(self, mock_post):
+        """Test that bulk_operations preserves endpoints that already have /."""
+        # Mock the response
+        mock_response = Mock()
+        mock_response.ok = True
+        mock_response.text = '{"results": [{"success": true}]}'
+        mock_post.return_value = mock_response
+
+        # Create bulk operations WITH leading slashes (already correct)
+        operations = [
+            {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x401000", "new_name": "test"}}
+        ]
+
+        # Call bulk_operations
+        result = bridge_mcp_ghidra.bulk_operations(operations)
+
+        # Verify the request was made
+        assert mock_post.called
+
+        # Get the actual payload that was sent
+        call_args = mock_post.call_args
+        sent_payload = call_args[1]['json']
+
+        # Verify endpoint still has leading slash
+        assert sent_payload['operations'][0]['endpoint'] == '/rename_function_by_address'
+
 
 class TestBulkDisassemble:
     """Test suite for disassemble_function with bulk support."""
