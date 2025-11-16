@@ -1451,6 +1451,9 @@ public class DecompilationService {
         }
         result.append("\n");
 
+        // Add blank line for visual separation when expanding struct/array
+        result.append("\n");
+
         // Display components
         int numComponents = data.getNumComponents();
 
@@ -1511,6 +1514,9 @@ public class DecompilationService {
             result.append("      ... (").append(numComponents - endIdx).append(" more components)\n");
         }
 
+        // Add blank line at end for visual separation
+        result.append("\n");
+
         // Show POST comment if present
         String postComment = listing.getComment(CommentType.POST, addr);
         if (postComment != null && !postComment.isEmpty()) {
@@ -1566,21 +1572,27 @@ public class DecompilationService {
 
         // Show data type
         String componentType = codeUnitFormatter.getMnemonicRepresentation(component);
-        result.append(String.format("%-10s", componentType));
+        result.append(String.format("%-12s", componentType));
 
-        // Show value - get the raw value representation
+        // Show value - use getDefaultValueRepresentation for just the value (no field name)
         String valueStr = "";
         try {
-            valueStr = codeUnitFormatter.getDataValueRepresentationString(component);
+            // This gets the value WITHOUT the field name appended
+            valueStr = component.getDefaultValueRepresentation();
+            if (valueStr == null || valueStr.isEmpty()) {
+                // Fallback to formatted representation
+                valueStr = codeUnitFormatter.getDataValueRepresentationString(component);
+            }
         } catch (Exception e) {
+            // Final fallback
             Object value = component.getValue();
             if (value != null) {
                 valueStr = value.toString();
             }
         }
 
-        // Format value with proper width
-        result.append(String.format("%-20s", valueStr));
+        // Format value with proper width (increased to accommodate symbol names)
+        result.append(String.format("%-24s", valueStr));
 
         // Show field name (for structs) or index (for arrays)
         if (isArray) {
