@@ -1541,6 +1541,121 @@ class TestToolTrackerIntegration:
         mock_tracker.increment.assert_called_once_with("sample_tool")
 
 
+class TestBulkOperationsStatsTracking:
+    """Test suite for bulk_operations stats tracking."""
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_bulk_operations_increments_individual_operations(self, mock_post):
+        """Test that bulk_operations increments stats for each individual operation."""
+        from tool_tracker import ToolTracker
+        import tempfile
+        import os
+
+        # Create a temporary database for testing
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test_tool_stats.db")
+
+            # Initialize tracker with relevant tools
+            tracker = ToolTracker(
+                ["bulk_operations", "disassemble_function", "decompile_function", "rename_function_by_address"],
+                db_path=db_path
+            )
+
+            # Set the global tracker
+            original_tracker = bridge_mcp_ghidra._tool_tracker
+            bridge_mcp_ghidra._tool_tracker = tracker
+
+            try:
+                # Mock the response
+                mock_response = Mock()
+                mock_response.ok = True
+                mock_response.text = '{"results": [{"success": true}, {"success": true}, {"success": true}]}'
+                mock_post.return_value = mock_response
+
+                # Create bulk operations
+                operations = [
+                    {"endpoint": "/disassemble_function", "params": {"address": "0x401000"}},
+                    {"endpoint": "/decompile", "params": {"name": "main"}},
+                    {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x402000", "new_name": "init"}}
+                ]
+
+                # Call bulk_operations (this will be wrapped and increment bulk_operations)
+                # But we'll call it directly to test the internal tracking
+                result = bridge_mcp_ghidra.bulk_operations(operations)
+
+                # Verify the result
+                assert "results" in result
+
+                # Check stats - each operation should be incremented
+                stats = tracker.get_stats()
+                stats_dict = {name: count for name, count in stats}
+
+                # disassemble_function should be incremented (1 time)
+                assert stats_dict.get("disassemble_function", 0) == 1, \
+                    f"Expected disassemble_function to be 1, got {stats_dict.get('disassemble_function', 0)}"
+
+                # decompile_function should be incremented (1 time)
+                assert stats_dict.get("decompile_function", 0) == 1, \
+                    f"Expected decompile_function to be 1, got {stats_dict.get('decompile_function', 0)}"
+
+                # rename_function_by_address should be incremented (1 time)
+                assert stats_dict.get("rename_function_by_address", 0) == 1, \
+                    f"Expected rename_function_by_address to be 1, got {stats_dict.get('rename_function_by_address', 0)}"
+
+            finally:
+                # Restore original tracker
+                bridge_mcp_ghidra._tool_tracker = original_tracker
+
+    @patch('bridge_mcp_ghidra.requests.post')
+    def test_bulk_operations_handles_multiple_same_operations(self, mock_post):
+        """Test that bulk_operations correctly counts multiple operations of the same type."""
+        from tool_tracker import ToolTracker
+        import tempfile
+        import os
+
+        # Create a temporary database for testing
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test_tool_stats.db")
+
+            # Initialize tracker with relevant tools
+            tracker = ToolTracker(["bulk_operations", "disassemble_function"], db_path=db_path)
+
+            # Set the global tracker
+            original_tracker = bridge_mcp_ghidra._tool_tracker
+            bridge_mcp_ghidra._tool_tracker = tracker
+
+            try:
+                # Mock the response
+                mock_response = Mock()
+                mock_response.ok = True
+                mock_response.text = '{"results": [{"success": true}, {"success": true}, {"success": true}]}'
+                mock_post.return_value = mock_response
+
+                # Create bulk operations with 3 disassemble operations
+                operations = [
+                    {"endpoint": "/disassemble_function", "params": {"address": "0x401000"}},
+                    {"endpoint": "/disassemble_function", "params": {"address": "0x402000"}},
+                    {"endpoint": "/disassemble_function", "params": {"address": "0x403000"}}
+                ]
+
+                # Call bulk_operations
+                result = bridge_mcp_ghidra.bulk_operations(operations)
+
+                # Verify the result
+                assert "results" in result
+
+                # Check stats - disassemble_function should be incremented 3 times
+                stats = tracker.get_stats()
+                stats_dict = {name: count for name, count in stats}
+
+                assert stats_dict.get("disassemble_function", 0) == 3, \
+                    f"Expected disassemble_function to be 3, got {stats_dict.get('disassemble_function', 0)}"
+
+            finally:
+                # Restore original tracker
+                bridge_mcp_ghidra._tool_tracker = original_tracker
+
+
 class TestBulkDisassemble:
     """Test suite for disassemble_function with bulk support."""
 

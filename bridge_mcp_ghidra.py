@@ -1137,6 +1137,81 @@ def bulk_operations(operations: list[dict]) -> str:
     """Execute multiple operations in a single request. Each operation: {endpoint: str, params: dict}."""
     import json
 
+    # Mapping from endpoint paths to tool names for stats tracking
+    ENDPOINT_TO_TOOL = {
+        "/decompile": "decompile_function",
+        "/renameFunction": "rename_function",
+        "/renameData": "rename_data",
+        "/renameVariable": "rename_variable",
+        "/set_decompiler_comment": "set_decompiler_comment",
+        "/set_disassembly_comment": "set_disassembly_comment",
+        "/set_plate_comment": "set_plate_comment",
+        "/rename_function_by_address": "rename_function_by_address",
+        "/set_function_prototype": "set_function_prototype",
+        "/set_local_variable_type": "set_local_variable_type",
+        "/set_data_type": "set_data_type",
+        "/search_decompiled_text": "search_decompiled_text",
+        "/methods": "query",
+        "/classes": "query",
+        "/segments": "query",
+        "/imports": "query",
+        "/exports": "query",
+        "/namespaces": "query",
+        "/data": "query",
+        "/strings": "list_strings",
+        "/struct/list": "list_structs",
+        "/get_data_by_address": "get_data_by_address",
+        "/get_function_by_address": "get_function_by_address",
+        "/get_current_address": "get_current_address",
+        "/get_current_function": "get_current_function",
+        "/decompile_function": "decompile_function_by_address",
+        "/disassemble_function": "disassemble_function",
+        "/get_address_context": "get_address_context",
+        "/get_function_data": "get_function_data",
+        "/xrefs_to": "get_xrefs_to",
+        "/xrefs_from": "get_xrefs_from",
+        "/function_xrefs": "get_function_xrefs",
+        "/bsim/select_database": "bsim_select_database",
+        "/bsim/query_function": "bsim_query_function",
+        "/bsim/query_all_functions": "bsim_query_all_functions",
+        "/bsim/disconnect": "bsim_disconnect",
+        "/bsim/status": "bsim_status",
+        "/bsim/get_match_disassembly": "bsim_get_match_disassembly",
+        "/bsim/get_match_decompile": "bsim_get_match_decompile",
+        "/struct/create": "create_struct",
+        "/struct/parse_c": "parse_c_struct",
+        "/struct/add_field": "add_struct_field",
+        "/struct/insert_field": "insert_struct_field_at_offset",
+        "/struct/replace_field": "replace_struct_field",
+        "/struct/delete_field": "delete_struct_field",
+        "/struct/clear_field": "clear_struct_field",
+        "/struct/get_info": "get_struct_info",
+        "/struct/rename": "rename_struct",
+        "/struct/delete": "delete_struct",
+        "/data_in_range": "get_data_in_range",
+        "/searchFunctions": "query",
+        "/searchData": "query",
+        "/functions_by_segment": "query",
+        "/data_by_segment": "query",
+        "/search_instruction_pattern": "query",
+    }
+
+    # Track individual operations if tracker is available
+    if _tool_tracker is not None:
+        for operation in operations:
+            endpoint = operation.get("endpoint", "")
+            # Normalize endpoint (remove leading slash if needed for comparison)
+            normalized_endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
+
+            # Get the corresponding tool name
+            tool_name = ENDPOINT_TO_TOOL.get(normalized_endpoint)
+
+            if tool_name:
+                _tool_tracker.increment(tool_name)
+            else:
+                # Log warning for unmapped endpoints
+                logger.debug(f"Bulk operation endpoint '{endpoint}' not mapped to a tool for stats tracking")
+
     try:
         # Build JSON payload
         payload = {
