@@ -1088,8 +1088,10 @@ public class DecompilationService {
             }
 
             // Collect code units AFTER the target (including target itself)
+            // IMPORTANT: Start from targetUnit's min address, not targetAddr!
+            // This ensures we include the parent struct/array even if targetAddr is in the middle
             List<CodeUnit> afterUnits = new ArrayList<>();
-            CodeUnitIterator unitIter = listing.getCodeUnits(targetAddr, true);
+            CodeUnitIterator unitIter = listing.getCodeUnits(targetUnit.getMinAddress(), true);
             int count = 0;
             while (unitIter.hasNext() && count <= after) {
                 CodeUnit cu = unitIter.next();
