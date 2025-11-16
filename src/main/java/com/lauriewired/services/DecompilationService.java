@@ -809,6 +809,32 @@ public class DecompilationService {
     }
 
     /**
+     * Collect XREFs with function names included
+     */
+    private List<String> collectXRefsWithFunctionNames(Address targetAddr, ReferenceManager refManager, Program program) {
+        List<String> xrefList = new ArrayList<>();
+        ReferenceIterator xrefsTo = refManager.getReferencesTo(targetAddr);
+
+        while (xrefsTo.hasNext()) {
+            Reference ref = xrefsTo.next();
+            Address fromAddr = ref.getFromAddress();
+            StringBuilder xrefStr = new StringBuilder();
+
+            // Find function containing this reference
+            Function fromFunc = program.getFunctionManager().getFunctionContaining(fromAddr);
+            if (fromFunc != null) {
+                xrefStr.append(fromFunc.getName()).append(":");
+            }
+
+            xrefStr.append(fromAddr.toString());
+            xrefStr.append(getRefTypeDisplayString(ref));
+            xrefList.add(xrefStr.toString());
+        }
+
+        return xrefList;
+    }
+
+    /**
      * Helper method to decompile a function and return results
      * @param func Function to decompile
      * @param program Program containing the function
@@ -1264,6 +1290,10 @@ public class DecompilationService {
                             ReferenceManager refManager, SymbolTable symbolTable, boolean includeBytes) {
         Address addr = data.getMinAddress();
 
+        // Check if this is a composite type (needed to decide symbol display)
+        int numComponents = data.getNumComponents();
+        boolean hasComponents = numComponents > 0;
+
         // 1. Show PLATE COMMENT if present (bordered comment box)
         String plateComment = listing.getComment(CommentType.PLATE, addr);
         if (plateComment != null && !plateComment.isEmpty()) {
@@ -1285,61 +1315,62 @@ public class DecompilationService {
         }
 
         // 2. Show LABEL/SYMBOL with XREFs
-        Symbol[] symbols = symbolTable.getSymbols(addr);
-        if (symbols != null && symbols.length > 0) {
-            for (Symbol symbol : symbols) {
-                // Skip function symbols and other non-label types
-                SymbolType symType = symbol.getSymbolType();
-                if (symType != SymbolType.LABEL &&
-                    symType != SymbolType.GLOBAL &&
-                    symType != SymbolType.LOCAL_VAR) {
-                    continue;
-                }
-
-                result.append("                             ");
-
-                // Add namespace if present
-                Namespace namespace = symbol.getParentNamespace();
-                if (namespace != null && !namespace.isGlobal()) {
-                    result.append(namespace.getName()).append("::");
-                }
-
-                result.append(symbol.getName());
-
-                // Show XREFs to this symbol (limit to first 3)
-                ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
-                List<String> xrefList = new ArrayList<>();
-                while (xrefsTo.hasNext()) {
-                    Reference ref = xrefsTo.next();
-                    String xrefStr = ref.getFromAddress().toString();
-                    xrefStr += getRefTypeDisplayString(ref);
-                    xrefList.add(xrefStr);
-                }
-
-                if (!xrefList.isEmpty()) {
-                    result.append("                          XREF[").append(xrefList.size()).append("]:     ");
-                    // Show first 3 XREFs
-                    result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
-                    if (xrefList.size() > 3) {
-                        result.append(", [more]");
+        // Only show symbols here if we're NOT expanding the composite
+        // (When expanding, parent symbol shown above struct, field symbols shown on components)
+        if (!hasComponents) {
+            Symbol[] symbols = symbolTable.getSymbols(addr);
+            if (symbols != null && symbols.length > 0) {
+                for (Symbol symbol : symbols) {
+                    // Skip function symbols and other non-label types
+                    SymbolType symType = symbol.getSymbolType();
+                    if (symType != SymbolType.LABEL &&
+                        symType != SymbolType.GLOBAL &&
+                        symType != SymbolType.LOCAL_VAR) {
+                        continue;
                     }
-                }
 
-                result.append("\n");
+                    result.append("                             ");
+
+                    // Add namespace if present
+                    Namespace namespace = symbol.getParentNamespace();
+                    if (namespace != null && !namespace.isGlobal()) {
+                        result.append(namespace.getName()).append("::");
+                    }
+
+                    result.append(symbol.getName());
+
+                    // Show XREFs to this symbol (limit to first 3)
+                    ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
+                    List<String> xrefList = new ArrayList<>();
+                    while (xrefsTo.hasNext()) {
+                        Reference ref = xrefsTo.next();
+                        String xrefStr = ref.getFromAddress().toString();
+                        xrefStr += getRefTypeDisplayString(ref);
+                        xrefList.add(xrefStr);
+                    }
+
+                    if (!xrefList.isEmpty()) {
+                        result.append("                          XREF[").append(xrefList.size()).append("]:     ");
+                        // Show first 3 XREFs
+                        result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+                        if (xrefList.size() > 3) {
+                            result.append(", [more]");
+                        }
+                    }
+
+                    result.append("\n");
+                }
             }
         }
 
-        // 3. Check if this is a composite type (struct/array) with components
-        int numComponents = data.getNumComponents();
-        boolean hasComponents = numComponents > 0;
-
+        // 3. Display composite or simple data
         if (hasComponents) {
             // This is a composite type - show parent type line then components
             displayCompositeData(data, isTarget, targetAddr, result, program, listing,
                                refManager, symbolTable, includeBytes);
         } else {
             // Simple data type - show single line
-            displaySimpleData(data, isTarget, result, listing, includeBytes);
+            displaySimpleData(data, isTarget, result, listing, includeBytes, refManager, program);
         }
     }
 
@@ -1353,6 +1384,49 @@ public class DecompilationService {
                                      ReferenceManager refManager, SymbolTable symbolTable,
                                      boolean includeBytes) {
         Address addr = data.getMinAddress();
+
+        // Show parent-level symbols with XREFs (only struct/array level, not field level)
+        Symbol[] symbols = symbolTable.getSymbols(addr);
+        if (symbols != null && symbols.length > 0) {
+            for (Symbol symbol : symbols) {
+                // Skip function symbols and non-label types
+                SymbolType symType = symbol.getSymbolType();
+                if (symType != SymbolType.LABEL &&
+                    symType != SymbolType.GLOBAL &&
+                    symType != SymbolType.LOCAL_VAR) {
+                    continue;
+                }
+
+                // Skip field-level symbols (with . in name like "parent.field")
+                String symbolName = symbol.getName();
+                if (symbolName.contains(".")) {
+                    continue; // Field symbol - will be shown on component line
+                }
+
+                result.append("                             ");
+
+                // Add namespace if present
+                Namespace namespace = symbol.getParentNamespace();
+                if (namespace != null && !namespace.isGlobal()) {
+                    result.append(namespace.getName()).append("::");
+                }
+
+                result.append(symbolName);
+
+                // Show XREFs with function names
+                List<String> xrefList = collectXRefsWithFunctionNames(addr, refManager, program);
+
+                if (!xrefList.isEmpty()) {
+                    result.append("                          XREF[").append(xrefList.size()).append("]:     ");
+                    result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+                    if (xrefList.size() > 3) {
+                        result.append(", [more]");
+                    }
+                }
+
+                result.append("\n");
+            }
+        }
 
         // Show parent type line (e.g., "IntuiText", "addr[160]")
         if (isTarget) {
@@ -1429,7 +1503,7 @@ public class DecompilationService {
                                         component.getMaxAddress().compareTo(targetAddr) >= 0);
 
             displayComponent(component, i, data.isArray(), isTargetComponent, result, listing,
-                           refManager, symbolTable, includeBytes);
+                           refManager, symbolTable, includeBytes, program);
         }
 
         // Show indicator if we're not showing components to the end
@@ -1452,7 +1526,7 @@ public class DecompilationService {
     private void displayComponent(Data component, int index, boolean isArray, boolean isTargetComponent,
                                   StringBuilder result, Listing listing,
                                   ReferenceManager refManager, SymbolTable symbolTable,
-                                  boolean includeBytes) {
+                                  boolean includeBytes, Program program) {
         Address componentAddr = component.getMinAddress();
 
         // Mark target component with arrow, otherwise indent
@@ -1494,7 +1568,7 @@ public class DecompilationService {
         String componentType = codeUnitFormatter.getMnemonicRepresentation(component);
         result.append(String.format("%-10s", componentType));
 
-        // Show value
+        // Show value - get the raw value representation
         String valueStr = "";
         try {
             valueStr = codeUnitFormatter.getDataValueRepresentationString(component);
@@ -1504,34 +1578,40 @@ public class DecompilationService {
                 valueStr = value.toString();
             }
         }
+
+        // Format value with proper width
         result.append(String.format("%-20s", valueStr));
 
         // Show field name (for structs) or index (for arrays)
         if (isArray) {
             result.append("[").append(index).append("]");
         } else {
-            // Struct field
+            // Struct field - show field name separated from value
             String fieldName = component.getFieldName();
             if (fieldName != null && !fieldName.isEmpty()) {
                 result.append(fieldName);
             }
         }
 
-        // Show XREFs for this component
-        ReferenceIterator xrefsTo = refManager.getReferencesTo(componentAddr);
-        List<String> xrefList = new ArrayList<>();
-        while (xrefsTo.hasNext()) {
-            Reference ref = xrefsTo.next();
-            String xrefStr = ref.getFromAddress().toString();
-            xrefStr += getRefTypeDisplayString(ref);
-            xrefList.add(xrefStr);
-        }
+        // Show XREFs for this component (with function names)
+        List<String> xrefList = collectXRefsWithFunctionNames(componentAddr, refManager, program);
 
         if (!xrefList.isEmpty()) {
             result.append("      XREF[").append(xrefList.size()).append("]:     ");
             result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
             if (xrefList.size() > 3) {
                 result.append(", [more]");
+            }
+        }
+
+        // Show pointer references (e.g., "?  ->  0023051e")
+        Reference[] referencesFrom = refManager.getReferencesFrom(componentAddr);
+        if (referencesFrom != null && referencesFrom.length > 0) {
+            for (Reference ref : referencesFrom) {
+                if (ref.isPrimary() && !ref.getReferenceType().isCall() && !ref.getReferenceType().isJump()) {
+                    result.append("      ?  ->  ").append(ref.getToAddress().toString());
+                    break; // Only show first primary reference
+                }
             }
         }
 
@@ -1548,7 +1628,8 @@ public class DecompilationService {
      * Display a simple (non-composite) data item
      */
     private void displaySimpleData(Data data, boolean isTarget, StringBuilder result,
-                                   Listing listing, boolean includeBytes) {
+                                   Listing listing, boolean includeBytes,
+                                   ReferenceManager refManager, Program program) {
         Address addr = data.getMinAddress();
 
         // Mark target with arrow
@@ -1608,6 +1689,17 @@ public class DecompilationService {
         result.append(String.format("%-10s", dataTypeStr));  // data type (10 chars)
         result.append("  ");
         result.append(valueStr);  // value
+
+        // Show pointer references (e.g., "?  ->  0023051e")
+        Reference[] referencesFrom = refManager.getReferencesFrom(addr);
+        if (referencesFrom != null && referencesFrom.length > 0) {
+            for (Reference ref : referencesFrom) {
+                if (ref.isPrimary() && !ref.getReferenceType().isCall() && !ref.getReferenceType().isJump()) {
+                    result.append("      ?  ->  ").append(ref.getToAddress().toString());
+                    break; // Only show first primary reference
+                }
+            }
+        }
 
         // Add comments (EOL, POST, PRE if on same line)
         String eolComment = listing.getComment(CommentType.EOL, addr);
