@@ -1,0 +1,74 @@
+name: End-to-End MCP Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb gcc openjdk-17-jdk wget unzip
+
+    - name: Install Python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements-test.txt
+
+    - name: Download and setup Ghidra
+      run: |
+        wget https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.4.2_build/ghidra_11.4.2_PUBLIC_20250317.zip
+        unzip -q ghidra_11.4.2_PUBLIC_20250317.zip
+        echo "GHIDRA_DIR=$(pwd)/ghidra_11.4.2_PUBLIC" >> $GITHUB_ENV
+
+    - name: Build test binary
+      run: |
+        chmod +x tests/fixtures/build_test_binary.sh
+        ./tests/fixtures/build_test_binary.sh
+
+    - name: Build plugin
+      run: |
+        # Add your plugin build command here
+        # For example: cd java && gradle buildExtension
+        echo "Note: Add your plugin build command here"
+
+    - name: Run E2E tests
+      env:
+        GHIDRA_DIR: ${{ env.GHIDRA_DIR }}
+      run: |
+        pytest tests/e2e/ \
+          --ghidra-dir="$GHIDRA_DIR" \
+          -v \
+          --tb=short \
+          --timeout=300
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          tests/*.log
+
+    - name: Upload test project (on failure)
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-project
+        path: /tmp/ghidra_test_*
+        if-no-files-found: ignore

@@ -1,92 +1,80 @@
-# Python Test Suite
+# GhidraMCP Integration Tests
 
-This directory contains the Python test suite for the GhidraMCP bridge.
+## Quick Start
 
-## Overview
+### Prerequisites
+- Ghidra installed (tested with 11.4.2)
+- Python 3.11+
+- Xvfb (Linux) or XQuartz (macOS)
 
-The test suite uses pytest and pytest-mock to test the MCP bridge functionality,
-including HTTP client helpers and MCP tool implementations.
-
-## Running Tests
+### Installation
 
 ```bash
-# Install test dependencies
-pip install -r requirements.txt
+# Install Python dependencies
+pip install -r requirements-test.txt
 
-# Run all tests
-pytest
+# Build test binary
+./tests/fixtures/build_test_binary.sh
 
-# Run with verbose output
-pytest -v
-
-# Run specific test file
-pytest tests/test_bridge_mcp_ghidra.py
-
-# Run specific test class
-pytest tests/test_bridge_mcp_ghidra.py::TestSafeGet
-
-# Run specific test
-pytest tests/test_bridge_mcp_ghidra.py::TestSafeGet::test_safe_get_success
+# Build plugin (if not already built)
+# cd java && gradle buildExtension
 ```
 
-## Test Coverage
+### Running Tests
 
-The test suite covers:
+```bash
+# Run all tests (with Xvfb)
+pytest tests/e2e/
 
-- **HTTP Client Functions**: `safe_get()` and `safe_post()` with various scenarios
-  - Successful requests
-  - Error responses (4xx, 5xx)
-  - Network exceptions
-  - Timeout handling
-  - Different data types (string, dict)
+# Specify Ghidra location
+pytest tests/e2e/ --ghidra-dir=/path/to/ghidra
 
-- **MCP Tools**: Various tool implementations
-  - `list_methods()`
-  - `list_classes()`
-  - `list_segments()`
-  - `decompile_function()`
-  - `rename_function()`
-  - `rename_data()`
+# Run without Xvfb (if you have a display)
+pytest tests/e2e/ --no-xvfb
 
-- **Configuration**: Global configuration variables
+# Keep test project for debugging
+pytest tests/e2e/ --keep-project
 
-- **Edge Cases**: Empty responses, null values, boundary conditions
+# Verbose output
+pytest tests/e2e/ --verbose-ghidra -vv
+
+# Run specific test
+pytest tests/e2e/test_mcp_basic_queries.py::TestMCPBasicQueries::test_query_list_functions
+```
+
+### Troubleshooting
+
+**Tests timeout:**
+```bash
+pytest tests/e2e/ --timeout=600
+```
+
+**Ghidra won't start:**
+```bash
+# Check Xvfb
+ps aux | grep Xvfb
+
+# Test manually
+DISPLAY=:99 /opt/ghidra/ghidraRun
+```
+
+**Plugin not loading:**
+```bash
+# Check plugin exists
+ls ~/.ghidra/.ghidra_*/Extensions/
+
+# Check logs
+cat ~/.ghidra/.ghidra_*/application.log
+```
+
+### CI/CD
+
+Tests run automatically on push via GitHub Actions. See `.github/workflows/e2e-tests.yml`.
 
 ## Test Structure
 
-```
-tests/
-├── __init__.py                    # Package marker
-├── test_bridge_mcp_ghidra.py     # Main test file
-└── README.md                      # This file
-```
-
-## Writing New Tests
-
-When adding new tools or functionality to `bridge_mcp_ghidra.py`:
-
-1. Add corresponding test class in `test_bridge_mcp_ghidra.py`
-2. Mock external HTTP calls using `@patch`
-3. Test both success and failure scenarios
-4. Include edge cases (empty, null, invalid input)
-
-Example:
-```python
-@patch('bridge_mcp_ghidra.safe_post')
-def test_new_tool(self, mock_safe_post):
-    mock_safe_post.return_value = "Expected result"
-
-    result = bridge_mcp_ghidra.new_tool("param")
-
-    assert result == "Expected result"
-    mock_safe_post.assert_called_once_with("endpoint", "param")
-```
-
-## Continuous Integration
-
-Tests are automatically run as part of the CI/CD pipeline when:
-- Pull requests are created
-- Code is pushed to main branches
-- Manual workflow triggers
-
-See `.github/workflows/` for CI configuration.
+- `e2e/` - End-to-end integration tests
+- `utils/` - Test utilities (GhidraRunner, MCPClient)
+- `fixtures/` - Test data (binaries, plugin)
+- `conftest.py` - pytest configuration
+- `pytest.ini` - pytest settings
