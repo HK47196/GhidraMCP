@@ -2,5 +2,5 @@ Manifest-Version: 1.0
 Plugin-Class: com.ghidramcp.GhidraMCP
 Plugin-Name: GhidraMCP
 Plugin-Version: 1.0
-Plugin-Author: GhidraMCP
-Plugin-Description: A custom plugin by GhidraMCP
+Plugin-Author: hk
+Plugin-Description: A custom plugin by hk
