@@ -114,14 +114,37 @@ class GhidraRunner:
                 self.xvfb_process.wait()
             self.xvfb_process = None
 
+    def _detect_ghidra_version(self):
+        """Detect Ghidra version from application.properties"""
+        # Try to read version from application.properties
+        app_props = self.ghidra_dir / "Ghidra" / "application.properties"
+        if app_props.exists():
+            with open(app_props, 'r') as f:
+                for line in f:
+                    if line.startswith('application.version='):
+                        version = line.split('=')[1].strip()
+                        logger.info(f"Detected Ghidra version from application.properties: {version}")
+                        return version
+
+        # Fallback: use directory name
+        dir_name = self.ghidra_dir.name
+        if "_" in dir_name:
+            version = dir_name.replace("ghidra_", "").replace("_PUBLIC", "")
+            logger.info(f"Detected Ghidra version from directory name: {version}")
+            return version
+
+        # Last resort: use a default
+        logger.warning(f"Could not detect Ghidra version, using default")
+        return "11.4.2_PUBLIC"
+
     def _install_plugin(self):
         """Install plugin to user Extensions directory"""
         if not self.plugin_path:
             logger.info("No plugin path provided, skipping plugin installation")
             return
 
-        # Detect Ghidra version from directory name
-        ghidra_version = self.ghidra_dir.name.replace("ghidra_", "").replace("_PUBLIC", "")
+        # Detect Ghidra version
+        ghidra_version = self._detect_ghidra_version()
 
         # Use isolated directory if specified, otherwise use user home
         if self.isolated_user_dir:
@@ -205,16 +228,43 @@ class GhidraRunner:
             env['HOME'] = str(self.isolated_user_dir)
             logger.info(f"Setting isolated HOME={env['HOME']} (original: {self.original_user_home})")
 
+        # Create log files for Ghidra output
+        self.ghidra_stdout_log = self.project_dir / "ghidra_stdout.log"
+        self.ghidra_stderr_log = self.project_dir / "ghidra_stderr.log"
+
+        self.stdout_file = open(self.ghidra_stdout_log, 'w')
+        self.stderr_file = open(self.ghidra_stderr_log, 'w')
+
         self.ghidra_process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True,
-            bufsize=1
+            stdout=self.stdout_file,
+            stderr=self.stderr_file,
+            env=env
         )
 
-        logger.info("Ghidra GUI process started")
+        logger.info(f"Ghidra GUI process started (logs: {self.ghidra_stdout_log}, {self.ghidra_stderr_log})")
+
+    def _read_log_file(self, log_path: Path, max_lines: int = 50):
+        """Read last N lines from log file"""
+        if not log_path.exists():
+            return "<log file not found>"
+        try:
+            with open(log_path, 'r') as f:
+                lines = f.readlines()
+                return ''.join(lines[-max_lines:]) if lines else "<empty>"
+        except Exception as e:
+            return f"<error reading log: {e}>"
+
+    def _get_ghidra_application_log(self):
+        """Get path to Ghidra's application.log"""
+        if self.isolated_user_dir:
+            base_dir = self.isolated_user_dir
+        else:
+            base_dir = Path.home()
+
+        ghidra_version = self._detect_ghidra_version()
+        log_file = base_dir / ".ghidra" / f".ghidra_{ghidra_version}" / "application.log"
+        return log_file
 
     def _wait_for_http_server(self, timeout: int = 60):
         """Wait for HTTP server to become available"""
@@ -225,11 +275,29 @@ class GhidraRunner:
 
         while time.time() - start_time < timeout:
             if self.ghidra_process.poll() is not None:
-                stdout, stderr = self.ghidra_process.communicate()
-                logger.error(f"Ghidra process exited unexpectedly")
-                logger.error(f"STDOUT: {stdout}")
-                logger.error(f"STDERR: {stderr}")
-                raise RuntimeError("Ghidra process exited before server started")
+                # Close log files to ensure all output is flushed
+                if hasattr(self, 'stdout_file'):
+                    self.stdout_file.close()
+                if hasattr(self, 'stderr_file'):
+                    self.stderr_file.close()
+
+                # Read logs
+                stdout_content = self._read_log_file(self.ghidra_stdout_log)
+                stderr_content = self._read_log_file(self.ghidra_stderr_log)
+                app_log_content = self._read_log_file(self._get_ghidra_application_log())
+
+                logger.error(f"Ghidra process exited unexpectedly (exit code: {self.ghidra_process.returncode})")
+                logger.error(f"STDOUT (last 50 lines from {self.ghidra_stdout_log}):\n{stdout_content}")
+                logger.error(f"STDERR (last 50 lines from {self.ghidra_stderr_log}):\n{stderr_content}")
+                logger.error(f"Ghidra application.log (last 50 lines):\n{app_log_content}")
+
+                raise RuntimeError(
+                    f"Ghidra process exited before server started (exit code: {self.ghidra_process.returncode}). "
+                    f"Check logs at:\n"
+                    f"  - stdout: {self.ghidra_stdout_log}\n"
+                    f"  - stderr: {self.ghidra_stderr_log}\n"
+                    f"  - application.log: {self._get_ghidra_application_log()}"
+                )
 
             try:
                 response = requests.get(
@@ -289,6 +357,18 @@ class GhidraRunner:
                 self.ghidra_process.wait()
 
             self.ghidra_process = None
+
+        # Close log files
+        if hasattr(self, 'stdout_file') and self.stdout_file:
+            try:
+                self.stdout_file.close()
+            except:
+                pass
+        if hasattr(self, 'stderr_file') and self.stderr_file:
+            try:
+                self.stderr_file.close()
+            except:
+                pass
 
         if self.use_xvfb:
             self._stop_xvfb()
