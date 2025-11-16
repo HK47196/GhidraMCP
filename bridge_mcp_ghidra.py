@@ -14,7 +14,7 @@ import os
 import functools
 from pathlib import Path
 from urllib.parse import urljoin
-from typing import Dict, Set, Optional, Literal
+from typing import Dict, Set, Optional, Literal, Union
 
 # TOML support for config files
 try:
@@ -244,11 +244,14 @@ Params:
     address: Target address in hex format (e.g. "0x1400010a0")
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
-    include_instruction: Include instruction text at each xref location (default: False)
+    include_instruction: Control instruction display (default: False)
+        - False: Don't include instruction text
+        - True or 0: Include instruction only (e.g., "tst.l (0x3936,A4)")
+        - N (int > 0): Include instruction plus N context lines before and after
 
 Returns:
-    List of references to the specified address. When include_instruction is True,
-    each reference includes the instruction text (e.g., "tst.l (0x3936,A4)")."""
+    List of references to the specified address. When include_instruction is enabled,
+    each reference includes the instruction text and optional surrounding context."""
 
 MANUAL["get_xrefs_from"] = """Get all references from the specified address (xref from).
 
@@ -256,11 +259,14 @@ Params:
     address: Source address in hex format (e.g. "0x1400010a0")
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
-    include_instruction: Include instruction text at the source address (default: False)
+    include_instruction: Control instruction display (default: False)
+        - False: Don't include instruction text
+        - True or 0: Include instruction only at the source address
+        - N (int > 0): Include instruction plus N context lines before and after
 
 Returns:
-    List of references from the specified address. When include_instruction is True,
-    each reference includes the instruction text at the source address."""
+    List of references from the specified address. When include_instruction is enabled,
+    each reference includes the instruction text at the source address with optional context."""
 
 MANUAL["get_function_xrefs"] = """Get all references to the specified function by name.
 
@@ -268,11 +274,14 @@ Params:
     name: Function name to search for
     offset: Pagination offset (default: 0)
     limit: Maximum number of references to return (default: 100)
-    include_instruction: Include instruction text at each xref location (default: False)
+    include_instruction: Control instruction display (default: False)
+        - False: Don't include instruction text
+        - True or 0: Include instruction only (e.g., "call FUN_00401234")
+        - N (int > 0): Include instruction plus N context lines before and after
 
 Returns:
-    List of references to the specified function. When include_instruction is True,
-    each reference includes the instruction text (e.g., "call FUN_00401234")."""
+    List of references to the specified function. When include_instruction is enabled,
+    each reference includes the instruction text with optional surrounding context."""
 
 MANUAL["list_strings"] = """List all defined strings in the program with their addresses.
 
@@ -977,27 +986,39 @@ def set_data_type(address: str, type_name: str) -> str:
     return safe_post("set_data_type", {"address": address, "type_name": type_name})
 
 @conditional_tool
-def get_xrefs_to(address: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
+def get_xrefs_to(address: str, offset: int = 0, limit: int = 100, include_instruction: Union[bool, int] = False) -> list:
     """Get all references to the specified address (xref to)."""
     params = {"address": address, "offset": offset, "limit": limit}
-    if include_instruction:
-        params["include_instruction"] = "true"
+    if include_instruction is not False:
+        # Handle both boolean True and integer values
+        if include_instruction is True:
+            params["include_instruction"] = "true"
+        elif isinstance(include_instruction, int):
+            params["include_instruction"] = str(include_instruction)
     return safe_get("xrefs_to", params)
 
 @conditional_tool
-def get_xrefs_from(address: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
+def get_xrefs_from(address: str, offset: int = 0, limit: int = 100, include_instruction: Union[bool, int] = False) -> list:
     """Get all references from the specified address (xref from)."""
     params = {"address": address, "offset": offset, "limit": limit}
-    if include_instruction:
-        params["include_instruction"] = "true"
+    if include_instruction is not False:
+        # Handle both boolean True and integer values
+        if include_instruction is True:
+            params["include_instruction"] = "true"
+        elif isinstance(include_instruction, int):
+            params["include_instruction"] = str(include_instruction)
     return safe_get("xrefs_from", params)
 
 @conditional_tool
-def get_function_xrefs(name: str, offset: int = 0, limit: int = 100, include_instruction: bool = False) -> list:
+def get_function_xrefs(name: str, offset: int = 0, limit: int = 100, include_instruction: Union[bool, int] = False) -> list:
     """Get all references to the specified function by name."""
     params = {"name": name, "offset": offset, "limit": limit}
-    if include_instruction:
-        params["include_instruction"] = "true"
+    if include_instruction is not False:
+        # Handle both boolean True and integer values
+        if include_instruction is True:
+            params["include_instruction"] = "true"
+        elif isinstance(include_instruction, int):
+            params["include_instruction"] = str(include_instruction)
     return safe_get("function_xrefs", params)
 
 @conditional_tool

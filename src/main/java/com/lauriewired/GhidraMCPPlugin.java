@@ -431,7 +431,7 @@ public class GhidraMCPPlugin extends Plugin {
             String address = qparams.get("address");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
+            int includeInstruction = PluginUtils.parseIncludeInstructionParam(qparams.get("include_instruction"));
             sendResponse(exchange, crossReferenceAnalyzer.getXrefsTo(address, offset, limit, includeInstruction));
         });
 
@@ -440,7 +440,7 @@ public class GhidraMCPPlugin extends Plugin {
             String address = qparams.get("address");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
+            int includeInstruction = PluginUtils.parseIncludeInstructionParam(qparams.get("include_instruction"));
             sendResponse(exchange, crossReferenceAnalyzer.getXrefsFrom(address, offset, limit, includeInstruction));
         });
 
@@ -449,7 +449,7 @@ public class GhidraMCPPlugin extends Plugin {
             String name = qparams.get("name");
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
-            boolean includeInstruction = "true".equalsIgnoreCase(qparams.get("include_instruction"));
+            int includeInstruction = PluginUtils.parseIncludeInstructionParam(qparams.get("include_instruction"));
             sendResponse(exchange, crossReferenceAnalyzer.getFunctionXrefs(name, offset, limit, includeInstruction));
         });
 
@@ -926,7 +926,7 @@ public class GhidraMCPPlugin extends Plugin {
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100),
-                        "true".equalsIgnoreCase(params.get("include_instruction"))
+                        PluginUtils.parseIncludeInstructionParam(params.get("include_instruction"))
                     );
 
                 case "/xrefs_from":
@@ -934,7 +934,7 @@ public class GhidraMCPPlugin extends Plugin {
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100),
-                        "true".equalsIgnoreCase(params.get("include_instruction"))
+                        PluginUtils.parseIncludeInstructionParam(params.get("include_instruction"))
                     );
 
                 case "/function_xrefs":
@@ -942,7 +942,7 @@ public class GhidraMCPPlugin extends Plugin {
                         params.get("name"),
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
                         PluginUtils.parseIntOrDefault(params.get("limit"), 100),
-                        "true".equalsIgnoreCase(params.get("include_instruction"))
+                        PluginUtils.parseIncludeInstructionParam(params.get("include_instruction"))
                     );
 
                 case "/strings":
