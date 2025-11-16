@@ -1322,6 +1322,7 @@ class TestManualTool:
         """Test MANUAL contains xref tool documentation."""
         assert "get_xrefs_to" in bridge_mcp_ghidra.MANUAL
         assert "get_xrefs_from" in bridge_mcp_ghidra.MANUAL
+        assert "get_xrefs_through" in bridge_mcp_ghidra.MANUAL
         assert "get_function_xrefs" in bridge_mcp_ghidra.MANUAL
 
     def test_manual_has_bsim_tools(self):
@@ -1921,3 +1922,175 @@ class TestInstructionPatternSearch:
         # Should error due to missing search, not invalid type
         assert "Invalid type" not in result[0]
         assert "required" in result[0]
+
+
+class TestGetXrefsThrough:
+    """Test suite for get_xrefs_through tool."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_basic(self, mock_safe_get):
+        """Test basic get_xrefs_through call."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer g_FileLoadBuffer at 0x00232116 (BYTE *)",
+            "Analyzed 3 functions, 247 instructions in 142ms",
+            "",
+            "Found 2 dereference(s):",
+            "",
+            "0x00100124 [WRITE] move.b d0,(a0) in LoadTOCData (confidence: HIGH)"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through("0x00232116")
+
+        assert "Cross-references through pointer" in result
+        assert "Found 2 dereference(s)" in result
+        mock_safe_get.assert_called_once_with("xrefs_through", {
+            "address": "0x00232116",
+            "max_depth": 1,
+            "access_type": "all",
+            "follow_aliases": "true",
+            "max_results": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_with_symbol_name(self, mock_safe_get):
+        """Test get_xrefs_through with symbol name instead of address."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer g_FileLoadBuffer at 0x00232116 (BYTE *)",
+            "Found 1 dereference(s):"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through("g_FileLoadBuffer")
+
+        assert "g_FileLoadBuffer" in result
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args[0]
+        assert call_args[1]["address"] == "g_FileLoadBuffer"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_read_only(self, mock_safe_get):
+        """Test get_xrefs_through filtering for reads only."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer at 0x12345 (int *)",
+            "Found 1 dereference(s):",
+            "0x00100200 [READ] move.l (a0),d0 (confidence: HIGH)"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through(
+            "0x12345",
+            access_type="read"
+        )
+
+        assert "[READ]" in result
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args[0]
+        assert call_args[1]["access_type"] == "read"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_write_only(self, mock_safe_get):
+        """Test get_xrefs_through filtering for writes only."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer at 0x12345 (int *)",
+            "Found 1 dereference(s):",
+            "0x00100300 [WRITE] move.l d0,(a0) (confidence: HIGH)"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through(
+            "0x12345",
+            access_type="write"
+        )
+
+        assert "[WRITE]" in result
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args[0]
+        assert call_args[1]["access_type"] == "write"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_max_depth(self, mock_safe_get):
+        """Test get_xrefs_through with custom max_depth."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer at 0x12345",
+            "Analyzed 10 functions, 1200 instructions in 450ms",
+            "Found 5 dereference(s):"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through(
+            "0x12345",
+            max_depth=3
+        )
+
+        assert "Analyzed 10 functions" in result
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args[0]
+        assert call_args[1]["max_depth"] == 3
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_no_follow_aliases(self, mock_safe_get):
+        """Test get_xrefs_through without following pointer aliases."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer at 0x12345",
+            "Found 1 dereference(s):"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through(
+            "0x12345",
+            follow_aliases=False
+        )
+
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args[0]
+        assert call_args[1]["follow_aliases"] == "false"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_custom_max_results(self, mock_safe_get):
+        """Test get_xrefs_through with custom max_results limit."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer at 0x12345",
+            "Found 50 dereference(s):",
+            "[Showing first 50 results]"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through(
+            "0x12345",
+            max_results=50
+        )
+
+        assert "50" in result
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args[0]
+        assert call_args[1]["max_results"] == 50
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_no_results(self, mock_safe_get):
+        """Test get_xrefs_through when no dereferences are found."""
+        mock_safe_get.return_value = [
+            "Cross-references through pointer at 0x12345 (int *)",
+            "Analyzed 1 functions, 50 instructions in 20ms",
+            "",
+            "Found 0 dereference(s):"
+        ]
+
+        result = bridge_mcp_ghidra.get_xrefs_through("0x12345")
+
+        assert "Found 0 dereference(s)" in result
+        mock_safe_get.assert_called_once()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_get_xrefs_through_all_parameters(self, mock_safe_get):
+        """Test get_xrefs_through with all parameters specified."""
+        mock_safe_get.return_value = ["Analysis result"]
+
+        result = bridge_mcp_ghidra.get_xrefs_through(
+            address="g_Buffer",
+            max_depth=2,
+            access_type="write",
+            follow_aliases=True,
+            max_results=200
+        )
+
+        mock_safe_get.assert_called_once_with("xrefs_through", {
+            "address": "g_Buffer",
+            "max_depth": 2,
+            "access_type": "write",
+            "follow_aliases": "true",
+            "max_results": 200
+        })
