@@ -243,7 +243,7 @@ public class PluginUtils {
 
         // Try to parse as integer
         try {
-            int intVal = Integer.parseInt(val);
+            int intVal = Integer.parseInt(normalized);
             // Return the integer value if >= 0, otherwise return -1
             return (intVal >= 0) ? intVal : -1;
         } catch (NumberFormatException e) {
