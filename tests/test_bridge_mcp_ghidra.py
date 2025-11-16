@@ -1713,3 +1713,195 @@ class TestBulkDisassemble:
         assert call_args[0]["params"]["address"] == "0x401000"
         assert call_args[1]["params"]["address"] == "5356:3cd8"
         assert call_args[2]["params"]["address"] == "0x1400010a0"
+
+
+class TestInstructionPatternSearch:
+    """Test suite for instruction pattern search functionality."""
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_basic(self, mock_safe_get):
+        """Test basic instruction pattern search with regex."""
+        mock_safe_get.return_value = ["0x401000: move.b (0x3932,A4),D0 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="move\\.b.*A4"
+        )
+
+        assert result == ["0x401000: move.b (0x3932,A4),D0 (segment: CODE_70)"]
+        mock_safe_get.assert_called_once()
+        call_args = mock_safe_get.call_args
+        assert call_args[0][0] == "search_instruction_pattern"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_regex_pattern(self, mock_safe_get):
+        """Test instruction pattern search with regex pattern."""
+        mock_safe_get.return_value = ["Found 5 matches"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="[jb]sr"
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["search"] == "[jb]sr"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_with_segment(self, mock_safe_get):
+        """Test instruction pattern search restricted to a specific segment."""
+        mock_safe_get.return_value = ["0x401000: tst.l D0 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="tst\\.l",
+            segment_name="CODE_70"
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["segment_name"] == "CODE_70"
+        assert params["search"] == "tst\\.l"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_with_address_range(self, mock_safe_get):
+        """Test instruction pattern search with address range."""
+        mock_safe_get.return_value = ["0x1500: move.b D0,D1 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="move",
+            start_address="0x1000",
+            end_address="0x2000"
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["start_address"] == "0x1000"
+        assert params["end_address"] == "0x2000"
+        assert params["search"] == "move"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_with_pagination(self, mock_safe_get):
+        """Test instruction pattern search with custom pagination."""
+        mock_safe_get.return_value = ["0x402000: jsr FUN_00401000 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="jsr",
+            offset=10,
+            limit=50
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["offset"] == 10
+        assert params["limit"] == 50
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_default_limit(self, mock_safe_get):
+        """Test instruction pattern search uses default limit when not specified."""
+        mock_safe_get.return_value = ["Found 10 matches"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="0x3932"
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["limit"] == 100  # Default limit
+
+    def test_instruction_pattern_search_missing_search(self):
+        """Test instruction pattern search error when search parameter is missing."""
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern"
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "search" in result[0]
+        assert "required" in result[0]
+
+    def test_instruction_pattern_search_empty_search(self):
+        """Test instruction pattern search error when search parameter is empty."""
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search=""
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "required" in result[0]
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_all_options(self, mock_safe_get):
+        """Test instruction pattern search with all optional parameters."""
+        mock_safe_get.return_value = ["0x1500: move.b (0x3932,A4),D0 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="move\\.b.*0x3932",
+            segment_name="CODE_70",
+            start_address="0x1000",
+            end_address="0x2000",
+            offset=5,
+            limit=25
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["search"] == "move\\.b.*0x3932"
+        assert params["segment_name"] == "CODE_70"
+        assert params["start_address"] == "0x1000"
+        assert params["end_address"] == "0x2000"
+        assert params["offset"] == 5
+        assert params["limit"] == 25
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_special_regex_chars(self, mock_safe_get):
+        """Test instruction pattern search with special regex characters."""
+        mock_safe_get.return_value = ["0x401000: move.b (0x3932,A4),D0 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search=".*\\(.*,.*\\)"
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["search"] == ".*\\(.*,.*\\)"
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_instruction_pattern_search_hex_address_pattern(self, mock_safe_get):
+        """Test instruction pattern search for hex addresses."""
+        mock_safe_get.return_value = ["0x401000: lea (0x3834,A4),A0 (segment: CODE_70)"]
+
+        result = bridge_mcp_ghidra.query(
+            type="instruction_pattern",
+            search="0x[0-9a-fA-F]+"
+        )
+
+        call_args = mock_safe_get.call_args
+        params = call_args[0][1]
+        assert params["search"] == "0x[0-9a-fA-F]+"
+
+    def test_query_invalid_type(self):
+        """Test query with invalid type returns error."""
+        result = bridge_mcp_ghidra.query(type="invalid_type")
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "Invalid type" in result[0]
+
+    def test_query_instruction_pattern_in_valid_types(self):
+        """Test that 'instruction_pattern' is recognized as a valid query type."""
+        # This should not raise an error for the type itself
+        result = bridge_mcp_ghidra.query(type="instruction_pattern")
+
+        # Should error due to missing search, not invalid type
+        assert "Invalid type" not in result[0]
+        assert "required" in result[0]

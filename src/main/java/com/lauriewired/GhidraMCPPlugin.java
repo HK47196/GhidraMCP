@@ -70,6 +70,7 @@ public class GhidraMCPPlugin extends Plugin {
     private FunctionSignatureService functionSignatureService;
     private StructService structService;
     private DecompiledTextSearchService decompiledTextSearchService;
+    private InstructionPatternSearchService instructionPatternSearchService;
 
     public GhidraMCPPlugin(PluginTool tool) {
         super(tool);
@@ -118,6 +119,7 @@ public class GhidraMCPPlugin extends Plugin {
         functionSignatureService = new FunctionSignatureService(functionNavigator, decompilationService, tool, decompileTimeout);
         structService = new StructService(functionNavigator);
         decompiledTextSearchService = new DecompiledTextSearchService(functionNavigator, decompileTimeout);
+        instructionPatternSearchService = new InstructionPatternSearchService(functionNavigator);
 
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -231,6 +233,18 @@ public class GhidraMCPPlugin extends Plugin {
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
             sendResponse(exchange, programAnalyzer.searchDataByName(searchTerm, offset, limit));
+        });
+
+        server.createContext("/search_instruction_pattern", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String searchPattern = qparams.get("search");
+            String segmentName = qparams.get("segment_name");
+            String startAddress = qparams.get("start_address");
+            String endAddress = qparams.get("end_address");
+            int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
+            int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
+            sendResponse(exchange, instructionPatternSearchService.searchInstructionPattern(
+                searchPattern, segmentName, startAddress, endAddress, offset, limit));
         });
 
         server.createContext("/functions_by_segment", exchange -> {
