@@ -1574,20 +1574,41 @@ public class DecompilationService {
         String componentType = codeUnitFormatter.getMnemonicRepresentation(component);
         result.append(String.format("%-12s", componentType));
 
-        // Show value - use getDefaultValueRepresentation for just the value (no field name)
+        // Show value - get symbol at referenced address if it's a pointer/reference
         String valueStr = "";
-        try {
-            // This gets the value WITHOUT the field name appended
-            valueStr = component.getDefaultValueRepresentation();
-            if (valueStr == null || valueStr.isEmpty()) {
-                // Fallback to formatted representation
-                valueStr = codeUnitFormatter.getDataValueRepresentationString(component);
+
+        // Check if this component has a reference (pointer to another address)
+        Reference[] refs = refManager.getReferencesFrom(componentAddr);
+        if (refs != null && refs.length > 0) {
+            // Find primary data reference
+            for (Reference ref : refs) {
+                if (ref.isPrimary() && !ref.getReferenceType().isCall() && !ref.getReferenceType().isJump()) {
+                    Address toAddr = ref.getToAddress();
+                    // Get symbol at the referenced address
+                    Symbol symbol = symbolTable.getPrimarySymbol(toAddr);
+                    if (symbol != null) {
+                        valueStr = symbol.getName();
+                    } else {
+                        // No symbol, just show the address
+                        valueStr = component.getDefaultValueRepresentation();
+                    }
+                    break;
+                }
             }
-        } catch (Exception e) {
-            // Final fallback
-            Object value = component.getValue();
-            if (value != null) {
-                valueStr = value.toString();
+        }
+
+        // If no reference found, use default representation
+        if (valueStr.isEmpty()) {
+            try {
+                valueStr = component.getDefaultValueRepresentation();
+                if (valueStr == null || valueStr.isEmpty()) {
+                    Object value = component.getValue();
+                    if (value != null) {
+                        valueStr = value.toString();
+                    }
+                }
+            } catch (Exception e) {
+                valueStr = "";
             }
         }
 
