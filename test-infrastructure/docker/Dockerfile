@@ -21,13 +21,22 @@ RUN apt-get update && apt-get install -y \
     file \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install Ghidra (this layer is cached unless version changes)
-ARG GHIDRA_VERSION=11.4.2
-ARG GHIDRA_BUILD=20250826
-RUN wget -q https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_BUILD}.zip && \
-    unzip -q ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_BUILD}.zip && \
-    rm ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_BUILD}.zip && \
-    mv ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra
+# Download and install Ghidra using the download script
+# Version defaults are defined in download_ghidra.sh (single source of truth)
+# Can be overridden via: docker build --build-arg GHIDRA_VERSION=x.y.z --build-arg GHIDRA_BUILD=YYYYMMDD
+ARG GHIDRA_VERSION
+ARG GHIDRA_BUILD
+COPY download_ghidra.sh /tmp/download_ghidra.sh
+RUN chmod +x /tmp/download_ghidra.sh && \
+    cd /tmp && \
+    SKIP_CLEANUP=1 \
+    GHIDRA_VERSION="$GHIDRA_VERSION" \
+    GHIDRA_DATE="$GHIDRA_BUILD" \
+    /tmp/download_ghidra.sh && \
+    mkdir -p /opt /workspace/lib && \
+    mv /tmp/build/ghidra-download/extracted/ghidra_*_PUBLIC /opt/ghidra && \
+    mv /tmp/lib/* /workspace/lib/ && \
+    rm -rf /tmp/build /tmp/lib /tmp/download_ghidra.sh
 
 # Set environment variables
 ENV GHIDRA_INSTALL_DIR=/opt/ghidra

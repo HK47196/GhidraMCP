@@ -33,6 +33,11 @@ jobs:
             sudo apt-get install -y maven
           fi
 
+      - name: Download Ghidra libraries
+        run: |
+          chmod +x download_ghidra.sh
+          ./download_ghidra.sh
+
       - name: Build with Maven (includes Java tests)
         run: mvn -B clean package
 

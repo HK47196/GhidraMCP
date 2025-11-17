@@ -80,37 +80,37 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-dbcp2</artifactId>
-      <version>2.9.0</version>
+      <version>1.0</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/commons-dbcp2-2.9.0.jar</systemPath>
+      <systemPath>${project.basedir}/lib/commons-dbcp2.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>commons-logging</groupId>
       <artifactId>commons-logging</artifactId>
-      <version>1.2</version>
+      <version>1.0</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/commons-logging-1.2.jar</systemPath>
+      <systemPath>${project.basedir}/lib/commons-logging.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-pool2</artifactId>
-      <version>2.11.1</version>
+      <version>1.0</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/commons-pool2-2.11.1.jar</systemPath>
+      <systemPath>${project.basedir}/lib/commons-pool2.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
-      <version>2.2.220</version>
+      <version>1.0</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/h2-2.2.220.jar</systemPath>
+      <systemPath>${project.basedir}/lib/h2.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-      <version>42.7.6</version>
+      <version>1.0</version>
       <scope>system</scope>
-      <systemPath>${project.basedir}/lib/postgresql-42.7.6.jar</systemPath>
+      <systemPath>${project.basedir}/lib/postgresql.jar</systemPath>
     </dependency>
 
     <!-- JUnit 5 (test only) -->

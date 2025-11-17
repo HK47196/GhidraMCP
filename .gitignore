@@ -1,6 +1,12 @@
 # Maven target directory
 /target/
 
+# Build artifacts
+/build/
+
+# Downloaded Ghidra libraries (auto-downloaded during build)
+/lib/
+
 # Compiled class files
 *.class
 
