@@ -72,6 +72,7 @@ public class GhidraMCPPlugin extends Plugin {
     private StructService structService;
     private DecompiledTextSearchService decompiledTextSearchService;
     private InstructionPatternSearchService instructionPatternSearchService;
+    private FunctionCallGraphService functionCallGraphService;
 
     public GhidraMCPPlugin(PluginTool tool) {
         super(tool);
@@ -122,6 +123,7 @@ public class GhidraMCPPlugin extends Plugin {
         structService = new StructService(functionNavigator);
         decompiledTextSearchService = new DecompiledTextSearchService(functionNavigator, decompileTimeout);
         instructionPatternSearchService = new InstructionPatternSearchService(functionNavigator);
+        functionCallGraphService = new FunctionCallGraphService(functionNavigator);
 
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -463,6 +465,13 @@ public class GhidraMCPPlugin extends Plugin {
             int limit = PluginUtils.parseIntOrDefault(qparams.get("limit"), 100);
             int includeInstruction = PluginUtils.parseIncludeInstructionParam(qparams.get("include_instruction"));
             sendResponse(exchange, crossReferenceAnalyzer.getFunctionXrefs(name, offset, limit, includeInstruction));
+        });
+
+        server.createContext("/function_callees", exchange -> {
+            Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
+            String address = qparams.get("address");
+            int depth = PluginUtils.parseIntOrDefault(qparams.get("depth"), 1);
+            sendResponse(exchange, functionCallGraphService.getFunctionCallees(address, depth));
         });
 
         server.createContext("/strings", exchange -> {
