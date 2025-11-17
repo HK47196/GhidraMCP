@@ -43,7 +43,7 @@ TOOL_CATEGORIES = {
         "query", "get_current_address", "get_current_function",
         "get_function_by_address", "get_data_by_address", "get_data_in_range",
         "get_function_data", "get_xrefs_to", "get_xrefs_from", "get_function_xrefs",
-        "man"
+        "get_function_callees", "man"
     ],
     "decompile": [
         "decompile_function", "decompile_function_by_address", "disassemble_function",
@@ -282,6 +282,35 @@ Params:
 Returns:
     List of references to the specified function. When include_instruction is enabled,
     each reference includes the instruction text with optional surrounding context."""
+
+MANUAL["get_function_callees"] = """Get a hierarchical tree of functions called by the specified function.
+
+This tool analyzes the call graph starting from a given function and returns a tree
+showing all functions it calls (callees) up to a specified depth. This is particularly
+useful for understanding function call hierarchies and tracing through thunks to actual
+implementations.
+
+Params:
+    address: Function address in hex format (e.g., "0x002233b0")
+    depth: Maximum depth to traverse in the call tree (default: 1, minimum: 1)
+        - 1: Show only immediate callees
+        - 2: Show callees and their callees
+        - N: Traverse up to N levels deep
+
+Returns:
+    Hierarchical tree representation of called functions with addresses.
+
+Example output:
+    Opcode143 (0x002233b0)
+    ├─ thunk_FUN_0022d858 (0x002233d8)
+    │   └─ FUN_0022d858 (0x0022d858)
+    └─ thunk_FUN_0022d91c (0x002233e2)
+        └─ FUN_0022d91c (0x0022d91c)
+
+Notes:
+    - Detects and reports circular references to prevent infinite loops
+    - Only includes CALL and JUMP type references (actual function calls)
+    - Results are sorted by address for consistent output"""
 
 MANUAL["list_strings"] = """List all defined strings in the program with their addresses.
 
@@ -1061,6 +1090,12 @@ def get_function_xrefs(name: str, offset: int = 0, limit: int = 100, include_ins
         elif isinstance(include_instruction, int):
             params["include_instruction"] = str(include_instruction)
     return safe_get("function_xrefs", params)
+
+@conditional_tool
+def get_function_callees(address: str, depth: int = 1) -> str:
+    """Get hierarchical tree of functions called by the specified function."""
+    params = {"address": address, "depth": depth}
+    return safe_get("function_callees", params)
 
 @conditional_tool
 def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list:

@@ -6,6 +6,7 @@ from bridge_mcp_ghidra import (
     get_xrefs_to,
     get_xrefs_from,
     get_function_xrefs,
+    get_function_callees,
     query
 )
 
@@ -220,3 +221,64 @@ class TestXRefOperations:
                 "error" in text.lower() or
                 len(result) == 0
             ), f"Expected 'not found' or 'no references' message, got: {text[:200]}"
+
+    def test_get_function_callees_basic(self, ghidra_server):
+        """Test getting function call graph with depth 1"""
+        # Find main function address
+        search_result = query(type="methods", search="main")
+        search_text = "\n".join(search_result)
+        addr_match = re.search(r'\bmain\s+@\s+(?:0x)?([0-9a-fA-F]{6,})', search_text)
+        assert addr_match, "Could not find 'main' function address"
+
+        address = f"0x{addr_match.group(1)}"
+
+        # Get callees with depth 1 (immediate calls only)
+        result = get_function_callees(address=address, depth=1)
+
+        assert isinstance(result, str)
+        # Should contain the function name and address
+        assert "main" in result or address.replace("0x", "") in result
+
+        # Should not be an error
+        assert not result.startswith("Error"), f"Got error: {result}"
+
+        # If main calls any functions, the result should contain call indicators
+        # like tree characters (├, └, │) or function addresses
+        if len(result) > 100:  # If there are callees
+            # Should contain tree formatting
+            has_tree_chars = any(char in result for char in ["├", "└", "│"])
+            # Or at least multiple lines indicating a call tree
+            has_multiple_lines = "\n" in result or len(result.split()) > 5
+            assert has_tree_chars or has_multiple_lines, f"Expected tree structure in result: {result[:200]}"
+
+    def test_get_function_callees_depth_2(self, ghidra_server):
+        """Test getting function call graph with depth 2"""
+        # Find main function address
+        search_result = query(type="methods", search="main")
+        search_text = "\n".join(search_result)
+        addr_match = re.search(r'\bmain\s+@\s+(?:0x)?([0-9a-fA-F]{6,})', search_text)
+        assert addr_match, "Could not find 'main' function address"
+
+        address = f"0x{addr_match.group(1)}"
+
+        # Get callees with depth 2 (show calls and their calls)
+        result = get_function_callees(address=address, depth=2)
+
+        assert isinstance(result, str)
+        # Should not be an error
+        assert not result.startswith("Error"), f"Got error: {result}"
+
+        # Result should be valid (contains function name or address)
+        assert "main" in result or address.replace("0x", "") in result
+
+    def test_get_function_callees_invalid_address(self, ghidra_server):
+        """Test getting callees for an invalid address"""
+        # Try with an address that doesn't contain a function
+        result = get_function_callees(address="0x99999999", depth=1)
+
+        assert isinstance(result, str)
+        # Should return an error or "No function found" message
+        assert (
+            "error" in result.lower() or
+            "no function" in result.lower()
+        ), f"Expected error message, got: {result[:200]}"
