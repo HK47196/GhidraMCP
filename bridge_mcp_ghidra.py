@@ -1415,7 +1415,7 @@ def clear_struct_field(struct_name: str, ordinal: int = -1, offset: int = -1) ->
 @conditional_tool
 def get_struct_info(name: str) -> str:
     """Get detailed struct information including all fields."""
-    return safe_get("struct/get_info", {"name": name})
+    return "\n".join(safe_get("struct/get_info", {"name": name}))
 
 @conditional_tool
 def list_structs(category_path: str = "", offset: int = 0, limit: int = 100) -> str:
