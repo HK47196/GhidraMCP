@@ -62,3 +62,4 @@ mcp-config.toml
 
 # Tool usage tracking database
 tool_stats.db
+tmp/
