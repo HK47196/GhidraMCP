@@ -22,9 +22,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install Ghidra using the download script
-# This ensures version consistency with local builds
-ARG GHIDRA_VERSION=11.4.2
-ARG GHIDRA_BUILD=20250826
+# Version defaults are defined in download_ghidra.sh (single source of truth)
+# Can be overridden via: docker build --build-arg GHIDRA_VERSION=x.y.z --build-arg GHIDRA_BUILD=YYYYMMDD
+ARG GHIDRA_VERSION
+ARG GHIDRA_BUILD
 COPY download_ghidra.sh /tmp/download_ghidra.sh
 RUN chmod +x /tmp/download_ghidra.sh && \
     cd /tmp && \
