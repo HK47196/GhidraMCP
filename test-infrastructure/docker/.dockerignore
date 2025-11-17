@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts (plugin will be built fresh in container)
+target/
+dist/
+build/
+*.egg-info/
+*.jar
+*.zip
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Temporary files
+*.tmp
+.DS_Store

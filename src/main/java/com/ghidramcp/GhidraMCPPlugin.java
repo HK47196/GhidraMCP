@@ -283,6 +283,10 @@ public class GhidraMCPPlugin extends Plugin {
             sendResponse(exchange, functionNavigator.getCurrentFunction());
         });
 
+        server.createContext("/ping", exchange -> {
+            sendResponse(exchange, "{\"status\": \"pong\"}");
+        });
+
         server.createContext("/decompile_function", exchange -> {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String address = qparams.get("address");
