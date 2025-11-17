@@ -872,37 +872,111 @@ def query(
 @conditional_tool
 def rename(
     type: Literal["function", "function_by_address", "data", "variable", "struct"],
-    new_name: str,
-    old_name: str = None,
-    function_address: str = None,
-    address: str = None,
-    function_name: str = None
-) -> str:
-    """Rename items by type. Supports function, function_by_address, data, variable, and struct."""
+    new_name: str | list[str],
+    old_name: str | list[str] = None,
+    function_address: str | list[str] = None,
+    address: str | list[str] = None,
+    function_name: str | list[str] = None
+) -> str | list:
+    """Rename items by type. Accepts single or list of items. Supports function, function_by_address, data, variable, and struct."""
     valid_types = ["function", "function_by_address", "data", "variable", "struct"]
 
     if type not in valid_types:
         return f"Error: Invalid type '{type}'. Valid types: {', '.join(valid_types)}"
 
+    # Helper function to handle bulk operations for a given rename type
+    def _build_bulk_operations(items, endpoint, param_builder):
+        """Build bulk operations list from items and parameter builder function."""
+        operations = []
+        for item in items:
+            params = param_builder(item)
+            operations.append({"endpoint": endpoint, "params": params})
+        return bulk_operations(operations)
+
     # Route based on type
     if type == "function":
         if old_name is None:
             return "Error: old_name is required for type 'function'"
+
+        # Handle bulk rename
+        if isinstance(old_name, list) or isinstance(new_name, list):
+            old_names = old_name if isinstance(old_name, list) else [old_name]
+            new_names = new_name if isinstance(new_name, list) else [new_name]
+
+            if len(old_names) != len(new_names):
+                return f"Error: old_name and new_name lists must have the same length (got {len(old_names)} and {len(new_names)})"
+
+            items = list(zip(old_names, new_names))
+            return _build_bulk_operations(
+                items,
+                "/renameFunction",
+                lambda item: {"oldName": item[0], "newName": item[1]}
+            )
+
         return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
 
     elif type == "function_by_address":
         if function_address is None:
             return "Error: function_address is required for type 'function_by_address'"
+
+        # Handle bulk rename
+        if isinstance(function_address, list) or isinstance(new_name, list):
+            addresses = function_address if isinstance(function_address, list) else [function_address]
+            new_names = new_name if isinstance(new_name, list) else [new_name]
+
+            if len(addresses) != len(new_names):
+                return f"Error: function_address and new_name lists must have the same length (got {len(addresses)} and {len(new_names)})"
+
+            items = list(zip(addresses, new_names))
+            return _build_bulk_operations(
+                items,
+                "/rename_function_by_address",
+                lambda item: {"function_address": item[0], "new_name": item[1]}
+            )
+
         return safe_post("rename_function_by_address", {"function_address": function_address, "new_name": new_name})
 
     elif type == "data":
         if address is None:
             return "Error: address is required for type 'data'"
+
+        # Handle bulk rename
+        if isinstance(address, list) or isinstance(new_name, list):
+            addresses = address if isinstance(address, list) else [address]
+            new_names = new_name if isinstance(new_name, list) else [new_name]
+
+            if len(addresses) != len(new_names):
+                return f"Error: address and new_name lists must have the same length (got {len(addresses)} and {len(new_names)})"
+
+            items = list(zip(addresses, new_names))
+            return _build_bulk_operations(
+                items,
+                "/renameData",
+                lambda item: {"address": item[0], "newName": item[1]}
+            )
+
         return safe_post("renameData", {"address": address, "newName": new_name})
 
     elif type == "variable":
         if function_name is None or old_name is None:
             return "Error: function_name and old_name are required for type 'variable'"
+
+        # Handle bulk rename
+        if isinstance(function_name, list) or isinstance(old_name, list) or isinstance(new_name, list):
+            func_names = function_name if isinstance(function_name, list) else [function_name]
+            old_names = old_name if isinstance(old_name, list) else [old_name]
+            new_names = new_name if isinstance(new_name, list) else [new_name]
+
+            if not (len(func_names) == len(old_names) == len(new_names)):
+                return f"Error: function_name, old_name, and new_name lists must have the same length (got {len(func_names)}, {len(old_names)}, and {len(new_names)})"
+
+            items = list(zip(func_names, old_names, new_names))
+            return _build_bulk_operations(
+                items,
+                "/renameVariable",
+                lambda item: {"functionName": item[0], "oldName": item[1], "newName": item[2]}
+            )
+
         return safe_post("renameVariable", {
             "functionName": function_name,
             "oldName": old_name,
@@ -912,6 +986,22 @@ def rename(
     elif type == "struct":
         if old_name is None:
             return "Error: old_name is required for type 'struct'"
+
+        # Handle bulk rename
+        if isinstance(old_name, list) or isinstance(new_name, list):
+            old_names = old_name if isinstance(old_name, list) else [old_name]
+            new_names = new_name if isinstance(new_name, list) else [new_name]
+
+            if len(old_names) != len(new_names):
+                return f"Error: old_name and new_name lists must have the same length (got {len(old_names)} and {len(new_names)})"
+
+            items = list(zip(old_names, new_names))
+            return _build_bulk_operations(
+                items,
+                "/struct/rename",
+                lambda item: {"old_name": item[0], "new_name": item[1]}
+            )
+
         return safe_post("struct/rename", {
             "old_name": old_name,
             "new_name": new_name

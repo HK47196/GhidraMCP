@@ -2275,3 +2275,132 @@ class TestToolRegistryConsolidation:
         # Check struct category
         assert 'rename_struct' not in TOOL_CATEGORIES.get('struct', []), \
             "rename_struct should not be in struct category"
+
+
+class TestBulkRenameTool:
+    """Test suite for bulk rename operations (list of addresses/names)."""
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_bulk_rename_function_by_address(self, mock_bulk_operations):
+        """Test bulk rename with type='function_by_address' using list of addresses."""
+        mock_bulk_operations.return_value = "Bulk operation completed"
+
+        result = bridge_mcp_ghidra.rename(
+            type="function_by_address",
+            function_address=["0x401000", "0x402000", "0x403000"],
+            new_name=["func1", "func2", "func3"]
+        )
+
+        assert result == "Bulk operation completed"
+        mock_bulk_operations.assert_called_once()
+
+        # Verify the operations structure
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert len(call_args) == 3
+        assert call_args[0] == {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x401000", "new_name": "func1"}}
+        assert call_args[1] == {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x402000", "new_name": "func2"}}
+        assert call_args[2] == {"endpoint": "/rename_function_by_address", "params": {"function_address": "0x403000", "new_name": "func3"}}
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_bulk_rename_data(self, mock_bulk_operations):
+        """Test bulk rename with type='data' using list of addresses."""
+        mock_bulk_operations.return_value = "Bulk operation completed"
+
+        result = bridge_mcp_ghidra.rename(
+            type="data",
+            address=["0x404000", "0x404008"],
+            new_name=["data1", "data2"]
+        )
+
+        assert result == "Bulk operation completed"
+        mock_bulk_operations.assert_called_once()
+
+        # Verify the operations structure
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert len(call_args) == 2
+        assert call_args[0] == {"endpoint": "/renameData", "params": {"address": "0x404000", "newName": "data1"}}
+        assert call_args[1] == {"endpoint": "/renameData", "params": {"address": "0x404008", "newName": "data2"}}
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_bulk_rename_function(self, mock_bulk_operations):
+        """Test bulk rename with type='function' using list of old names."""
+        mock_bulk_operations.return_value = "Bulk operation completed"
+
+        result = bridge_mcp_ghidra.rename(
+            type="function",
+            old_name=["FUN_00401000", "FUN_00402000"],
+            new_name=["main", "init"]
+        )
+
+        assert result == "Bulk operation completed"
+        mock_bulk_operations.assert_called_once()
+
+        # Verify the operations structure
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert len(call_args) == 2
+        assert call_args[0] == {"endpoint": "/renameFunction", "params": {"oldName": "FUN_00401000", "newName": "main"}}
+        assert call_args[1] == {"endpoint": "/renameFunction", "params": {"oldName": "FUN_00402000", "newName": "init"}}
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_bulk_rename_variable(self, mock_bulk_operations):
+        """Test bulk rename with type='variable' using lists."""
+        mock_bulk_operations.return_value = "Bulk operation completed"
+
+        result = bridge_mcp_ghidra.rename(
+            type="variable",
+            function_name=["main", "init"],
+            old_name=["local_8", "local_10"],
+            new_name=["counter", "flag"]
+        )
+
+        assert result == "Bulk operation completed"
+        mock_bulk_operations.assert_called_once()
+
+        # Verify the operations structure
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert len(call_args) == 2
+        assert call_args[0] == {"endpoint": "/renameVariable", "params": {"functionName": "main", "oldName": "local_8", "newName": "counter"}}
+        assert call_args[1] == {"endpoint": "/renameVariable", "params": {"functionName": "init", "oldName": "local_10", "newName": "flag"}}
+
+    @patch('bridge_mcp_ghidra.bulk_operations')
+    def test_bulk_rename_struct(self, mock_bulk_operations):
+        """Test bulk rename with type='struct' using list of old names."""
+        mock_bulk_operations.return_value = "Bulk operation completed"
+
+        result = bridge_mcp_ghidra.rename(
+            type="struct",
+            old_name=["struct_1", "struct_2"],
+            new_name=["ConfigData", "StateInfo"]
+        )
+
+        assert result == "Bulk operation completed"
+        mock_bulk_operations.assert_called_once()
+
+        # Verify the operations structure
+        call_args = mock_bulk_operations.call_args[0][0]
+        assert len(call_args) == 2
+        assert call_args[0] == {"endpoint": "/struct/rename", "params": {"old_name": "struct_1", "new_name": "ConfigData"}}
+        assert call_args[1] == {"endpoint": "/struct/rename", "params": {"old_name": "struct_2", "new_name": "StateInfo"}}
+
+    def test_bulk_rename_mismatched_lengths(self):
+        """Test that bulk rename fails when list lengths don't match."""
+        result = bridge_mcp_ghidra.rename(
+            type="function_by_address",
+            function_address=["0x401000", "0x402000"],
+            new_name=["func1"]  # Only 1 name for 2 addresses
+        )
+
+        assert "Error" in result
+        assert "same length" in result
+
+    def test_bulk_rename_variable_mismatched_lengths(self):
+        """Test that bulk rename for variables fails when list lengths don't match."""
+        result = bridge_mcp_ghidra.rename(
+            type="variable",
+            function_name=["main", "init"],
+            old_name=["local_8"],  # Only 1 old name for 2 functions
+            new_name=["counter", "flag"]
+        )
+
+        assert "Error" in result
+        assert "same length" in result
