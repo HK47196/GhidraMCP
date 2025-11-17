@@ -1,0 +1,16 @@
+services:
+  ghidra-mcp-tests:
+    build:
+      context: ../..
+      dockerfile: test-infrastructure/docker/Dockerfile
+    ports:
+      - "5900:5900"  # VNC port
+    volumes:
+      # Cache Maven dependencies between runs
+      - maven-cache:/root/.m2
+    environment:
+      - DISPLAY=:99
+      - ENABLE_VNC=true
+
+volumes:
+  maven-cache:
