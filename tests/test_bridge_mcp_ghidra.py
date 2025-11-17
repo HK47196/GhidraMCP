@@ -194,22 +194,22 @@ class TestMCPTools:
         mock_safe_post.assert_called_once_with("decompile", "main")
 
     @patch('bridge_mcp_ghidra.safe_post')
-    def test_rename_function(self, mock_safe_post):
-        """Test rename_function tool."""
+    def test_rename_function_by_name(self, mock_safe_post):
+        """Test rename tool with type='function'."""
         mock_safe_post.return_value = "Success"
 
-        result = bridge_mcp_ghidra.rename_function("old_func", "new_func")
+        result = bridge_mcp_ghidra.rename(type="function", old_name="old_func", new_name="new_func")
 
         assert result == "Success"
         mock_safe_post.assert_called_once_with("renameFunction",
                                                  {"oldName": "old_func", "newName": "new_func"})
 
     @patch('bridge_mcp_ghidra.safe_post')
-    def test_rename_data(self, mock_safe_post):
-        """Test rename_data tool."""
+    def test_rename_data_label(self, mock_safe_post):
+        """Test rename tool with type='data'."""
         mock_safe_post.return_value = "Success"
 
-        result = bridge_mcp_ghidra.rename_data("0x401000", "new_label")
+        result = bridge_mcp_ghidra.rename(type="data", address="0x401000", new_name="new_label")
 
         assert result == "Success"
         mock_safe_post.assert_called_once_with("renameData",
@@ -1557,7 +1557,7 @@ class TestBulkOperationsStatsTracking:
 
             # Initialize tracker with relevant tools
             tracker = ToolTracker(
-                ["bulk_operations", "disassemble_function", "decompile_function", "rename_function_by_address"],
+                ["bulk_operations", "disassemble_function", "decompile_function", "rename"],
                 db_path=db_path
             )
 
@@ -1598,9 +1598,9 @@ class TestBulkOperationsStatsTracking:
                 assert stats_dict.get("decompile_function", 0) == 1, \
                     f"Expected decompile_function to be 1, got {stats_dict.get('decompile_function', 0)}"
 
-                # rename_function_by_address should be incremented (1 time)
-                assert stats_dict.get("rename_function_by_address", 0) == 1, \
-                    f"Expected rename_function_by_address to be 1, got {stats_dict.get('rename_function_by_address', 0)}"
+                # rename should be incremented (1 time) - tracks all rename operations
+                assert stats_dict.get("rename", 0) == 1, \
+                    f"Expected rename to be 1, got {stats_dict.get('rename', 0)}"
 
             finally:
                 # Restore original tracker
@@ -2098,3 +2098,180 @@ class TestInstructionPatternSearch:
         # Should error due to missing search, not invalid type
         assert "Invalid type" not in result[0]
         assert "required" in result[0]
+
+
+class TestConsolidatedRenameTool:
+    """Test suite for the consolidated rename tool with type discriminator."""
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_rename_function_by_address(self, mock_safe_post):
+        """Test rename tool with type='function_by_address'."""
+        mock_safe_post.return_value = "Success"
+
+        result = bridge_mcp_ghidra.rename(
+            type="function_by_address",
+            function_address="0x401000",
+            new_name="my_function"
+        )
+
+        assert result == "Success"
+        mock_safe_post.assert_called_once_with(
+            "rename_function_by_address",
+            {"function_address": "0x401000", "new_name": "my_function"}
+        )
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_rename_variable(self, mock_safe_post):
+        """Test rename tool with type='variable'."""
+        mock_safe_post.return_value = "Success"
+
+        result = bridge_mcp_ghidra.rename(
+            type="variable",
+            function_name="main",
+            old_name="local_8",
+            new_name="counter"
+        )
+
+        assert result == "Success"
+        mock_safe_post.assert_called_once_with(
+            "renameVariable",
+            {"functionName": "main", "oldName": "local_8", "newName": "counter"}
+        )
+
+    @patch('bridge_mcp_ghidra.safe_post')
+    def test_rename_struct(self, mock_safe_post):
+        """Test rename tool with type='struct'."""
+        mock_safe_post.return_value = "Success"
+
+        result = bridge_mcp_ghidra.rename(
+            type="struct",
+            old_name="struct_1",
+            new_name="ConfigData"
+        )
+
+        assert result == "Success"
+        mock_safe_post.assert_called_once_with(
+            "struct/rename",
+            {"old_name": "struct_1", "new_name": "ConfigData"}
+        )
+
+    def test_rename_invalid_type(self):
+        """Test rename tool rejects invalid type."""
+        result = bridge_mcp_ghidra.rename(type="invalid_type", new_name="test")
+
+        assert "Error" in result
+        assert "Invalid type" in result
+        assert "invalid_type" in result
+
+    def test_rename_function_missing_old_name(self):
+        """Test rename type='function' requires old_name."""
+        result = bridge_mcp_ghidra.rename(type="function", new_name="test")
+
+        assert "Error" in result
+        assert "old_name" in result
+        assert "required" in result
+
+    def test_rename_function_by_address_missing_address(self):
+        """Test rename type='function_by_address' requires function_address."""
+        result = bridge_mcp_ghidra.rename(type="function_by_address", new_name="test")
+
+        assert "Error" in result
+        assert "function_address" in result
+        assert "required" in result
+
+    def test_rename_data_missing_address(self):
+        """Test rename type='data' requires address."""
+        result = bridge_mcp_ghidra.rename(type="data", new_name="test")
+
+        assert "Error" in result
+        assert "address" in result
+        assert "required" in result
+
+    def test_rename_variable_missing_function_name(self):
+        """Test rename type='variable' requires function_name and old_name."""
+        result = bridge_mcp_ghidra.rename(type="variable", new_name="test")
+
+        assert "Error" in result
+        assert "required" in result
+
+    def test_rename_struct_missing_old_name(self):
+        """Test rename type='struct' requires old_name."""
+        result = bridge_mcp_ghidra.rename(type="struct", new_name="test")
+
+        assert "Error" in result
+        assert "old_name" in result
+        assert "required" in result
+
+
+class TestToolRegistryConsolidation:
+    """Test suite verifying old rename tools have been removed from registry."""
+
+    def test_rename_function_removed(self):
+        """Test that rename_function has been removed."""
+        # Should not exist as a function attribute
+        assert not hasattr(bridge_mcp_ghidra, 'rename_function'), \
+            "rename_function should not exist - use rename(type='function') instead"
+
+        # Should not be in tool registry
+        assert 'rename_function' not in bridge_mcp_ghidra._tool_registry, \
+            "rename_function should not be in _tool_registry"
+
+    def test_rename_function_by_address_removed(self):
+        """Test that rename_function_by_address has been removed."""
+        assert not hasattr(bridge_mcp_ghidra, 'rename_function_by_address'), \
+            "rename_function_by_address should not exist - use rename(type='function_by_address') instead"
+
+        assert 'rename_function_by_address' not in bridge_mcp_ghidra._tool_registry, \
+            "rename_function_by_address should not be in _tool_registry"
+
+    def test_rename_data_removed(self):
+        """Test that rename_data has been removed."""
+        assert not hasattr(bridge_mcp_ghidra, 'rename_data'), \
+            "rename_data should not exist - use rename(type='data') instead"
+
+        assert 'rename_data' not in bridge_mcp_ghidra._tool_registry, \
+            "rename_data should not be in _tool_registry"
+
+    def test_rename_variable_removed(self):
+        """Test that rename_variable has been removed."""
+        assert not hasattr(bridge_mcp_ghidra, 'rename_variable'), \
+            "rename_variable should not exist - use rename(type='variable') instead"
+
+        assert 'rename_variable' not in bridge_mcp_ghidra._tool_registry, \
+            "rename_variable should not be in _tool_registry"
+
+    def test_rename_struct_removed(self):
+        """Test that rename_struct has been removed."""
+        assert not hasattr(bridge_mcp_ghidra, 'rename_struct'), \
+            "rename_struct should not exist - use rename(type='struct') instead"
+
+        assert 'rename_struct' not in bridge_mcp_ghidra._tool_registry, \
+            "rename_struct should not be in _tool_registry"
+
+    def test_consolidated_rename_exists(self):
+        """Test that the consolidated rename tool exists."""
+        # Should exist as a function attribute
+        assert hasattr(bridge_mcp_ghidra, 'rename'), \
+            "rename should exist as a function"
+
+        # Should be in tool registry
+        assert 'rename' in bridge_mcp_ghidra._tool_registry, \
+            "rename should be in _tool_registry"
+
+    def test_tool_categories_updated(self):
+        """Test that TOOL_CATEGORIES uses consolidated rename tool."""
+        from bridge_mcp_ghidra import TOOL_CATEGORIES
+
+        # Check modification category
+        assert 'rename' in TOOL_CATEGORIES['modification'], \
+            "rename should be in modification category"
+
+        # Old tools should not be in categories
+        assert 'rename_function' not in TOOL_CATEGORIES['modification']
+        assert 'rename_function_by_address' not in TOOL_CATEGORIES['modification']
+        assert 'rename_data' not in TOOL_CATEGORIES['modification']
+        assert 'rename_variable' not in TOOL_CATEGORIES['modification']
+
+        # Check struct category
+        assert 'rename_struct' not in TOOL_CATEGORIES.get('struct', []), \
+            "rename_struct should not be in struct category"
