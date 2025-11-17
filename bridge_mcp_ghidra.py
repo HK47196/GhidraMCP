@@ -486,15 +486,6 @@ Params:
 Returns:
     JSON string with array of struct summaries"""
 
-MANUAL["rename_struct"] = """Rename a struct.
-
-Params:
-    old_name: Current struct name
-    new_name: New struct name
-
-Returns:
-    JSON string with result"""
-
 MANUAL["delete_struct"] = """Delete a struct from the program.
 
 Params:
