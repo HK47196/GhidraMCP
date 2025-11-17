@@ -30,7 +30,6 @@ class TestStructOperations:
         # Result is a string
         assert isinstance(result, str)
 
-    @pytest.mark.skip(reason="Known bug: get_struct_info returns list but schema expects string")
     def test_get_struct_info(self, ghidra_server):
         """Test getting struct information"""
         # Create struct and add field
@@ -42,7 +41,7 @@ class TestStructOperations:
         )
 
         # Get info
-        result = get_struct_info(struct_name="TestStructInfo")
+        result = get_struct_info(name="TestStructInfo")
 
-        # Result should be a string (but currently returns list - bug)
+        # Result should be a string
         assert "field1" in str(result)
