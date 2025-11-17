@@ -53,8 +53,7 @@ TOOL_CATEGORIES = {
         "search_decompiled_text"
     ],
     "modification": [
-        "rename_function", "rename_function_by_address", "rename_data",
-        "rename_variable", "set_function_prototype", "set_local_variable_type",
+        "rename", "set_function_prototype", "set_local_variable_type",
         "set_data_type", "set_decompiler_comment", "set_disassembly_comment",
         "set_plate_comment"
     ],
@@ -67,7 +66,7 @@ TOOL_CATEGORIES = {
         "create_struct", "parse_c_struct", "add_struct_field",
         "insert_struct_field_at_offset", "replace_struct_field",
         "delete_struct_field", "clear_struct_field", "get_struct_info",
-        "rename_struct", "delete_struct"
+        "delete_struct"
     ],
     "bulk": ["bulk_operations"]
 }
@@ -560,6 +559,40 @@ Instruction Pattern Search:
 Returns:
     List of items matching type and filters with pagination"""
 
+MANUAL["rename"] = """Rename items by type with a unified interface.
+
+Params:
+    type: Type of item to rename. Options:
+        - "function": Rename a function by its current name
+        - "function_by_address": Rename a function by its address
+        - "data": Rename a data label at a specific address
+        - "variable": Rename a local variable within a function
+        - "struct": Rename a struct type
+    new_name: The new name to assign to the item (required for all types)
+    old_name: Current name (required for types: "function", "variable", "struct")
+    function_address: Function address in hex (required for type: "function_by_address")
+    address: Memory address in hex (required for type: "data")
+    function_name: Function containing the variable (required for type: "variable")
+
+Examples:
+    # Rename a function by name
+    rename(type="function", old_name="FUN_00401000", new_name="main")
+
+    # Rename a function by address
+    rename(type="function_by_address", function_address="0x401000", new_name="initialize")
+
+    # Rename a data label
+    rename(type="data", address="0x403000", new_name="g_config")
+
+    # Rename a local variable
+    rename(type="variable", function_name="main", old_name="local_8", new_name="counter")
+
+    # Rename a struct
+    rename(type="struct", old_name="struct_1", new_name="ConfigData")
+
+Returns:
+    Success or error message"""
+
 MANUAL["disassemble_function"] = """Disassemble one or more functions showing comprehensive assembly information.
 
 Displays enhanced Ghidra-style disassembly including:
@@ -816,26 +849,60 @@ def query(
 
 
 @conditional_tool
+def rename(
+    type: Literal["function", "function_by_address", "data", "variable", "struct"],
+    new_name: str,
+    old_name: str = None,
+    function_address: str = None,
+    address: str = None,
+    function_name: str = None
+) -> str:
+    """Rename items by type. Supports function, function_by_address, data, variable, and struct."""
+    valid_types = ["function", "function_by_address", "data", "variable", "struct"]
+
+    if type not in valid_types:
+        return f"Error: Invalid type '{type}'. Valid types: {', '.join(valid_types)}"
+
+    # Route based on type
+    if type == "function":
+        if old_name is None:
+            return "Error: old_name is required for type 'function'"
+        return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
+
+    elif type == "function_by_address":
+        if function_address is None:
+            return "Error: function_address is required for type 'function_by_address'"
+        return safe_post("rename_function_by_address", {"function_address": function_address, "new_name": new_name})
+
+    elif type == "data":
+        if address is None:
+            return "Error: address is required for type 'data'"
+        return safe_post("renameData", {"address": address, "newName": new_name})
+
+    elif type == "variable":
+        if function_name is None or old_name is None:
+            return "Error: function_name and old_name are required for type 'variable'"
+        return safe_post("renameVariable", {
+            "functionName": function_name,
+            "oldName": old_name,
+            "newName": new_name
+        })
+
+    elif type == "struct":
+        if old_name is None:
+            return "Error: old_name is required for type 'struct'"
+        return safe_post("struct/rename", {
+            "old_name": old_name,
+            "new_name": new_name
+        })
+
+
+@conditional_tool
 def decompile_function(name: str) -> str:
     """
     Decompile a specific function by name and return the decompiled C code.
     """
     return safe_post("decompile", name)
-
-@conditional_tool
-def rename_function(old_name: str, new_name: str) -> str:
-    """
-    Rename a function by its current name to a new user-defined name.
-    """
-    return safe_post("renameFunction", {"oldName": old_name, "newName": new_name})
-
-@conditional_tool
-def rename_data(address: str, new_name: str) -> str:
-    """
-    Rename a data label at the specified address.
-    """
-    return safe_post("renameData", {"address": address, "newName": new_name})
-
 
 @conditional_tool
 def get_data_by_address(address: str) -> str:
@@ -854,17 +921,6 @@ def get_data_in_range(start_address: str, end_address: str, include_undefined: b
     }
     return "\n".join(safe_get("data_in_range", params))
 
-
-@conditional_tool
-def rename_variable(function_name: str, old_name: str, new_name: str) -> str:
-    """
-    Rename a local variable within a function.
-    """
-    return safe_post("renameVariable", {
-        "functionName": function_name,
-        "oldName": old_name,
-        "newName": new_name
-    })
 
 @conditional_tool
 def get_function_by_address(address: str) -> str:
@@ -958,13 +1014,6 @@ def set_plate_comment(address: str, comment: str) -> str:
     comments typically displayed above functions or code sections in Ghidra's listing view.
     """
     return safe_post("set_plate_comment", {"address": address, "comment": comment})
-
-@conditional_tool
-def rename_function_by_address(function_address: str, new_name: str) -> str:
-    """
-    Rename a function by its address.
-    """
-    return safe_post("rename_function_by_address", {"function_address": function_address, "new_name": new_name})
 
 @conditional_tool
 def set_function_prototype(function_address: str, prototype: str) -> str:
@@ -1161,13 +1210,13 @@ def bulk_operations(operations: list[dict]) -> str:
     # Mapping from endpoint paths to tool names for stats tracking
     ENDPOINT_TO_TOOL = {
         "/decompile": "decompile_function",
-        "/renameFunction": "rename_function",
-        "/renameData": "rename_data",
-        "/renameVariable": "rename_variable",
+        "/renameFunction": "rename",
+        "/renameData": "rename",
+        "/renameVariable": "rename",
         "/set_decompiler_comment": "set_decompiler_comment",
         "/set_disassembly_comment": "set_disassembly_comment",
         "/set_plate_comment": "set_plate_comment",
-        "/rename_function_by_address": "rename_function_by_address",
+        "/rename_function_by_address": "rename",
         "/set_function_prototype": "set_function_prototype",
         "/set_local_variable_type": "set_local_variable_type",
         "/set_data_type": "set_data_type",
@@ -1207,7 +1256,7 @@ def bulk_operations(operations: list[dict]) -> str:
         "/struct/delete_field": "delete_struct_field",
         "/struct/clear_field": "clear_struct_field",
         "/struct/get_info": "get_struct_info",
-        "/struct/rename": "rename_struct",
+        "/struct/rename": "rename",
         "/struct/delete": "delete_struct",
         "/data_in_range": "get_data_in_range",
         "/searchFunctions": "query",
@@ -1347,14 +1396,6 @@ def list_structs(category_path: str = "", offset: int = 0, limit: int = 100) -> 
     if category_path:
         params["category_path"] = category_path
     return safe_get("struct/list", params)
-
-@conditional_tool
-def rename_struct(old_name: str, new_name: str) -> str:
-    """Rename a struct."""
-    return safe_post("struct/rename", {
-        "old_name": old_name,
-        "new_name": new_name
-    })
 
 @conditional_tool
 def delete_struct(name: str) -> str:
