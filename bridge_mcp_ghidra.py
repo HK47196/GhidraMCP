@@ -1095,7 +1095,9 @@ def get_function_xrefs(name: str, offset: int = 0, limit: int = 100, include_ins
 def get_function_callees(address: str, depth: int = 1) -> str:
     """Get hierarchical tree of functions called by the specified function."""
     params = {"address": address, "depth": depth}
-    return safe_get("function_callees", params)
+    result = safe_get("function_callees", params)
+    # safe_get returns a list of lines, join them back into a string
+    return "\n".join(result) if result else ""
 
 @conditional_tool
 def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list:
