@@ -282,3 +282,129 @@ class TestXRefOperations:
             "error" in result.lower() or
             "no function" in result.lower()
         ), f"Expected error message, got: {result[:200]}"
+
+    def test_get_function_callees_multi_level(self, ghidra_server):
+        """Test multi-level call graph (depth 3)"""
+        # Find level1_complex_calc which has a 3-level call hierarchy
+        search_result = query(type="methods", search="level1_complex_calc")
+
+        if not search_result or "not found" in "\n".join(search_result).lower():
+            pytest.skip("level1_complex_calc function not found in binary")
+
+        search_text = "\n".join(search_result)
+        addr_match = re.search(r'level1_complex_calc\s+@\s+(?:0x)?([0-9a-fA-F]{6,})', search_text)
+        assert addr_match, "Could not find level1_complex_calc address"
+
+        address = f"0x{addr_match.group(1)}"
+
+        # Get callees with depth 3 (should show full hierarchy)
+        result = get_function_callees(address=address, depth=3)
+
+        assert isinstance(result, str)
+        assert not result.startswith("Error"), f"Got error: {result}"
+
+        # Should contain the root function
+        assert "level1_complex_calc" in result or address.replace("0x", "") in result
+
+        # Should contain tree formatting for multi-level hierarchy
+        has_tree_chars = any(char in result for char in ["├", "└", "│"])
+        assert has_tree_chars, f"Expected tree structure in multi-level result: {result[:300]}"
+
+        # Should contain level 2 functions
+        assert "level2_compute_a" in result or "level2_compute_b" in result, \
+            f"Expected level 2 functions in result: {result[:300]}"
+
+    def test_get_function_callees_thunk(self, ghidra_server):
+        """Test call graph with thunk functions"""
+        # Find thunk_add which wraps the add function
+        search_result = query(type="methods", search="thunk_add")
+
+        if not search_result or "not found" in "\n".join(search_result).lower():
+            pytest.skip("thunk_add function not found in binary")
+
+        search_text = "\n".join(search_result)
+        addr_match = re.search(r'thunk_add\s+@\s+(?:0x)?([0-9a-fA-F]{6,})', search_text)
+        assert addr_match, "Could not find thunk_add address"
+
+        address = f"0x{addr_match.group(1)}"
+
+        # Get callees with depth 2 (should show thunk -> actual function)
+        result = get_function_callees(address=address, depth=2)
+
+        assert isinstance(result, str)
+        assert not result.startswith("Error"), f"Got error: {result}"
+
+        # Should contain the thunk function
+        assert "thunk_add" in result or address.replace("0x", "") in result
+
+        # Should show the call through the thunk to add
+        assert "add" in result.lower(), f"Expected to see 'add' function in thunk call tree: {result[:300]}"
+
+    def test_get_function_callees_multiple_callees(self, ghidra_server):
+        """Test function with multiple direct callees"""
+        # Find multi_call_function which calls add, multiply, and helper_function
+        search_result = query(type="methods", search="multi_call_function")
+
+        if not search_result or "not found" in "\n".join(search_result).lower():
+            pytest.skip("multi_call_function not found in binary")
+
+        search_text = "\n".join(search_result)
+        addr_match = re.search(r'multi_call_function\s+@\s+(?:0x)?([0-9a-fA-F]{6,})', search_text)
+        assert addr_match, "Could not find multi_call_function address"
+
+        address = f"0x{addr_match.group(1)}"
+
+        # Get callees with depth 1
+        result = get_function_callees(address=address, depth=1)
+
+        assert isinstance(result, str)
+        assert not result.startswith("Error"), f"Got error: {result}"
+
+        # Should contain the root function
+        assert "multi_call_function" in result or address.replace("0x", "") in result
+
+        # Should contain tree formatting for multiple callees
+        has_tree_chars = any(char in result for char in ["├", "└", "│"])
+        assert has_tree_chars, f"Expected tree structure with multiple callees: {result[:300]}"
+
+        # Count tree branch characters - should have at least 2 (for multiple callees)
+        branch_count = result.count("├") + result.count("└")
+        assert branch_count >= 2, f"Expected at least 2 callees, found {branch_count}: {result[:300]}"
+
+    def test_get_function_callees_depth_comparison(self, ghidra_server):
+        """Test that increasing depth shows more callees"""
+        # Find level1_complex_calc for multi-level testing
+        search_result = query(type="methods", search="level1_complex_calc")
+
+        if not search_result or "not found" in "\n".join(search_result).lower():
+            pytest.skip("level1_complex_calc function not found in binary")
+
+        search_text = "\n".join(search_result)
+        addr_match = re.search(r'level1_complex_calc\s+@\s+(?:0x)?([0-9a-fA-F]{6,})', search_text)
+        assert addr_match, "Could not find level1_complex_calc address"
+
+        address = f"0x{addr_match.group(1)}"
+
+        # Get callees with depth 1
+        result_depth1 = get_function_callees(address=address, depth=1)
+        # Get callees with depth 2
+        result_depth2 = get_function_callees(address=address, depth=2)
+        # Get callees with depth 3
+        result_depth3 = get_function_callees(address=address, depth=3)
+
+        # All should succeed
+        assert not result_depth1.startswith("Error")
+        assert not result_depth2.startswith("Error")
+        assert not result_depth3.startswith("Error")
+
+        # Depth 2 should have more content than depth 1 (or equal if only 1 level deep)
+        # Depth 3 should have more content than depth 2 (or equal if only 2 levels deep)
+        # Use line count as a proxy for tree depth
+        lines_depth1 = len(result_depth1.split('\n'))
+        lines_depth2 = len(result_depth2.split('\n'))
+        lines_depth3 = len(result_depth3.split('\n'))
+
+        assert lines_depth2 >= lines_depth1, \
+            f"Depth 2 should have >= lines than depth 1. Depth1={lines_depth1}, Depth2={lines_depth2}"
+        assert lines_depth3 >= lines_depth2, \
+            f"Depth 3 should have >= lines than depth 2. Depth2={lines_depth2}, Depth3={lines_depth3}"
