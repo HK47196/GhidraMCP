@@ -181,3 +181,33 @@ def mcp_client(ghidra_server):
 def mcp_tools(mcp_client):
     """List of available MCP tools"""
     return mcp_client.list_tools()
+
+
+@pytest.fixture(scope="session")
+def clean_undo_stack(ghidra_server):
+    """Ensure undo stack is clear at test session start"""
+    from bridge_mcp_ghidra import clear_undo
+    clear_undo()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def restore_program_state(clean_undo_stack):
+    """Automatically restore program state after each test by undoing all changes"""
+    from bridge_mcp_ghidra import can_undo, undo
+
+    yield  # Run the test
+
+    # After test: undo all changes
+    undo_count = 0
+    max_undos = 100  # Safety limit to prevent infinite loops
+
+    while can_undo() and undo_count < max_undos:
+        undo()
+        undo_count += 1
+
+    if undo_count > 0:
+        logging.info(f"Restored program state by undoing {undo_count} transaction(s)")
+
+    if undo_count >= max_undos:
+        logging.warning(f"Hit max undo limit ({max_undos}), program state may not be fully restored")

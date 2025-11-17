@@ -68,6 +68,7 @@ TOOL_CATEGORIES = {
         "delete_struct_field", "clear_struct_field", "get_struct_info",
         "delete_struct"
     ],
+    "undo": ["can_undo", "undo", "clear_undo"],
     "bulk": ["bulk_operations"]
 }
 
@@ -1299,6 +1300,42 @@ def bulk_operations(operations: list[dict]) -> str:
             return f"Error {response.status_code}: {response.text}"
     except Exception as e:
         return f"Request failed: {str(e)}"
+
+# ==================== UNDO OPERATIONS ====================
+
+@conditional_tool
+def can_undo() -> bool:
+    """Check if undo is available"""
+    response = requests.get(
+        urljoin(ghidra_server_url, "/undo/can_undo"),
+        timeout=ghidra_request_timeout
+    )
+    response.raise_for_status()
+    return response.json().get("can_undo", False)
+
+@conditional_tool
+def undo() -> str:
+    """Undo the last transaction"""
+    response = requests.post(
+        urljoin(ghidra_server_url, "/undo/undo"),
+        timeout=ghidra_request_timeout
+    )
+    response.raise_for_status()
+    data = response.json()
+    if data.get("success"):
+        return data.get("message", "Undo successful")
+    else:
+        return data.get("message", "Nothing to undo")
+
+@conditional_tool
+def clear_undo() -> str:
+    """Clear the undo stack"""
+    response = requests.post(
+        urljoin(ghidra_server_url, "/undo/clear"),
+        timeout=ghidra_request_timeout
+    )
+    response.raise_for_status()
+    return response.json().get("message", "Undo stack cleared")
 
 # ==================== STRUCT OPERATIONS ====================
 
