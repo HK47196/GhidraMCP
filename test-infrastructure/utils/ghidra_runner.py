@@ -459,11 +459,13 @@ class GhidraRunner:
         return '\n'.join(log_info)
 
     def _wait_for_http_server(self, timeout: int = 60):
-        """Wait for HTTP server to become available"""
-        logger.info(f"Waiting for HTTP server on port {self.http_port}")
+        """Wait for HTTP server to become available and program to be loaded"""
+        logger.info(f"Waiting for HTTP server on port {self.http_port} and program to load")
 
         start_time = time.time()
         last_error = None
+        server_ready = False
+        program_loaded = False
 
         while time.time() - start_time < timeout:
             if self.ghidra_process.poll() is not None:
@@ -497,8 +499,26 @@ class GhidraRunner:
                     timeout=2
                 )
                 if response.ok:
-                    logger.info(f"HTTP server is ready on port {self.http_port}")
-                    return True
+                    if not server_ready:
+                        logger.info(f"HTTP server is ready on port {self.http_port}")
+                        server_ready = True
+
+                    # Check if program is loaded
+                    try:
+                        data = response.json()
+                        if data.get('program_loaded', False):
+                            program_name = data.get('program_name', 'unknown')
+                            logger.info(f"Program '{program_name}' is loaded and ready")
+                            return True
+                        else:
+                            if not program_loaded:
+                                logger.info("Server ready, waiting for program to load...")
+                                program_loaded = True  # Flag to avoid spamming logs
+                    except Exception as json_error:
+                        # If we can't parse JSON, just check if server responds
+                        logger.warning(f"Could not parse ping response as JSON: {json_error}")
+                        if server_ready:
+                            return True
             except requests.exceptions.RequestException as e:
                 last_error = e
                 pass
@@ -509,7 +529,8 @@ class GhidraRunner:
         log_info = self._get_log_contents()
 
         raise TimeoutError(
-            f"HTTP server did not start within {timeout} seconds. "
+            f"HTTP server or program did not load within {timeout} seconds. "
+            f"Server ready: {server_ready}, Program loaded: {program_loaded}. "
             f"Last error: {last_error}\n\n{log_info}"
         )
 

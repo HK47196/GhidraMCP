@@ -30,9 +30,9 @@ mvn clean package
 
 echo
 
-# 3. Run Python tests
-echo "Running Python tests..."
-pytest
+# 3. Run Python tests (unit tests only, not e2e tests)
+echo "Running Python unit tests..."
+pytest tests/ --ignore=tests/e2e
 
 echo
 echo "=== All tests passed! Build successful ==="

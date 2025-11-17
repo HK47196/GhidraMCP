@@ -6,8 +6,10 @@ import sys
 from pathlib import Path
 
 # Add parent directory and test-infrastructure to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent))
+# From tests/e2e/conftest.py, go up to project root, then add test-infrastructure
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "test-infrastructure"))
 
 # Import from local utils (in test-infrastructure/utils/)
 from utils.ghidra_runner import GhidraRunner
@@ -21,42 +23,22 @@ logging.basicConfig(
 
 def pytest_addoption(parser):
     """Add custom command line options"""
-    parser.addoption(
-        "--ghidra-dir",
-        action="store",
-        default="/opt/ghidra",
-        help="Path to Ghidra installation directory"
-    )
-    parser.addoption(
-        "--no-xvfb",
-        action="store_true",
-        default=False,
-        help="Don't use Xvfb (for local testing with display)"
-    )
-    parser.addoption(
-        "--keep-project",
-        action="store_true",
-        default=False,
-        help="Don't delete test project after tests"
-    )
-    parser.addoption(
-        "--verbose-ghidra",
-        action="store_true",
-        default=False,
-        help="Enable verbose Ghidra output"
-    )
-    parser.addoption(
-        "--isolated",
-        action="store_true",
-        default=True,
-        help="Use isolated Ghidra user directory (default: True, prevents interference with desktop Ghidra)"
-    )
-    parser.addoption(
-        "--no-isolated",
-        action="store_true",
-        default=False,
-        help="Don't use isolated directory (use your actual ~/.ghidra)"
-    )
+    # Use try-except to handle duplicate option registration when multiple conftest.py files exist
+    options = [
+        ("--ghidra-dir", {"action": "store", "default": "/opt/ghidra", "help": "Path to Ghidra installation directory"}),
+        ("--no-xvfb", {"action": "store_true", "default": False, "help": "Don't use Xvfb (for local testing with display)"}),
+        ("--keep-project", {"action": "store_true", "default": False, "help": "Don't delete test project after tests"}),
+        ("--verbose-ghidra", {"action": "store_true", "default": False, "help": "Enable verbose Ghidra output"}),
+        ("--isolated", {"action": "store_true", "default": True, "help": "Use isolated Ghidra user directory (default: True, prevents interference with desktop Ghidra)"}),
+        ("--no-isolated", {"action": "store_true", "default": False, "help": "Don't use isolated directory (use your actual ~/.ghidra)"}),
+    ]
+
+    for opt_name, opt_kwargs in options:
+        try:
+            parser.addoption(opt_name, **opt_kwargs)
+        except ValueError:
+            # Option already added by another conftest.py
+            pass
 
 
 @pytest.fixture(scope="session")
@@ -94,7 +76,8 @@ def use_isolated(request):
 @pytest.fixture(scope="session")
 def test_binary():
     """Path to test binary"""
-    binary_path = Path(__file__).parent / "fixtures" / "binaries" / "test_simple"
+    project_root = Path(__file__).parent.parent.parent
+    binary_path = project_root / "test-infrastructure" / "fixtures" / "binaries" / "test_simple"
     if not binary_path.exists():
         pytest.skip(f"Test binary not found: {binary_path}. Run: test-infrastructure/fixtures/build_test_binary.sh")
     return str(binary_path)
@@ -103,12 +86,13 @@ def test_binary():
 @pytest.fixture(scope="session")
 def plugin_path():
     """Path to plugin"""
+    project_root = Path(__file__).parent.parent.parent
     # Try multiple locations
     search_paths = [
-        Path(__file__).parent / "fixtures" / "plugin",
-        Path(__file__).parent.parent / "target",  # Maven output directory
-        Path(__file__).parent.parent / "dist",
-        Path(__file__).parent.parent / "build",
+        project_root / "test-infrastructure" / "fixtures" / "plugin",
+        project_root / "target",  # Maven output directory
+        project_root / "dist",
+        project_root / "build",
     ]
 
     for search_dir in search_paths:
@@ -169,7 +153,8 @@ def ghidra_server(ghidra_dir, test_binary, plugin_path, use_xvfb,
 @pytest.fixture(scope="session")
 def mcp_client(ghidra_server):
     """Start MCP bridge server for entire test session"""
-    mcp_script = Path(__file__).parent.parent / "bridge_mcp_ghidra.py"
+    project_root = Path(__file__).parent.parent.parent
+    mcp_script = project_root / "bridge_mcp_ghidra.py"
 
     if not mcp_script.exists():
         pytest.skip(f"MCP script not found: {mcp_script}")

@@ -1,44 +1,8 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-.venv
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-*.log
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Git
-.git/
-.gitignore
-
-# Build artifacts (plugin will be built fresh in container)
-target/
-dist/
-build/
-*.egg-info/
-*.jar
-*.zip
-
-# Docker
-.dockerignore
-Dockerfile
-docker-compose.yml
-
-# Temporary files
-*.tmp
-.DS_Store
+# NOTE: This file is NOT used by Docker builds!
+#
+# The build context is set to the project root (../..) in docker-compose.yml,
+# so Docker reads .dockerignore from the project root, not from this directory.
+#
+# The actual .dockerignore file is at: ../../.dockerignore
+#
+# This file is kept for reference only.

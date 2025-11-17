@@ -284,7 +284,13 @@ public class GhidraMCPPlugin extends Plugin {
         });
 
         server.createContext("/ping", exchange -> {
-            sendResponse(exchange, "{\"status\": \"pong\"}");
+            Program currentProgram = functionNavigator.getCurrentProgram();
+            String programName = currentProgram != null ? currentProgram.getName() : null;
+            boolean programLoaded = currentProgram != null;
+            String response = String.format("{\"status\": \"pong\", \"program_loaded\": %s, \"program_name\": %s}",
+                programLoaded,
+                programName != null ? "\"" + programName + "\"" : "null");
+            sendResponse(exchange, response);
         });
 
         server.createContext("/decompile_function", exchange -> {

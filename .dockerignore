@@ -1,0 +1,85 @@
+# Exclude Ghidra source reference copies (any variant)
+ghidra_*/
+Ghidra_*/
+**/ghidra_src/
+**/ghidra_source/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+.tox/
+*.egg
+*.egg-info/
+dist/
+build/
+pip-log.txt
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.log
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-*
+.project
+.settings/
+.classpath
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts (plugin will be built fresh in container)
+target/
+*.jar
+*.zip
+*.class
+*.war
+
+# Docker
+.dockerignore
+**/Dockerfile
+**/docker-compose.yml
+**/.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# Documentation and non-essential files
+*.md
+!README.md
+docs/
+documentation/
+*.pdf
+*.docx
+
+# Any other common temporary/reference directories
+tmp/
+temp/
+cache/
+.cache/
+downloads/
+Downloads/
+reference/
+refs/

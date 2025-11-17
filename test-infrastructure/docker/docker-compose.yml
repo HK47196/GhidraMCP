@@ -1,5 +1,6 @@
 services:
   ghidra-mcp-tests:
+    image: ghidramcp-tests:latest
     build:
       context: ../..
       dockerfile: test-infrastructure/docker/Dockerfile
