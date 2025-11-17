@@ -50,10 +50,10 @@ public class InstructionPatternSearchService {
             return "Error: Search pattern is required";
         }
 
-        // Compile regex pattern
+        // Compile regex pattern (case insensitive)
         Pattern pattern;
         try {
-            pattern = Pattern.compile(searchPattern);
+            pattern = Pattern.compile(searchPattern, Pattern.CASE_INSENSITIVE);
         } catch (PatternSyntaxException e) {
             return "Error: Invalid regex pattern - " + e.getMessage();
         }

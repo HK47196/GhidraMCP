@@ -523,7 +523,7 @@ Params:
 Instruction Pattern Search:
     Uses Java regex (java.util.regex.Pattern) to match against disassembly text.
     Regex syntax: Standard Java regex with full support for lookahead, lookbehind,
-    character classes, quantifiers, etc. Case-sensitive by default.
+    character classes, quantifiers, etc. Case-insensitive matching.
 
     Note: Special regex characters must be escaped (e.g., "\\." for literal dot,
     "\\(" for literal parenthesis). Backslashes need to be escaped in Python strings.
