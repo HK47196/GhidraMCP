@@ -47,8 +47,9 @@ class TestUndoIsolation:
         result_text = "\n".join(result) if isinstance(result, list) else result
 
         # The renamed function should NOT exist because the previous test's changes were undone
-        # We expect either no results or an error message
-        assert "test_renamed_function" not in result_text or "No functions found" in result_text or "0 function" in result_text
+        # We expect "No functions matching" or similar message indicating the function doesn't exist
+        # The message will contain the search term but that's fine - we're looking for "No functions"
+        assert "No functions" in result_text or "0 function" in result_text.lower()
 
     def test_multiple_modifications_all_undone(self, ghidra_server):
         """Verify that multiple modifications in a single test are all undone"""
