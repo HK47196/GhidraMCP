@@ -7,7 +7,12 @@ set -e  # Exit immediately if any command fails
 echo "=== GhidraMCP Build and Test ==="
 echo
 
-# 1. Setup Python virtual environment
+# 1. Download and extract Ghidra libraries
+echo "Ensuring Ghidra libraries are available..."
+./download_ghidra.sh
+echo
+
+# 2. Setup Python virtual environment
 echo "Setting up Python environment..."
 if [ ! -d "venv" ]; then
     echo "  Creating virtual environment..."
@@ -24,13 +29,13 @@ pip install -q -r requirements.txt
 echo "  Python environment ready"
 echo
 
-# 2. Run Maven build (compiles Java code, runs Java tests, creates JAR and ZIP)
+# 3. Run Maven build (compiles Java code, runs Java tests, creates JAR and ZIP)
 echo "Running Maven build (includes Java tests)..."
 mvn clean package
 
 echo
 
-# 3. Run Python tests (unit tests only, not e2e tests)
+# 4. Run Python tests (unit tests only, not e2e tests)
 echo "Running Python unit tests..."
 pytest tests/ --ignore=tests/e2e
 
