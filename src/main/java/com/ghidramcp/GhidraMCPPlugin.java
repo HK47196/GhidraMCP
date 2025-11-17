@@ -654,6 +654,46 @@ public class GhidraMCPPlugin extends Plugin {
             }
         });
 
+        // Undo management endpoints
+        server.createContext("/undo/can_undo", exchange -> {
+            Program program = functionNavigator.getCurrentProgram();
+            boolean canUndo = program != null && program.canUndo();
+            sendResponse(exchange, "{\"can_undo\": " + canUndo + "}");
+        });
+
+        server.createContext("/undo/undo", exchange -> {
+            Program program = functionNavigator.getCurrentProgram();
+            if (program == null) {
+                exchange.sendResponseHeaders(404, 0);
+                sendResponse(exchange, "{\"error\": \"No program loaded\"}");
+                return;
+            }
+
+            try {
+                if (program.canUndo()) {
+                    program.undo();
+                    sendResponse(exchange, "{\"success\": true, \"message\": \"Undo successful\"}");
+                } else {
+                    sendResponse(exchange, "{\"success\": false, \"message\": \"Nothing to undo\"}");
+                }
+            } catch (IOException e) {
+                exchange.sendResponseHeaders(500, 0);
+                sendResponse(exchange, "{\"error\": \"Undo failed: " + PluginUtils.escapeJson(e.getMessage()) + "\"}");
+            }
+        });
+
+        server.createContext("/undo/clear", exchange -> {
+            Program program = functionNavigator.getCurrentProgram();
+            if (program == null) {
+                exchange.sendResponseHeaders(404, 0);
+                sendResponse(exchange, "{\"error\": \"No program loaded\"}");
+                return;
+            }
+
+            program.clearUndo();
+            sendResponse(exchange, "{\"success\": true, \"message\": \"Undo stack cleared\"}");
+        });
+
         server.setExecutor(null);
         new Thread(() -> {
             try {
