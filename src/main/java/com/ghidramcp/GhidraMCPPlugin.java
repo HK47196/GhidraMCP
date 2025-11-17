@@ -65,6 +65,7 @@ public class GhidraMCPPlugin extends Plugin {
     private CommentService commentService;
     private CrossReferenceAnalyzer crossReferenceAnalyzer;
     private DecompilationService decompilationService;
+    private DisassemblyService disassemblyService;
     private ProgramAnalyzer programAnalyzer;
     private SymbolManager symbolManager;
     private FunctionSignatureService functionSignatureService;
@@ -114,6 +115,7 @@ public class GhidraMCPPlugin extends Plugin {
         commentService = new CommentService(functionNavigator);
         crossReferenceAnalyzer = new CrossReferenceAnalyzer(functionNavigator);
         decompilationService = new DecompilationService(functionNavigator, decompileTimeout);
+        disassemblyService = new DisassemblyService(functionNavigator, decompileTimeout);
         programAnalyzer = new ProgramAnalyzer(functionNavigator);
         symbolManager = new SymbolManager(functionNavigator, decompileTimeout);
         functionSignatureService = new FunctionSignatureService(functionNavigator, decompilationService, tool, decompileTimeout);
@@ -303,7 +305,7 @@ public class GhidraMCPPlugin extends Plugin {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             String address = qparams.get("address");
             boolean includeBytes = PluginUtils.parseBoolOrDefault(qparams.get("include_bytes"), false);
-            sendResponse(exchange, decompilationService.disassembleFunction(address, includeBytes));
+            sendResponse(exchange, disassemblyService.disassembleFunction(address, includeBytes));
         });
 
         server.createContext("/get_address_context", exchange -> {
@@ -312,7 +314,7 @@ public class GhidraMCPPlugin extends Plugin {
             int before = PluginUtils.parseIntOrDefault(qparams.get("before"), 5);
             int after = PluginUtils.parseIntOrDefault(qparams.get("after"), 5);
             boolean includeBytes = PluginUtils.parseBoolOrDefault(qparams.get("include_bytes"), false);
-            sendResponse(exchange, decompilationService.getAddressContext(address, before, after, includeBytes));
+            sendResponse(exchange, disassemblyService.getAddressContext(address, before, after, includeBytes));
         });
 
         server.createContext("/get_function_data", exchange -> {
@@ -877,13 +879,13 @@ public class GhidraMCPPlugin extends Plugin {
                     return decompilationService.decompileFunctionByAddress(params.get("address"));
 
                 case "/disassemble_function":
-                    return decompilationService.disassembleFunction(
+                    return disassemblyService.disassembleFunction(
                         params.get("address"),
                         PluginUtils.parseBoolOrDefault(params.get("include_bytes"), false)
                     );
 
                 case "/get_address_context":
-                    return decompilationService.getAddressContext(
+                    return disassemblyService.getAddressContext(
                         params.get("address"),
                         PluginUtils.parseIntOrDefault(params.get("before"), 5),
                         PluginUtils.parseIntOrDefault(params.get("after"), 5),
@@ -1771,7 +1773,7 @@ public class GhidraMCPPlugin extends Plugin {
                 }
                 result.append("Assembly:\n");
                 result.append("---------\n");
-                String asmCode = disassembleFunctionInProgram(func, matchedProgram);
+                String asmCode = disassemblyService.disassembleFunctionInProgram(func, matchedProgram, false);
                 if (asmCode != null && !asmCode.isEmpty()) {
                     result.append(asmCode);
                 } else {
@@ -1838,36 +1840,6 @@ public class GhidraMCPPlugin extends Plugin {
         return null;
     }
 
-    /**
-     * Disassemble a function within a specific program
-     */
-    private String disassembleFunctionInProgram(Function func, Program program) {
-        try {
-            StringBuilder result = new StringBuilder();
-            Listing listing = program.getListing();
-            Address start = func.getEntryPoint();
-            Address end = func.getBody().getMaxAddress();
-
-            InstructionIterator instructions = listing.getInstructions(start, true);
-            while (instructions.hasNext()) {
-                Instruction instr = instructions.next();
-                if (instr.getAddress().compareTo(end) > 0) {
-                    break;
-                }
-                String comment = listing.getComment(CommentType.EOL, instr.getAddress());
-                comment = (comment != null) ? "; " + comment : "";
-
-                result.append(String.format("%s: %s %s\n",
-                    instr.getAddress(),
-                    instr.toString(),
-                    comment));
-            }
-            return result.toString();
-        } catch (Exception e) {
-            Msg.error(this, "Error disassembling function in external program", e);
-        }
-        return null;
-    }
 
     /**
      * Filter BSim results by maximum similarity and confidence thresholds, and limit matches.
