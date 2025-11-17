@@ -8,8 +8,8 @@ Run full integration tests with `./test_e2e.sh`
 
 ## Ghidra Version
 
-The default Ghidra version is configured in `download_ghidra.sh`. To use a different version, set the `GHIDRA_VERSION` environment variable:
+The default Ghidra version is 11.4.2 (matching the version used in E2E tests). To use a different version, set the environment variables:
 
 ```bash
-GHIDRA_VERSION=11.2_PUBLIC_20250106 ./build.sh
+GHIDRA_VERSION=11.4.2 GHIDRA_DATE=20250826 ./build.sh
 ```

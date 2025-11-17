@@ -4,9 +4,9 @@
 
 set -e  # Exit on error
 
-# Configuration
-GHIDRA_VERSION="${GHIDRA_VERSION:-11.2}"
-GHIDRA_DATE="${GHIDRA_DATE:-20240926}"
+# Configuration - aligned with test-infrastructure/docker/Dockerfile
+GHIDRA_VERSION="${GHIDRA_VERSION:-11.4.2}"
+GHIDRA_DATE="${GHIDRA_DATE:-20250826}"
 GHIDRA_URL="https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_DATE}.zip"
 DOWNLOAD_DIR="build/ghidra-download"
 LIB_DIR="lib"
