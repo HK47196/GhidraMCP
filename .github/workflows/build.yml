@@ -1,4 +1,4 @@
-name: CI - Build and Test
+name: CI - Build Plugin
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-and-test:
-    name: Build and Test
+    name: Build Plugin and Run Java Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -26,25 +26,15 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
+      - name: Install Maven
+        run: |
+          if ! command -v mvn &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y maven
+          fi
 
       - name: Build with Maven (includes Java tests)
         run: mvn -B clean package
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          if [ -f requirements-test.txt ]; then
-            pip install -r requirements-test.txt
-          fi
-
-      - name: Run Python unit tests
-        run: pytest tests/ --ignore=tests/e2e/ -v --tb=short
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

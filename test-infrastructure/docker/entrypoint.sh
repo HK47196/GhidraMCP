@@ -37,4 +37,5 @@ find /workspace -type f -name "*.pyc" -delete 2>/dev/null || true
 
 # Run pytest with all arguments passed to this script
 # Use -vv for verbose output showing variable values in assertions
-exec pytest tests/e2e/ -c test-infrastructure/pytest.ini --ghidra-dir=/opt/ghidra -vv "$@"
+# Run all tests (unit + integration)
+exec pytest tests/ -c test-infrastructure/pytest.ini --ghidra-dir=/opt/ghidra -vv "$@"
