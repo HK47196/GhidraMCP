@@ -29,9 +29,9 @@ ARG GHIDRA_BUILD
 COPY download_ghidra.sh /tmp/download_ghidra.sh
 RUN chmod +x /tmp/download_ghidra.sh && \
     cd /tmp && \
-    GHIDRA_VERSION=${GHIDRA_VERSION} GHIDRA_DATE=${GHIDRA_BUILD} SKIP_CLEANUP=1 /tmp/download_ghidra.sh && \
+    ${GHIDRA_VERSION:+GHIDRA_VERSION=$GHIDRA_VERSION} ${GHIDRA_BUILD:+GHIDRA_DATE=$GHIDRA_BUILD} SKIP_CLEANUP=1 /tmp/download_ghidra.sh && \
     mkdir -p /opt /workspace/lib && \
-    mv /tmp/build/ghidra-download/extracted/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra && \
+    mv /tmp/build/ghidra-download/extracted/ghidra_*_PUBLIC /opt/ghidra && \
     mv /tmp/lib/* /workspace/lib/ && \
     rm -rf /tmp/build /tmp/lib /tmp/download_ghidra.sh
 
