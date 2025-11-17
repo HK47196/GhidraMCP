@@ -29,7 +29,7 @@ fi
 GHIDRA_ZIP="$DOWNLOAD_DIR/ghidra.zip"
 if [ ! -f "$GHIDRA_ZIP" ]; then
     echo "Downloading Ghidra from $GHIDRA_URL..."
-    curl -L -o "$GHIDRA_ZIP" "$GHIDRA_URL"
+    wget -q -O "$GHIDRA_ZIP" "$GHIDRA_URL"
     echo "Download complete"
 else
     echo "Using cached Ghidra download"
@@ -107,8 +107,10 @@ done
 echo ""
 if [ $FAILED -eq 0 ]; then
     echo "All libraries extracted successfully!"
-    echo "Cleaning up extracted files..."
-    rm -rf "$EXTRACT_DIR"
+    if [ "${SKIP_CLEANUP}" != "1" ]; then
+        echo "Cleaning up extracted files..."
+        rm -rf "$EXTRACT_DIR"
+    fi
     echo "Done!"
     exit 0
 else
