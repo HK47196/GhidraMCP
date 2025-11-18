@@ -325,6 +325,67 @@ class TestMCPTools:
         assert result == ["CODE: 00400000 - 0040ffff"]
         mock_safe_get.assert_called_once_with("segments", {"search": "CODE", "offset": 0, "limit": 100})
 
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespaces_by_name_with_string(self, mock_safe_get):
+        """Test search namespaces by name with regular string query."""
+        mock_safe_get.return_value = ["MyNamespace", "MyNamespace::SubNamespace"]
+
+        result = bridge_mcp_ghidra.query(type="namespaces", search="MyNamespace", offset=0, limit=100)
+
+        assert result == ["MyNamespace", "MyNamespace::SubNamespace"]
+        mock_safe_get.assert_called_once_with("namespaces", {"search": "MyNamespace", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespaces_by_name_with_numeric_string(self, mock_safe_get):
+        """Test search namespaces by name with numeric string query."""
+        mock_safe_get.return_value = ["Namespace70", "Namespace700"]
+
+        result = bridge_mcp_ghidra.query(type="namespaces", search="70", offset=0, limit=100)
+
+        assert result == ["Namespace70", "Namespace700"]
+        mock_safe_get.assert_called_once_with("namespaces", {"search": "70", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespaces_by_name_with_integer(self, mock_safe_get):
+        """Test search namespaces by name with integer query (handles JSON parsing as int)."""
+        mock_safe_get.return_value = ["Namespace123"]
+
+        # Simulate MCP client sending an integer due to JSON parsing
+        result = bridge_mcp_ghidra.query(type="namespaces", search=123, offset=0, limit=50)
+
+        assert result == ["Namespace123"]
+        mock_safe_get.assert_called_once_with("namespaces", {"search": "123", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespaces_by_name_with_empty_string(self, mock_safe_get):
+        """Test search namespaces by name with empty string returns error."""
+        result = bridge_mcp_ghidra.query(type="namespaces", search="", offset=0, limit=100)
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "query string is required" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespaces_by_name_with_pagination(self, mock_safe_get):
+        """Test search namespaces by name with custom pagination."""
+        mock_safe_get.return_value = ["MyNamespace"]
+
+        result = bridge_mcp_ghidra.query(type="namespaces", search="MyNamespace", offset=10, limit=25)
+
+        assert result == ["MyNamespace"]
+        mock_safe_get.assert_called_once_with("namespaces", {"search": "MyNamespace", "offset": 10, "limit": 25})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_namespaces_default_limit(self, mock_safe_get):
+        """Test search namespaces uses default limit of 100."""
+        mock_safe_get.return_value = ["MyNamespace"]
+
+        result = bridge_mcp_ghidra.query(type="namespaces", search="MyNamespace", offset=0)
+
+        assert result == ["MyNamespace"]
+        mock_safe_get.assert_called_once_with("namespaces", {"search": "MyNamespace", "offset": 0, "limit": 100})
+
     @patch('bridge_mcp_ghidra.safe_post')
     def test_decompile_function(self, mock_safe_post):
         """Test decompile_function tool."""

@@ -152,12 +152,13 @@ public class ProgramAnalyzer {
     }
 
     /**
-     * List namespaces with pagination
+     * List namespaces with pagination and optional search filter
      * @param offset Pagination offset
      * @param limit Pagination limit
+     * @param search Optional search string for filtering namespace names (case-insensitive substring match)
      * @return Paginated list of namespaces
      */
-    public String listNamespaces(int offset, int limit) {
+    public String listNamespaces(int offset, int limit, String search) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
 
@@ -165,7 +166,15 @@ public class ProgramAnalyzer {
         for (Symbol symbol : program.getSymbolTable().getAllSymbols(true)) {
             Namespace ns = symbol.getParentNamespace();
             if (ns != null && !(ns instanceof GlobalNamespace)) {
-                namespaces.add(ns.getName());
+                String nsName = ns.getName();
+                // Apply search filter if provided
+                if (search != null && !search.isEmpty()) {
+                    if (nsName.toLowerCase().contains(search.toLowerCase())) {
+                        namespaces.add(nsName);
+                    }
+                } else {
+                    namespaces.add(nsName);
+                }
             }
         }
         List<String> sorted = new ArrayList<>(namespaces);
