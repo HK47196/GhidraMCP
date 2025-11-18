@@ -744,32 +744,34 @@ class TestComplexStructScenarios:
         assert structs is not None
 
     def test_modify_and_rebuild_struct(self, ghidra_server):
-        """Test modifying struct fields: add, delete, and add new"""
+        """Test modifying struct fields then rebuilding"""
         # Create initial struct with size=0 so fields start at ordinal 0
         create_struct(name="ModifyRebuildStruct", size=0)
         add_struct_field(
             struct_name="ModifyRebuildStruct",
             field_type="int",
-            field_name="field1"
+            field_name="original1"
         )
         add_struct_field(
             struct_name="ModifyRebuildStruct",
             field_type="int",
-            field_name="field2"
-        )
-        add_struct_field(
-            struct_name="ModifyRebuildStruct",
-            field_type="int",
-            field_name="field3"
+            field_name="original2"
         )
 
-        # Verify initial state - all three fields exist
+        # Verify initial state - fields are at ordinals 0 and 1
         info = get_struct_info(name="ModifyRebuildStruct")
-        assert "field1" in info
-        assert "field2" in info
-        assert "field3" in info
+        assert "original1" in info
+        assert "original2" in info
 
-        # Delete middle field (ordinal 1)
+        # Replace first field (ordinal 0)
+        replace_struct_field(
+            struct_name="ModifyRebuildStruct",
+            ordinal=0,
+            field_type="long",
+            field_name="replaced1"
+        )
+
+        # Delete second field (now at ordinal 1)
         delete_struct_field(
             struct_name="ModifyRebuildStruct",
             ordinal=1
@@ -779,16 +781,16 @@ class TestComplexStructScenarios:
         add_struct_field(
             struct_name="ModifyRebuildStruct",
             field_type="char",
-            field_name="new_field"
+            field_name="new1"
         )
 
         # Verify final state
         info = get_struct_info(name="ModifyRebuildStruct")
-        assert "field1" in info
-        assert "field3" in info
-        assert "new_field" in info
-        # field2 was deleted
-        assert "field2" not in info
+        assert "replaced1" in info
+        assert "new1" in info
+        # original1 was replaced, original2 was deleted
+        assert "original1" not in info
+        assert "original2" not in info
 
     def test_large_struct_many_fields(self, ghidra_server):
         """Test creating struct with many fields"""
