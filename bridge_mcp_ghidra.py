@@ -354,6 +354,13 @@ def query(
                 return ["Error: query string is required"]
             params = {"search": query_str, "offset": offset, "limit": limit if limit else 100}
             return safe_get("segments", params)
+        elif type == "namespaces":
+            # Use namespaces endpoint with search parameter
+            query_str = str(search) if search is not None else ""
+            if not query_str:
+                return ["Error: query string is required"]
+            params = {"search": query_str, "offset": offset, "limit": limit if limit else 100}
+            return safe_get("namespaces", params)
         else:
             return [f"Error: search parameter not supported for type '{type}'"]
 
