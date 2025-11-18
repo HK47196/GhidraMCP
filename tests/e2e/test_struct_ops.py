@@ -692,6 +692,155 @@ class TestStructQuery:
         assert result is not None
 
 
+class TestPointerFields:
+    """Test adding pointer type fields to structs"""
+
+    def test_add_void_pointer_field(self, ghidra_server):
+        """Test adding a void* pointer field"""
+        create_struct(name="VoidPtrStruct", size=0)
+
+        result = add_struct_field(
+            struct_name="VoidPtrStruct",
+            field_type="void*",
+            field_name="voidPtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify field was added
+        info = get_struct_info(name="VoidPtrStruct")
+        assert "voidPtr" in info
+
+    def test_add_int_pointer_field(self, ghidra_server):
+        """Test adding an int* pointer field"""
+        create_struct(name="IntPtrStruct", size=0)
+
+        result = add_struct_field(
+            struct_name="IntPtrStruct",
+            field_type="int*",
+            field_name="intPtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify field was added
+        info = get_struct_info(name="IntPtrStruct")
+        assert "intPtr" in info
+
+    def test_add_char_pointer_field(self, ghidra_server):
+        """Test adding a char* pointer field (string)"""
+        create_struct(name="CharPtrStruct", size=0)
+
+        result = add_struct_field(
+            struct_name="CharPtrStruct",
+            field_type="char*",
+            field_name="strPtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify field was added
+        info = get_struct_info(name="CharPtrStruct")
+        assert "strPtr" in info
+
+    def test_add_double_pointer_field(self, ghidra_server):
+        """Test adding a double pointer (pointer to pointer) field"""
+        create_struct(name="DoublePtrStruct", size=0)
+
+        result = add_struct_field(
+            struct_name="DoublePtrStruct",
+            field_type="void**",
+            field_name="doublePtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify field was added
+        info = get_struct_info(name="DoublePtrStruct")
+        assert "doublePtr" in info
+
+    def test_add_struct_pointer_field(self, ghidra_server):
+        """Test adding a pointer to another struct type"""
+        # Create the referenced struct first
+        create_struct(name="ReferencedStruct", size=8)
+
+        # Create struct with pointer to referenced struct
+        create_struct(name="StructPtrStruct", size=0)
+
+        result = add_struct_field(
+            struct_name="StructPtrStruct",
+            field_type="ReferencedStruct*",
+            field_name="structPtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify field was added
+        info = get_struct_info(name="StructPtrStruct")
+        assert "structPtr" in info
+
+    def test_add_multiple_pointer_fields(self, ghidra_server):
+        """Test adding multiple pointer fields to same struct"""
+        create_struct(name="MultiPtrStruct", size=0)
+
+        # Add various pointer types
+        add_struct_field(
+            struct_name="MultiPtrStruct",
+            field_type="void*",
+            field_name="ptr1"
+        )
+        add_struct_field(
+            struct_name="MultiPtrStruct",
+            field_type="int*",
+            field_name="ptr2"
+        )
+        add_struct_field(
+            struct_name="MultiPtrStruct",
+            field_type="char*",
+            field_name="ptr3"
+        )
+
+        # Verify all fields exist
+        info = get_struct_info(name="MultiPtrStruct")
+        assert "ptr1" in info
+        assert "ptr2" in info
+        assert "ptr3" in info
+
+    def test_insert_pointer_field_at_offset(self, ghidra_server):
+        """Test inserting pointer field at specific offset"""
+        create_struct(name="InsertPtrStruct", size=16)
+
+        result = insert_struct_field_at_offset(
+            struct_name="InsertPtrStruct",
+            offset=0,
+            field_type="void*",
+            field_name="insertedPtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify field was inserted
+        info = get_struct_info(name="InsertPtrStruct")
+        assert "insertedPtr" in info
+
+    def test_replace_field_with_pointer(self, ghidra_server):
+        """Test replacing a non-pointer field with a pointer field"""
+        create_struct(name="ReplacePtrStruct", size=0)
+        add_struct_field(
+            struct_name="ReplacePtrStruct",
+            field_type="int",
+            field_name="originalField"
+        )
+
+        # Replace with pointer type
+        result = replace_struct_field(
+            struct_name="ReplacePtrStruct",
+            ordinal=0,
+            field_type="void*",
+            field_name="replacedPtr"
+        )
+        assert isinstance(result, str)
+
+        # Verify replacement
+        info = get_struct_info(name="ReplacePtrStruct")
+        assert "replacedPtr" in info
+        assert "originalField" not in info
+
+
 class TestComplexStructScenarios:
     """Test complex struct operation scenarios"""
 
@@ -724,8 +873,8 @@ class TestComplexStructScenarios:
         )
         add_struct_field(
             struct_name="WorkflowStruct",
-            field_type="int",
-            field_name="flags"
+            field_type="void*",
+            field_name="data"
         )
         add_struct_field(
             struct_name="WorkflowStruct",
@@ -736,7 +885,7 @@ class TestComplexStructScenarios:
         # Query to verify
         info = get_struct_info(name="WorkflowStruct")
         assert "id" in info
-        assert "flags" in info
+        assert "data" in info
         assert "timestamp" in info
 
         # List to see it
