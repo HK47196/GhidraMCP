@@ -30,10 +30,12 @@ public class DisassemblyService {
     private final FunctionNavigator navigator;
     private final int decompileTimeout;
     private final CodeUnitFormat codeUnitFormatter;
+    private final DataLookupService dataLookupService;
 
     public DisassemblyService(FunctionNavigator navigator, int decompileTimeout) {
         this.navigator = navigator;
         this.decompileTimeout = decompileTimeout;
+        this.dataLookupService = new DataLookupService();
 
         // Initialize CodeUnitFormat with comprehensive formatting options
         // Using full constructor since fields are protected
@@ -1162,17 +1164,9 @@ public class DisassemblyService {
 
         if (isTarget && !addr.equals(targetAddr)) {
             // Target is within this composite but not at its start
-            // Find which component contains the target
-            int targetComponentIdx = -1;
-            for (int i = 0; i < numComponents; i++) {
-                Data comp = data.getComponent(i);
-                if (comp != null &&
-                    comp.getMinAddress().compareTo(targetAddr) <= 0 &&
-                    comp.getMaxAddress().compareTo(targetAddr) >= 0) {
-                    targetComponentIdx = i;
-                    break;
-                }
-            }
+            // Use shared lookup service to find which component contains the target
+            DataLookupResult componentLookup = dataLookupService.lookupDataAtAddress(program, targetAddr);
+            int targetComponentIdx = (componentLookup != null) ? componentLookup.getComponentIndex() : -1;
 
             if (targetComponentIdx >= 0) {
                 // Show window around target component (e.g., 5 before and 5 after)

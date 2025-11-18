@@ -15,9 +15,11 @@ import java.util.*;
 public class ProgramAnalyzer {
 
     private final FunctionNavigator navigator;
+    private final DataLookupService dataLookupService;
 
     public ProgramAnalyzer(FunctionNavigator navigator) {
         this.navigator = navigator;
+        this.dataLookupService = new DataLookupService();
     }
 
     /**
@@ -586,26 +588,13 @@ public class ProgramAnalyzer {
                 return "Error: Invalid address format: " + addressStr;
             }
 
-            // Get the data at this address
-            Data data = program.getListing().getDataAt(addr);
-
-            // If no data at exact address, check if it's inside a composite type (struct/array)
-            Data containingData = null;
-            Data componentData = null;
-            if (data == null) {
-                containingData = program.getListing().getDataContaining(addr);
-                if (containingData == null) {
-                    return "Error: No data defined at address " + addressStr;
-                }
-                // Get the specific component at this address
-                componentData = containingData.getComponentAt((int)(addr.getOffset() - containingData.getAddress().getOffset()));
-                if (componentData != null) {
-                    data = componentData;
-                } else {
-                    // Fall back to using the containing data
-                    data = containingData;
-                }
+            // Use shared lookup service
+            DataLookupResult lookup = dataLookupService.lookupDataAtAddress(program, addr);
+            if (lookup == null) {
+                return "Error: No data defined at address " + addressStr;
             }
+
+            Data data = lookup.getData();
 
             // Build the result
             StringBuilder result = new StringBuilder();
@@ -645,20 +634,27 @@ public class ProgramAnalyzer {
             result.append("Size: ").append(data.getLength()).append(" bytes\n");
 
             // If this is a component of a larger structure, show parent info
-            if (containingData != null) {
+            if (lookup.isComponent()) {
+                Data containingData = lookup.getContainingData();
                 result.append("\n--- Parent Structure ---\n");
                 result.append("Parent Address: ").append(containingData.getAddress().toString()).append("\n");
+
                 String parentLabel = containingData.getLabel();
                 if (parentLabel != null && !parentLabel.isEmpty()) {
                     result.append("Parent Name: ").append(PluginUtils.escapeNonAscii(parentLabel)).append("\n");
                 }
+
                 DataType parentType = containingData.getDataType();
                 if (parentType != null) {
                     result.append("Parent Type: ").append(parentType.getDisplayName()).append("\n");
                 }
+
                 result.append("Parent Size: ").append(containingData.getLength()).append(" bytes\n");
-                int offset = (int)(addr.getOffset() - containingData.getAddress().getOffset());
-                result.append("Offset in Parent: ").append(offset).append("\n");
+                result.append("Offset in Parent: ").append(lookup.getOffsetInParent()).append("\n");
+
+                if (lookup.getComponentIndex() >= 0) {
+                    result.append("Component Index: ").append(lookup.getComponentIndex()).append("\n");
+                }
             }
 
             return result.toString();
