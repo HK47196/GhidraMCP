@@ -14,12 +14,17 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import bridge_mcp_ghidra
+import http_client
+import tools.query_tools
+import tools.decompilation_tools
+import tools.bulk_tools
+import tool_tracker
 
 
 class TestSafeGet:
     """Test suite for the safe_get helper function."""
 
-    @patch('bridge_mcp_ghidra.requests.get')
+    @patch('http_client.requests.get')
     def test_safe_get_success(self, mock_get):
         """Test successful GET request with text response."""
         mock_response = Mock()
@@ -32,7 +37,7 @@ class TestSafeGet:
         assert result == ["line1", "line2", "line3"]
         mock_get.assert_called_once()
 
-    @patch('bridge_mcp_ghidra.requests.get')
+    @patch('http_client.requests.get')
     def test_safe_get_with_params(self, mock_get):
         """Test GET request with query parameters."""
         mock_response = Mock()
@@ -47,7 +52,7 @@ class TestSafeGet:
         call_args = mock_get.call_args
         assert call_args[1]['params'] == params
 
-    @patch('bridge_mcp_ghidra.requests.get')
+    @patch('http_client.requests.get')
     def test_safe_get_error_response(self, mock_get):
         """Test GET request with error status code."""
         mock_response = Mock()
@@ -62,7 +67,7 @@ class TestSafeGet:
         assert "Error 404" in result[0]
         assert "Not Found" in result[0]
 
-    @patch('bridge_mcp_ghidra.requests.get')
+    @patch('http_client.requests.get')
     def test_safe_get_exception(self, mock_get):
         """Test GET request that raises an exception."""
         mock_get.side_effect = Exception("Connection timeout")
@@ -73,7 +78,7 @@ class TestSafeGet:
         assert "Request failed" in result[0]
         assert "Connection timeout" in result[0]
 
-    @patch('bridge_mcp_ghidra.requests.get')
+    @patch('http_client.requests.get')
     def test_safe_get_timeout(self, mock_get):
         """Test GET request with timeout."""
         mock_get.side_effect = Exception("Timeout")
@@ -87,7 +92,7 @@ class TestSafeGet:
 class TestSafePost:
     """Test suite for the safe_post helper function."""
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_safe_post_success_with_string(self, mock_post):
         """Test successful POST request with string data."""
         mock_response = Mock()
@@ -100,7 +105,7 @@ class TestSafePost:
         assert result == "Success result"
         mock_post.assert_called_once()
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_safe_post_success_with_dict(self, mock_post):
         """Test successful POST request with dict data."""
         mock_response = Mock()
@@ -115,7 +120,7 @@ class TestSafePost:
         call_args = mock_post.call_args
         assert call_args[1]['data'] == data
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_safe_post_error_response(self, mock_post):
         """Test POST request with error status code."""
         mock_response = Mock()
@@ -129,7 +134,7 @@ class TestSafePost:
         assert "Error 500" in result
         assert "Internal Server Error" in result
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_safe_post_exception(self, mock_post):
         """Test POST request that raises an exception."""
         mock_post.side_effect = Exception("Network error")
@@ -143,7 +148,7 @@ class TestSafePost:
 class TestMCPTools:
     """Test suite for MCP tool implementations."""
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_methods(self, mock_safe_get):
         """Test query tool for methods type."""
         mock_safe_get.return_value = ["method1", "method2", "method3"]
@@ -153,7 +158,7 @@ class TestMCPTools:
         assert result == ["method1", "method2", "method3"]
         mock_safe_get.assert_called_once_with("methods", {"offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_methods_with_pagination(self, mock_safe_get):
         """Test query tool for methods with custom pagination."""
         mock_safe_get.return_value = ["method4", "method5"]
@@ -163,7 +168,7 @@ class TestMCPTools:
         assert result == ["method4", "method5"]
         mock_safe_get.assert_called_once_with("methods", {"offset": 10, "limit": 2})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_classes(self, mock_safe_get):
         """Test query tool for classes type."""
         mock_safe_get.return_value = ["ClassA", "ClassB"]
@@ -173,7 +178,7 @@ class TestMCPTools:
         assert result == ["ClassA", "ClassB"]
         mock_safe_get.assert_called_once_with("classes", {"offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_segments(self, mock_safe_get):
         """Test query tool for segments type."""
         mock_safe_get.return_value = [".text", ".data", ".bss"]
@@ -183,7 +188,7 @@ class TestMCPTools:
         assert result == [".text", ".data", ".bss"]
         mock_safe_get.assert_called_once_with("segments", {"offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_decompile_function(self, mock_safe_post):
         """Test decompile_function tool."""
         mock_safe_post.return_value = "int main() { return 0; }"
@@ -193,7 +198,7 @@ class TestMCPTools:
         assert result == "int main() { return 0; }"
         mock_safe_post.assert_called_once_with("decompile", "main")
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_rename_function_by_name(self, mock_safe_post):
         """Test rename tool with type='function'."""
         mock_safe_post.return_value = "Success"
@@ -204,7 +209,7 @@ class TestMCPTools:
         mock_safe_post.assert_called_once_with("renameFunction",
                                                  {"oldName": "old_func", "newName": "new_func"})
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_rename_data_label(self, mock_safe_post):
         """Test rename tool with type='data'."""
         mock_safe_post.return_value = "Success"
@@ -215,7 +220,7 @@ class TestMCPTools:
         mock_safe_post.assert_called_once_with("renameData",
                                                  {"address": "0x401000", "newName": "new_label"})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_by_address(self, mock_safe_get):
         """Test get_data_by_address tool."""
         mock_safe_get.return_value = [
@@ -234,7 +239,7 @@ class TestMCPTools:
         assert "Value: 0x1234" in result
         mock_safe_get.assert_called_once_with("get_data_by_address", {"address": "5356:3cd8"})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_by_address_hex_format(self, mock_safe_get):
         """Test get_data_by_address with hex address format."""
         mock_safe_get.return_value = [
@@ -252,7 +257,7 @@ class TestMCPTools:
         mock_safe_get.assert_called_once_with("get_data_by_address", {"address": "0x1400010a0"})
 
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_functions_by_segment_with_address_range(self, mock_safe_get):
         """Test query tool for methods with address range filter."""
         mock_safe_get.return_value = ["func1 @ 4592:000e (size: 100 bytes)"]
@@ -273,7 +278,7 @@ class TestMCPTools:
             "limit": 50
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_functions_by_segment_missing_params(self, mock_safe_get):
         """Test query tool for methods with missing segment parameters."""
         result = bridge_mcp_ghidra.query(type="methods")
@@ -283,7 +288,7 @@ class TestMCPTools:
 
 
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_data_by_segment_with_address_range(self, mock_safe_get):
         """Test query tool for data with address range filter."""
         mock_safe_get.return_value = ["data1 @ 4592:0010 [dword] = 0xdeadbeef"]
@@ -304,7 +309,7 @@ class TestMCPTools:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_data_by_segment_missing_params(self, mock_safe_get):
         """Test query tool for data with missing segment parameters."""
         result = bridge_mcp_ghidra.query(type="data")
@@ -313,7 +318,7 @@ class TestMCPTools:
         mock_safe_get.assert_called_once()
 
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_basic(self, mock_safe_get):
         """Test get_data_in_range with basic hex address range."""
         mock_safe_get.return_value = [
@@ -339,7 +344,7 @@ class TestMCPTools:
             "include_undefined": "false"
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_segment_offset(self, mock_safe_get):
         """Test get_data_in_range with segment:offset format."""
         mock_safe_get.return_value = [
@@ -362,7 +367,7 @@ class TestMCPTools:
             "include_undefined": "false"
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_include_undefined_true(self, mock_safe_get):
         """Test get_data_in_range with include_undefined=True."""
         mock_safe_get.return_value = [
@@ -391,7 +396,7 @@ class TestMCPTools:
             "include_undefined": "true"
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_include_undefined_false(self, mock_safe_get):
         """Test get_data_in_range with include_undefined=False (default)."""
         mock_safe_get.return_value = [
@@ -418,7 +423,7 @@ class TestMCPTools:
             "include_undefined": "false"
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_empty_result(self, mock_safe_get):
         """Test get_data_in_range with empty range (no data found)."""
         mock_safe_get.return_value = [
@@ -436,7 +441,7 @@ class TestMCPTools:
             "include_undefined": "false"
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_with_strings(self, mock_safe_get):
         """Test get_data_in_range with string data types."""
         mock_safe_get.return_value = [
@@ -456,7 +461,7 @@ class TestMCPTools:
         assert "unicode" in result
         mock_safe_get.assert_called_once()
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_with_arrays(self, mock_safe_get):
         """Test get_data_in_range with array data types."""
         mock_safe_get.return_value = [
@@ -476,7 +481,7 @@ class TestMCPTools:
         assert "int[16]" in result
         mock_safe_get.assert_called_once()
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_data_in_range_large_range(self, mock_safe_get):
         """Test get_data_in_range with many items in range."""
         # Simulate a response with 10 items
@@ -519,7 +524,7 @@ class TestGlobalConfiguration:
 class TestEdgeCases:
     """Test suite for edge cases and error conditions."""
 
-    @patch('bridge_mcp_ghidra.requests.get')
+    @patch('http_client.requests.get')
     def test_safe_get_empty_response(self, mock_get):
         """Test GET request with empty response."""
         mock_response = Mock()
@@ -531,7 +536,7 @@ class TestEdgeCases:
 
         assert result == []
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_safe_post_empty_string_data(self, mock_post):
         """Test POST request with empty string."""
         mock_response = Mock()
@@ -543,7 +548,7 @@ class TestEdgeCases:
 
         assert result == "OK"
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_safe_post_empty_dict_data(self, mock_post):
         """Test POST request with empty dict."""
         mock_response = Mock()
@@ -555,7 +560,7 @@ class TestEdgeCases:
 
         assert result == "OK"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_list_methods_with_zero_limit(self, mock_safe_get):
         """Test query tool for methods with limit of 0."""
         mock_safe_get.return_value = []
@@ -569,7 +574,7 @@ class TestEdgeCases:
 class TestNumericSearchQueries:
     """Test suite for search functions with numeric query strings."""
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_string(self, mock_safe_get):
         """Test search_functions_by_name with regular string query."""
         mock_safe_get.return_value = ["function_test1", "function_test2"]
@@ -579,7 +584,7 @@ class TestNumericSearchQueries:
         assert result == ["function_test1", "function_test2"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "test", "offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_numeric_string(self, mock_safe_get):
         """Test search_functions_by_name with numeric string query (e.g., '4140')."""
         mock_safe_get.return_value = ["function_4140", "sub_4140"]
@@ -589,7 +594,7 @@ class TestNumericSearchQueries:
         assert result == ["function_4140", "sub_4140"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "4140", "offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_integer(self, mock_safe_get):
         """Test search_functions_by_name with integer query (handles JSON parsing as int)."""
         mock_safe_get.return_value = ["FUN_00004140"]
@@ -600,7 +605,7 @@ class TestNumericSearchQueries:
         assert result == ["FUN_00004140"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "4140", "offset": 0, "limit": 20})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_hex_string(self, mock_safe_get):
         """Test search_functions_by_name with hexadecimal string."""
         mock_safe_get.return_value = ["function_0x1234"]
@@ -610,7 +615,7 @@ class TestNumericSearchQueries:
         assert result == ["function_0x1234"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "0x1234", "offset": 0, "limit": 50})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_empty_string(self, mock_safe_get):
         """Test search_functions_by_name with empty string returns error."""
         result = bridge_mcp_ghidra.query(type="methods", search="", offset=0, limit=100)
@@ -620,7 +625,7 @@ class TestNumericSearchQueries:
         assert "query string is required" in result[0]
         mock_safe_get.assert_not_called()
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_zero_integer(self, mock_safe_get):
         """Test search_functions_by_name with zero (edge case for falsy value)."""
         mock_safe_get.return_value = ["function_0"]
@@ -630,7 +635,7 @@ class TestNumericSearchQueries:
         assert result == ["function_0"]
         mock_safe_get.assert_called_once_with("searchFunctions", {"query": "0", "offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_data_by_name_with_string(self, mock_safe_get):
         """Test search_data_by_name with regular string query."""
         mock_safe_get.return_value = ["data_label1", "data_label2"]
@@ -640,7 +645,7 @@ class TestNumericSearchQueries:
         assert result == ["data_label1", "data_label2"]
         mock_safe_get.assert_called_once_with("searchData", {"query": "label", "offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_data_by_name_with_numeric_string(self, mock_safe_get):
         """Test search_data_by_name with numeric string query."""
         mock_safe_get.return_value = ["DAT_00004140"]
@@ -650,7 +655,7 @@ class TestNumericSearchQueries:
         assert result == ["DAT_00004140"]
         mock_safe_get.assert_called_once_with("searchData", {"query": "4140", "offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_data_by_name_with_integer(self, mock_safe_get):
         """Test search_data_by_name with integer query (handles JSON parsing as int)."""
         mock_safe_get.return_value = ["data_8080"]
@@ -661,7 +666,7 @@ class TestNumericSearchQueries:
         assert result == ["data_8080"]
         mock_safe_get.assert_called_once_with("searchData", {"query": "8080", "offset": 0, "limit": 50})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_data_by_name_with_empty_string(self, mock_safe_get):
         """Test search_data_by_name with empty string returns error."""
         result = bridge_mcp_ghidra.query(type="data", search="", offset=0, limit=100)
@@ -671,7 +676,7 @@ class TestNumericSearchQueries:
         assert "query string is required" in result[0]
         mock_safe_get.assert_not_called()
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_data_by_name_with_negative_integer(self, mock_safe_get):
         """Test search_data_by_name with negative integer."""
         mock_safe_get.return_value = []
@@ -681,7 +686,7 @@ class TestNumericSearchQueries:
         assert result == []
         mock_safe_get.assert_called_once_with("searchData", {"query": "-1", "offset": 0, "limit": 100})
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_functions_by_name_with_large_integer(self, mock_safe_get):
         """Test search_functions_by_name with large integer value."""
         mock_safe_get.return_value = ["FUN_deadbeef"]
@@ -695,7 +700,7 @@ class TestNumericSearchQueries:
 class TestNamespaceSearch:
     """Test suite for namespace detection in search_functions_by_name."""
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_namespace_only(self, mock_safe_get):
         """Test search with namespace only (ending with ::)."""
         mock_safe_get.return_value = ["thunk::func1", "thunk::func2", "thunk::func3"]
@@ -710,7 +715,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_namespace_with_function(self, mock_safe_get):
         """Test search with namespace and function name."""
         mock_safe_get.return_value = ["thunk::fun1", "thunk::fun2"]
@@ -725,7 +730,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_nested_namespace_only(self, mock_safe_get):
         """Test search with nested namespace (A::B::)."""
         mock_safe_get.return_value = ["A::B::func1", "A::B::func2"]
@@ -740,7 +745,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_nested_namespace_with_function(self, mock_safe_get):
         """Test search with nested namespace and function name (A::B::fun)."""
         mock_safe_get.return_value = ["A::B::fun"]
@@ -755,7 +760,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_deeply_nested_namespace(self, mock_safe_get):
         """Test search with deeply nested namespace (A::B::C::D::)."""
         mock_safe_get.return_value = ["A::B::C::D::func"]
@@ -770,7 +775,7 @@ class TestNamespaceSearch:
             "limit": 50
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_deeply_nested_namespace_with_function(self, mock_safe_get):
         """Test search with deeply nested namespace and function."""
         mock_safe_get.return_value = ["std::vector::iterator::begin"]
@@ -785,7 +790,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_without_namespace_syntax(self, mock_safe_get):
         """Test search without namespace syntax (standard search)."""
         mock_safe_get.return_value = ["my_function", "another_function"]
@@ -799,7 +804,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_std_namespace(self, mock_safe_get):
         """Test search with std namespace (common C++ namespace)."""
         mock_safe_get.return_value = ["std::vector", "std::string", "std::map"]
@@ -814,7 +819,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_namespace_with_pagination(self, mock_safe_get):
         """Test namespace search with custom pagination."""
         mock_safe_get.return_value = ["ns::func10"]
@@ -829,7 +834,7 @@ class TestNamespaceSearch:
             "limit": 20
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_audio_namespace(self, mock_safe_get):
         """Test search for Audio namespace (regression test for issue)."""
         mock_safe_get.return_value = ["Audio::PlaySound", "Audio::StopSound", "Audio::SetVolume"]
@@ -844,7 +849,7 @@ class TestNamespaceSearch:
             "limit": 200
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_bardstale_namespace(self, mock_safe_get):
         """Test search for BardsTale namespace (regression test for reported issue)."""
         mock_safe_get.return_value = ["BardsTale::InitGame", "BardsTale::ProcessInput", "BardsTale::UpdateWorld"]
@@ -859,7 +864,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_single_colon_no_namespace(self, mock_safe_get):
         """Test search with single colon (not namespace syntax)."""
         mock_safe_get.return_value = ["func:label"]
@@ -873,7 +878,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_namespace_numeric_query(self, mock_safe_get):
         """Test namespace search when query looks numeric but has namespace."""
         mock_safe_get.return_value = ["ns::4140"]
@@ -888,7 +893,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_underscore_namespace(self, mock_safe_get):
         """Test namespace with underscores."""
         mock_safe_get.return_value = ["my_namespace::my_func"]
@@ -903,7 +908,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_global_namespace_prefix(self, mock_safe_get):
         """Test search with global namespace prefix (::func)."""
         mock_safe_get.return_value = ["::global_func"]
@@ -917,7 +922,7 @@ class TestNamespaceSearch:
         assert call_args["query"] == "global_func"
         assert "namespace" not in call_args
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_compression_namespace(self, mock_safe_get):
         """Test search for Compression namespace (user's reported issue)."""
         mock_safe_get.return_value = [
@@ -937,7 +942,7 @@ class TestNamespaceSearch:
             "limit": 100
         })
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_search_empty_namespace_before_separator(self, mock_safe_get):
         """Test that empty namespace is handled correctly."""
         mock_safe_get.return_value = ["func"]
@@ -955,7 +960,7 @@ class TestNamespaceSearch:
 class TestSearchDecompiledText:
     """Test suite for the search_decompiled_text MCP tool."""
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_basic_regex(self, mock_safe_post):
         """Test basic regex search in decompiled text."""
         mock_response = '{"matches": [{"function_name": "main", "matched_text": "malloc", "line_number": 10}], "count": 1}'
@@ -973,7 +978,7 @@ class TestSearchDecompiledText:
         assert data["case_sensitive"] is True
         assert data["multiline"] is False
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_literal_string(self, mock_safe_post):
         """Test literal string search."""
         mock_response = '{"matches": [], "count": 0}'
@@ -992,7 +997,7 @@ class TestSearchDecompiledText:
         assert data["is_regex"] is False
         assert data["case_sensitive"] is False
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_with_multiline(self, mock_safe_post):
         """Test multiline search."""
         mock_response = '{"matches": [{"function_name": "test", "is_multiline": true}], "count": 1}'
@@ -1008,7 +1013,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert data["multiline"] is True
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_with_function_names(self, mock_safe_post):
         """Test search filtered by specific function names."""
         mock_response = '{"matches": [], "count": 0}'
@@ -1025,7 +1030,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert data["function_names"] == "authenticate,login,verify_user"
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_with_empty_function_names(self, mock_safe_post):
         """Test search with empty function names list (search all)."""
         mock_response = '{"matches": [], "count": 0}'
@@ -1041,7 +1046,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert "function_names" not in data
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_with_max_results(self, mock_safe_post):
         """Test search with max_results parameter."""
         mock_response = '{"matches": [], "count": 0, "total_count": 50}'
@@ -1057,7 +1062,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert data["max_results"] == 50
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_with_pagination(self, mock_safe_post):
         """Test search with pagination parameters."""
         mock_response = '{"matches": [], "count": 10, "offset": 20, "limit": 10}'
@@ -1075,7 +1080,7 @@ class TestSearchDecompiledText:
         assert data["offset"] == 20
         assert data["limit"] == 10
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_default_parameters(self, mock_safe_post):
         """Test search with default parameters."""
         mock_response = '{"matches": [], "count": 0}'
@@ -1094,7 +1099,7 @@ class TestSearchDecompiledText:
         assert data["offset"] == 0
         assert data["limit"] == 100
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_security_patterns(self, mock_safe_post):
         """Test search for security-relevant patterns."""
         mock_response = '{"matches": [{"function_name": "vulnerable", "matched_text": "gets"}], "count": 1}'
@@ -1110,7 +1115,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert "(gets|strcpy|sprintf|strcat)\\s*\\(" in data["pattern"]
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_case_insensitive(self, mock_safe_post):
         """Test case-insensitive search."""
         mock_response = '{"matches": [], "count": 0}'
@@ -1126,7 +1131,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert data["case_sensitive"] is False
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_complex_regex(self, mock_safe_post):
         """Test complex regex pattern."""
         mock_response = '{"matches": [], "count": 0}'
@@ -1142,7 +1147,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert "malloc" in data["pattern"]
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_with_special_chars(self, mock_safe_post):
         """Test search with special regex characters."""
         mock_response = '{"matches": [], "count": 0}'
@@ -1157,7 +1162,7 @@ class TestSearchDecompiledText:
         call_args = mock_safe_post.call_args[0]
         assert call_args[0] == "search_decompiled_text"
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_unlimited_results(self, mock_safe_post):
         """Test search with unlimited results (max_results=0)."""
         mock_response = '{"matches": [], "count": 0, "total_count": 1000}'
@@ -1173,7 +1178,7 @@ class TestSearchDecompiledText:
         data = call_args[1]
         assert data["max_results"] == 0
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_response_format(self, mock_safe_post):
         """Test that response has expected JSON format."""
         mock_response = '''{
@@ -1203,7 +1208,7 @@ class TestSearchDecompiledText:
         assert "line_number" in result
         assert "context" in result
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_search_decompiled_text_error_response(self, mock_safe_post):
         """Test handling of error responses."""
         mock_response = '{"error": "Invalid regex pattern: Unclosed bracket"}'
@@ -1469,7 +1474,7 @@ class TestToolTrackerIntegration:
             bridge_mcp_ghidra._tools_registered = original_registered
             bridge_mcp_ghidra._tool_tracker = original_tracker
 
-    @patch('bridge_mcp_ghidra.ToolTracker')
+    @patch('tool_tracker.ToolTracker')
     def test_tracker_initialization_in_main(self, mock_tracker_class):
         """Test that tracker is initialized with enabled tools."""
         import tempfile
@@ -1544,7 +1549,7 @@ class TestToolTrackerIntegration:
 class TestBulkOperationsStatsTracking:
     """Test suite for bulk_operations stats tracking."""
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_bulk_operations_increments_individual_operations(self, mock_post):
         """Test that bulk_operations increments stats for each individual operation."""
         from tool_tracker import ToolTracker
@@ -1606,7 +1611,7 @@ class TestBulkOperationsStatsTracking:
                 # Restore original tracker
                 bridge_mcp_ghidra._tool_tracker = original_tracker
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_bulk_operations_handles_multiple_same_operations(self, mock_post):
         """Test that bulk_operations correctly counts multiple operations of the same type."""
         from tool_tracker import ToolTracker
@@ -1655,7 +1660,7 @@ class TestBulkOperationsStatsTracking:
                 # Restore original tracker
                 bridge_mcp_ghidra._tool_tracker = original_tracker
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_bulk_operations_normalizes_endpoints_without_leading_slash(self, mock_post):
         """Test that bulk_operations normalizes endpoints that don't start with /."""
         # Mock the response
@@ -1691,7 +1696,7 @@ class TestBulkOperationsStatsTracking:
         assert sent_payload['operations'][0]['params']['new_name'] == 'test'
         assert sent_payload['operations'][1]['params']['address'] == '0x402000'
 
-    @patch('bridge_mcp_ghidra.requests.post')
+    @patch('http_client.requests.post')
     def test_bulk_operations_preserves_endpoints_with_leading_slash(self, mock_post):
         """Test that bulk_operations preserves endpoints that already have /."""
         # Mock the response
@@ -1722,7 +1727,7 @@ class TestBulkOperationsStatsTracking:
 class TestBulkDisassemble:
     """Test suite for disassemble_function with bulk support."""
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_disassemble_function_single_address(self, mock_safe_get):
         """Test disassemble_function with a single address (original behavior)."""
         mock_safe_get.return_value = [
@@ -1738,7 +1743,7 @@ class TestBulkDisassemble:
         assert "PUSH       BP" in result[1]
         mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000", "include_bytes": "false"})
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
+    @patch('tools.decompilation_tools.bulk_operations')
     def test_disassemble_function_bulk_addresses(self, mock_bulk_operations):
         """Test disassemble_function with multiple addresses."""
         mock_bulk_operations.return_value = '{"results": [{"success": true}, {"success": true}]}'
@@ -1757,7 +1762,7 @@ class TestBulkDisassemble:
         assert call_args[1]["params"]["address"] == "0x402000"
         assert call_args[2]["params"]["address"] == "0x403000"
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
+    @patch('tools.decompilation_tools.bulk_operations')
     def test_disassemble_function_bulk_empty_list(self, mock_bulk_operations):
         """Test disassemble_function with empty list returns error."""
         result = bridge_mcp_ghidra.disassemble_function([])
@@ -1766,7 +1771,7 @@ class TestBulkDisassemble:
         assert "cannot be empty" in result
         mock_bulk_operations.assert_not_called()
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
+    @patch('tools.decompilation_tools.bulk_operations')
     def test_disassemble_function_bulk_single_item_list(self, mock_bulk_operations):
         """Test disassemble_function with single-item list."""
         mock_bulk_operations.return_value = '{"results": [{"success": true}]}'
@@ -1779,7 +1784,7 @@ class TestBulkDisassemble:
         assert len(call_args) == 1
         assert call_args[0]["params"]["address"] == "0x401000"
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
+    @patch('tools.decompilation_tools.bulk_operations')
     def test_disassemble_function_bulk_return_type(self, mock_bulk_operations):
         """Test that bulk disassemble returns JSON string."""
         mock_response = '{"results": [{"result": "disassembly1"}, {"result": "disassembly2"}]}'
@@ -1790,7 +1795,7 @@ class TestBulkDisassemble:
         assert result == mock_response
         assert isinstance(result, str)
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
+    @patch('tools.decompilation_tools.bulk_operations')
     def test_disassemble_function_bulk_preserves_order(self, mock_bulk_operations):
         """Test that bulk operations preserve address order."""
         addresses = ["0x405000", "0x401000", "0x403000", "0x402000"]
@@ -1800,7 +1805,7 @@ class TestBulkDisassemble:
         for i, addr in enumerate(addresses):
             assert call_args[i]["params"]["address"] == addr
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
+    @patch('tools.decompilation_tools.bulk_operations')
     def test_disassemble_function_bulk_hex_and_segment_addresses(self, mock_bulk_operations):
         """Test bulk disassemble with mixed address formats."""
         addresses = ["0x401000", "5356:3cd8", "0x1400010a0"]
@@ -1815,7 +1820,7 @@ class TestBulkDisassemble:
 class TestXrefsIncludeInstruction:
     """Test suite for xrefs tools with include_instruction parameter."""
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_xrefs_to_with_false(self, mock_safe_get):
         """Test get_xrefs_to with include_instruction=False (default)."""
         mock_safe_get.return_value = ["From 0x401000 in main [CALL]"]
@@ -1829,7 +1834,7 @@ class TestXrefsIncludeInstruction:
         # Should not include include_instruction parameter when False
         assert "include_instruction" not in params
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_xrefs_to_with_true(self, mock_safe_get):
         """Test get_xrefs_to with include_instruction=True."""
         mock_safe_get.return_value = ["CALL (1):", "  0x401000 in main: call 0x402000"]
@@ -1842,7 +1847,7 @@ class TestXrefsIncludeInstruction:
         params = call_args[0][1]
         assert params["include_instruction"] == "true"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_xrefs_to_with_zero(self, mock_safe_get):
         """Test get_xrefs_to with include_instruction=0 (instruction only)."""
         mock_safe_get.return_value = ["CALL (1):", "  0x401000 in main: call 0x402000"]
@@ -1854,7 +1859,7 @@ class TestXrefsIncludeInstruction:
         params = call_args[0][1]
         assert params["include_instruction"] == "0"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_xrefs_to_with_context_lines(self, mock_safe_get):
         """Test get_xrefs_to with include_instruction=3 (3 context lines)."""
         mock_safe_get.return_value = [
@@ -1876,7 +1881,7 @@ class TestXrefsIncludeInstruction:
         params = call_args[0][1]
         assert params["include_instruction"] == "3"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_xrefs_from_with_integer(self, mock_safe_get):
         """Test get_xrefs_from with include_instruction as integer."""
         mock_safe_get.return_value = ["DATA_READ (1):", "  0x403000 to data label: mov eax, [0x403000]"]
@@ -1888,7 +1893,7 @@ class TestXrefsIncludeInstruction:
         params = call_args[0][1]
         assert params["include_instruction"] == "2"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_function_xrefs_with_true(self, mock_safe_get):
         """Test get_function_xrefs with include_instruction=True."""
         mock_safe_get.return_value = ["CALL (2):", "  0x401000 in main: call FUN_00402000"]
@@ -1900,7 +1905,7 @@ class TestXrefsIncludeInstruction:
         params = call_args[0][1]
         assert params["include_instruction"] == "true"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_function_xrefs_with_integer(self, mock_safe_get):
         """Test get_function_xrefs with include_instruction as integer."""
         mock_safe_get.return_value = ["CALL (1):", "  0x401000 in main: call myFunc"]
@@ -1912,7 +1917,7 @@ class TestXrefsIncludeInstruction:
         params = call_args[0][1]
         assert params["include_instruction"] == "5"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_get_xrefs_to_default_false(self, mock_safe_get):
         """Test get_xrefs_to uses False as default."""
         mock_safe_get.return_value = ["From 0x401000 in main [CALL]"]
@@ -1929,7 +1934,7 @@ class TestXrefsIncludeInstruction:
 class TestInstructionPatternSearch:
     """Test suite for instruction pattern search functionality."""
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_basic(self, mock_safe_get):
         """Test basic instruction pattern search with regex."""
         mock_safe_get.return_value = ["0x401000: move.b (0x3932,A4),D0 (segment: CODE_70)"]
@@ -1944,7 +1949,7 @@ class TestInstructionPatternSearch:
         call_args = mock_safe_get.call_args
         assert call_args[0][0] == "search_instruction_pattern"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_regex_pattern(self, mock_safe_get):
         """Test instruction pattern search with regex pattern."""
         mock_safe_get.return_value = ["Found 5 matches"]
@@ -1958,7 +1963,7 @@ class TestInstructionPatternSearch:
         params = call_args[0][1]
         assert params["search"] == "[jb]sr"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_with_address_range(self, mock_safe_get):
         """Test instruction pattern search with address range."""
         mock_safe_get.return_value = ["0x1500: move.b D0,D1 (segment: CODE_70)"]
@@ -1976,7 +1981,7 @@ class TestInstructionPatternSearch:
         assert params["end_address"] == "0x2000"
         assert params["search"] == "move"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_with_pagination(self, mock_safe_get):
         """Test instruction pattern search with custom pagination."""
         mock_safe_get.return_value = ["0x402000: jsr FUN_00401000 (segment: CODE_70)"]
@@ -1993,7 +1998,7 @@ class TestInstructionPatternSearch:
         assert params["offset"] == 10
         assert params["limit"] == 50
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_default_limit(self, mock_safe_get):
         """Test instruction pattern search uses default limit when not specified."""
         mock_safe_get.return_value = ["Found 10 matches"]
@@ -2031,7 +2036,7 @@ class TestInstructionPatternSearch:
         assert "Error" in result[0]
         assert "required" in result[0]
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_all_options(self, mock_safe_get):
         """Test instruction pattern search with all optional parameters."""
         mock_safe_get.return_value = ["0x1500: move.b (0x3932,A4),D0 (segment: CODE_70)"]
@@ -2053,7 +2058,7 @@ class TestInstructionPatternSearch:
         assert params["offset"] == 5
         assert params["limit"] == 25
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_special_regex_chars(self, mock_safe_get):
         """Test instruction pattern search with special regex characters."""
         mock_safe_get.return_value = ["0x401000: move.b (0x3932,A4),D0 (segment: CODE_70)"]
@@ -2067,7 +2072,7 @@ class TestInstructionPatternSearch:
         params = call_args[0][1]
         assert params["search"] == ".*\\(.*,.*\\)"
 
-    @patch('bridge_mcp_ghidra.safe_get')
+    @patch('http_client.safe_get')
     def test_instruction_pattern_search_hex_address_pattern(self, mock_safe_get):
         """Test instruction pattern search for hex addresses."""
         mock_safe_get.return_value = ["0x401000: lea (0x3834,A4),A0 (segment: CODE_70)"]
@@ -2103,7 +2108,7 @@ class TestInstructionPatternSearch:
 class TestConsolidatedRenameTool:
     """Test suite for the consolidated rename tool with type discriminator."""
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_rename_function_by_address(self, mock_safe_post):
         """Test rename tool with type='function_by_address'."""
         mock_safe_post.return_value = "Success"
@@ -2120,7 +2125,7 @@ class TestConsolidatedRenameTool:
             {"function_address": "0x401000", "new_name": "my_function"}
         )
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_rename_variable(self, mock_safe_post):
         """Test rename tool with type='variable'."""
         mock_safe_post.return_value = "Success"
@@ -2138,7 +2143,7 @@ class TestConsolidatedRenameTool:
             {"functionName": "main", "oldName": "local_8", "newName": "counter"}
         )
 
-    @patch('bridge_mcp_ghidra.safe_post')
+    @patch('http_client.safe_post')
     def test_rename_struct(self, mock_safe_post):
         """Test rename tool with type='struct'."""
         mock_safe_post.return_value = "Success"
