@@ -46,6 +46,17 @@ public class ProgramAnalyzer {
      * @return Paginated list of class names
      */
     public String getAllClassNames(int offset, int limit) {
+        return getAllClassNames(offset, limit, null);
+    }
+
+    /**
+     * Get all class names with pagination and optional search filter
+     * @param offset Pagination offset
+     * @param limit Pagination limit
+     * @param search Optional search string for filtering (case-insensitive substring match)
+     * @return Paginated list of class names
+     */
+    public String getAllClassNames(int offset, int limit, String search) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
 
@@ -59,6 +70,15 @@ public class ProgramAnalyzer {
         // Convert set to list for pagination
         List<String> sorted = new ArrayList<>(classNames);
         Collections.sort(sorted);
+
+        // Apply search filter if provided
+        if (search != null && !search.isEmpty()) {
+            String searchLower = search.toLowerCase();
+            sorted = sorted.stream()
+                .filter(name -> name.toLowerCase().contains(searchLower))
+                .collect(java.util.stream.Collectors.toList());
+        }
+
         return PluginUtils.paginateList(sorted, offset, limit);
     }
 
