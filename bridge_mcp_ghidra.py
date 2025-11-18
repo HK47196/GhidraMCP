@@ -34,8 +34,64 @@ from config import TOOL_CATEGORIES
 from tool_tracker import ToolTracker
 import requests
 
+# Re-export all tools for backward compatibility
+from tools import (
+    # Query tools
+    man, query, get_data_by_address, get_data_in_range,
+    get_function_by_address, get_current_address, get_current_function,
+    get_function_data, get_xrefs_to, get_xrefs_from, get_function_xrefs,
+    get_function_callees, list_strings,
+    # Decompilation tools
+    decompile_function, decompile_function_by_address,
+    disassemble_function, get_address_context,
+    # Modification tools
+    rename, set_decompiler_comment, set_disassembly_comment,
+    set_plate_comment, set_function_prototype, set_local_variable_type,
+    set_data_type,
+    # Search tools
+    search_decompiled_text,
+    # BSim tools
+    bsim_select_database, bsim_query_function, bsim_query_all_functions,
+    bsim_disconnect, bsim_status, bsim_get_match_disassembly,
+    bsim_get_match_decompile,
+    # Struct tools
+    create_struct, parse_c_struct, add_struct_field,
+    insert_struct_field_at_offset, replace_struct_field,
+    delete_struct_field, clear_struct_field, get_struct_info,
+    list_structs, delete_struct,
+    # Undo tools
+    can_undo, undo, clear_undo,
+)
+
 # Export for test compatibility
-__all__ = ['safe_get', 'safe_post', 'bulk_operations', 'TOOL_CATEGORIES', 'ToolTracker', 'requests']
+__all__ = [
+    'safe_get', 'safe_post', 'bulk_operations', 'TOOL_CATEGORIES', 'ToolTracker', 'requests',
+    # Query tools
+    'man', 'query', 'get_data_by_address', 'get_data_in_range',
+    'get_function_by_address', 'get_current_address', 'get_current_function',
+    'get_function_data', 'get_xrefs_to', 'get_xrefs_from', 'get_function_xrefs',
+    'get_function_callees', 'list_strings',
+    # Decompilation tools
+    'decompile_function', 'decompile_function_by_address',
+    'disassemble_function', 'get_address_context',
+    # Modification tools
+    'rename', 'set_decompiler_comment', 'set_disassembly_comment',
+    'set_plate_comment', 'set_function_prototype', 'set_local_variable_type',
+    'set_data_type',
+    # Search tools
+    'search_decompiled_text',
+    # BSim tools
+    'bsim_select_database', 'bsim_query_function', 'bsim_query_all_functions',
+    'bsim_disconnect', 'bsim_status', 'bsim_get_match_disassembly',
+    'bsim_get_match_decompile',
+    # Struct tools
+    'create_struct', 'parse_c_struct', 'add_struct_field',
+    'insert_struct_field_at_offset', 'replace_struct_field',
+    'delete_struct_field', 'clear_struct_field', 'get_struct_info',
+    'list_structs', 'delete_struct',
+    # Undo tools
+    'can_undo', 'undo', 'clear_undo',
+]
 
 logger = logging.getLogger(__name__)
 
