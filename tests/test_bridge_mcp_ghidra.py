@@ -568,6 +568,112 @@ class TestMCPTools:
         assert "data_9" in result
         mock_safe_get.assert_called_once()
 
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_query_strings_without_search(self, mock_safe_get):
+        """Test query tool for strings type without search parameter."""
+        mock_safe_get.return_value = [
+            '0x00401000: "Hello World"',
+            '0x00401010: "Error: %s"',
+            '0x00401020: "Success"'
+        ]
+
+        result = bridge_mcp_ghidra.query(type="strings", offset=0, limit=100)
+
+        assert len(result) == 3
+        assert '0x00401000: "Hello World"' in result
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_query_strings_with_search(self, mock_safe_get):
+        """Test query tool for strings type with search parameter."""
+        mock_safe_get.return_value = [
+            '0x00401010: "Error: %s"',
+            '0x00401030: "Error: invalid input"'
+        ]
+
+        result = bridge_mcp_ghidra.query(type="strings", search="Error", offset=0, limit=100)
+
+        assert len(result) == 2
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 0,
+            "limit": 100,
+            "search": "Error"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_query_strings_default_limit(self, mock_safe_get):
+        """Test query tool for strings uses default limit of 2000."""
+        mock_safe_get.return_value = []
+
+        result = bridge_mcp_ghidra.query(type="strings")
+
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 0,
+            "limit": 2000
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_strings_basic(self, mock_safe_get):
+        """Test list_strings function without search."""
+        mock_safe_get.return_value = [
+            '0x00401000: "Hello"',
+            '0x00401010: "World"'
+        ]
+
+        result = bridge_mcp_ghidra.list_strings(offset=0, limit=100)
+
+        assert len(result) == 2
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 0,
+            "limit": 100
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_strings_with_search(self, mock_safe_get):
+        """Test list_strings function with search parameter."""
+        mock_safe_get.return_value = [
+            '0x00401000: "password"',
+            '0x00401020: "password123"'
+        ]
+
+        result = bridge_mcp_ghidra.list_strings(offset=0, limit=500, search="password")
+
+        assert len(result) == 2
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 0,
+            "limit": 500,
+            "search": "password"
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_strings_default_limit(self, mock_safe_get):
+        """Test list_strings uses default limit of 2000."""
+        mock_safe_get.return_value = []
+
+        result = bridge_mcp_ghidra.list_strings()
+
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 0,
+            "limit": 2000
+        })
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_list_strings_pagination(self, mock_safe_get):
+        """Test list_strings with pagination parameters."""
+        mock_safe_get.return_value = [
+            '0x00402000: "page2_string"'
+        ]
+
+        result = bridge_mcp_ghidra.list_strings(offset=100, limit=50)
+
+        mock_safe_get.assert_called_once_with("strings", {
+            "offset": 100,
+            "limit": 50
+        })
+
 
 class TestGlobalConfiguration:
     """Test suite for global configuration variables."""
