@@ -254,6 +254,77 @@ class TestMCPTools:
         assert result == [".text", ".data", ".bss"]
         mock_safe_get.assert_called_once_with("segments", {"offset": 0, "limit": 100})
 
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_by_name_with_string(self, mock_safe_get):
+        """Test search segments by name with regular string query."""
+        mock_safe_get.return_value = ["CODE: 00400000 - 0040ffff"]
+
+        result = bridge_mcp_ghidra.query(type="segments", search="CODE", offset=0, limit=100)
+
+        assert result == ["CODE: 00400000 - 0040ffff"]
+        mock_safe_get.assert_called_once_with("segments", {"search": "CODE", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_by_name_with_numeric_string(self, mock_safe_get):
+        """Test search segments by name with numeric string query."""
+        mock_safe_get.return_value = ["DATA_70: 12340000 - 1234ffff"]
+
+        result = bridge_mcp_ghidra.query(type="segments", search="70", offset=0, limit=100)
+
+        assert result == ["DATA_70: 12340000 - 1234ffff"]
+        mock_safe_get.assert_called_once_with("segments", {"search": "70", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_by_name_with_integer(self, mock_safe_get):
+        """Test search segments by name with integer query (handles JSON parsing as int)."""
+        mock_safe_get.return_value = ["SEGMENT_123: 00500000 - 0050ffff"]
+
+        # Simulate MCP client sending an integer due to JSON parsing
+        result = bridge_mcp_ghidra.query(type="segments", search=123, offset=0, limit=50)
+
+        assert result == ["SEGMENT_123: 00500000 - 0050ffff"]
+        mock_safe_get.assert_called_once_with("segments", {"search": "123", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_by_name_with_empty_string(self, mock_safe_get):
+        """Test search segments by name with empty string returns error."""
+        result = bridge_mcp_ghidra.query(type="segments", search="", offset=0, limit=100)
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "query string is required" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_by_name_with_pagination(self, mock_safe_get):
+        """Test search segments by name with custom pagination."""
+        mock_safe_get.return_value = ["DATA: 00600000 - 0060ffff"]
+
+        result = bridge_mcp_ghidra.query(type="segments", search="DATA", offset=10, limit=25)
+
+        assert result == ["DATA: 00600000 - 0060ffff"]
+        mock_safe_get.assert_called_once_with("segments", {"search": "DATA", "offset": 10, "limit": 25})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_by_name_with_dot_notation(self, mock_safe_get):
+        """Test search segments by name with dot notation (e.g., .text)."""
+        mock_safe_get.return_value = [".text: 00401000 - 0041ffff", ".text2: 00420000 - 0042ffff"]
+
+        result = bridge_mcp_ghidra.query(type="segments", search=".text", offset=0, limit=100)
+
+        assert result == [".text: 00401000 - 0041ffff", ".text2: 00420000 - 0042ffff"]
+        mock_safe_get.assert_called_once_with("segments", {"search": ".text", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_segments_default_limit(self, mock_safe_get):
+        """Test search segments uses default limit of 100."""
+        mock_safe_get.return_value = ["CODE: 00400000 - 0040ffff"]
+
+        result = bridge_mcp_ghidra.query(type="segments", search="CODE", offset=0)
+
+        assert result == ["CODE: 00400000 - 0040ffff"]
+        mock_safe_get.assert_called_once_with("segments", {"search": "CODE", "offset": 0, "limit": 100})
+
     @patch('bridge_mcp_ghidra.safe_post')
     def test_decompile_function(self, mock_safe_post):
         """Test decompile_function tool."""
