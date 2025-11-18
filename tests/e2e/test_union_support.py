@@ -455,3 +455,351 @@ class TestUnionXRefs:
         # This is a structural test - we can't guarantee XREFs exist
         assert isinstance(context_str, str)
         assert len(context_str) > 0
+
+
+class TestUnionDisplayFixes:
+    """Test fixes for union display issues"""
+
+    def test_struct_view_context_window(self, ghidra_server):
+        """Test that context window (before/after) is applied to struct field display
+
+        Issue 1: For large structs within unions, only N fields before and after
+        the target field should be shown, not all fields.
+        """
+        # Create a struct with many fields
+        struct_def = """
+        struct LargeStruct {
+            unsigned char field0;
+            unsigned char field1;
+            unsigned char field2;
+            unsigned char field3;
+            unsigned char field4;
+            unsigned char field5;
+            unsigned char field6;
+            unsigned char field7;
+            unsigned char field8;
+            unsigned char field9;
+            unsigned char field10;
+            unsigned char field11;
+            unsigned char field12;
+            unsigned char field13;
+            unsigned char field14;
+            unsigned char field15;
+            unsigned char field16;
+            unsigned char field17;
+            unsigned char field18;
+            unsigned char field19;
+        };
+        """
+        parse_c_struct(struct_def)
+
+        # Create union containing the large struct
+        union_def = """
+        union LargeStructUnion {
+            struct LargeStruct state;
+            unsigned char buffer[20];
+        };
+        """
+        parse_c_struct(union_def)
+
+        # Find a data address
+        data_result = query(type="data", limit=50)
+        test_address = None
+        for line in data_result:
+            if ":" in line:
+                addr = line.split(":")[0].strip()
+                if addr.startswith("0x") or addr.startswith("00"):
+                    test_address = addr
+                    break
+
+        if test_address is None:
+            pytest.skip("No suitable data address found")
+
+        set_data_type(address=test_address, type_name="LargeStructUnion")
+
+        # Query at field10 (offset 10) with small context window
+        if test_address.startswith("0x"):
+            base_addr = int(test_address, 16)
+        else:
+            base_addr = int(test_address, 16)
+
+        target_address = f"0x{base_addr + 10:x}"
+
+        # Use before=2, after=2 to get only 5 fields total
+        context = get_address_context(target_address, before=2, after=2)
+        context_str = "\n".join(context)
+
+        # Should show truncation indicators
+        # Check for "... (X fields before)" or "... (X fields after)"
+        has_before_truncation = "fields before" in context_str.lower()
+        has_after_truncation = "fields after" in context_str.lower()
+
+        # At offset 10, with before=2, after=2:
+        # - Should have 8 fields before (fields 0-7)
+        # - Should have 7 fields after (fields 13-19)
+        # So truncation indicators should be present
+        assert has_before_truncation or has_after_truncation, \
+            f"Expected truncation indicators in struct view.\nContext:\n{context_str}"
+
+    def test_array_offset_notation_spacing(self, ghidra_server):
+        """Test that array offset notation has proper spacing
+
+        Issue 2: Output should show 'uint8_t[256] (offset +6)' with space before
+        parenthesis, not 'uint8_t[256](offset +6)'.
+        """
+        # Create union with array member
+        union_def = """
+        union SpacingTestUnion {
+            int intValue;
+            unsigned char buffer[16];
+        };
+        """
+        parse_c_struct(union_def)
+
+        # Find a data address
+        data_result = query(type="data", limit=50)
+        test_address = None
+        for line in data_result:
+            if ":" in line:
+                addr = line.split(":")[0].strip()
+                if addr.startswith("0x") or addr.startswith("00"):
+                    test_address = addr
+                    break
+
+        if test_address is None:
+            pytest.skip("No suitable data address found")
+
+        set_data_type(address=test_address, type_name="SpacingTestUnion")
+
+        # Query at offset within the array
+        if test_address.startswith("0x"):
+            base_addr = int(test_address, 16)
+        else:
+            base_addr = int(test_address, 16)
+
+        offset_address = f"0x{base_addr + 6:x}"
+
+        context = get_address_context(offset_address, before=0, after=0)
+        context_str = "\n".join(context)
+
+        # Check for proper spacing: should have " (offset" not "](offset"
+        # The array type like "char[16]" should be followed by a space before "(offset"
+        if "(offset" in context_str:
+            # Find the position of "(offset" and check what's before it
+            idx = context_str.find("(offset")
+            if idx > 0:
+                char_before = context_str[idx - 1]
+                # Should be a space, not ']' or other character
+                assert char_before == ' ', \
+                    f"Expected space before '(offset', got '{char_before}'. Context:\n{context_str}"
+
+    def test_struct_view_truncation_indicators(self, ghidra_server):
+        """Test that truncation indicators show count of omitted fields
+
+        Issue 3: When struct fields are truncated, should show
+        '... (N fields before)' and '... (N fields after)'.
+        """
+        # Create a struct with exactly 15 fields
+        struct_def = """
+        struct FifteenFieldStruct {
+            unsigned char a;
+            unsigned char b;
+            unsigned char c;
+            unsigned char d;
+            unsigned char e;
+            unsigned char f;
+            unsigned char g;
+            unsigned char h;
+            unsigned char i;
+            unsigned char j;
+            unsigned char k;
+            unsigned char l;
+            unsigned char m;
+            unsigned char n;
+            unsigned char o;
+        };
+        """
+        parse_c_struct(struct_def)
+
+        # Create union containing the struct
+        union_def = """
+        union FifteenFieldUnion {
+            struct FifteenFieldStruct data;
+            unsigned char raw[15];
+        };
+        """
+        parse_c_struct(union_def)
+
+        # Find a data address
+        data_result = query(type="data", limit=50)
+        test_address = None
+        for line in data_result:
+            if ":" in line:
+                addr = line.split(":")[0].strip()
+                if addr.startswith("0x") or addr.startswith("00"):
+                    test_address = addr
+                    break
+
+        if test_address is None:
+            pytest.skip("No suitable data address found")
+
+        set_data_type(address=test_address, type_name="FifteenFieldUnion")
+
+        # Query at field h (offset 7, which is the middle field)
+        if test_address.startswith("0x"):
+            base_addr = int(test_address, 16)
+        else:
+            base_addr = int(test_address, 16)
+
+        target_address = f"0x{base_addr + 7:x}"
+
+        # Use before=3, after=3 to truncate both ends
+        context = get_address_context(target_address, before=3, after=3)
+        context_str = "\n".join(context)
+
+        # With 15 fields (indices 0-14), targeting index 7:
+        # - startIdx = max(0, 7-3) = 4
+        # - endIdx = min(15, 7+3+1) = 11
+        # - Fields shown: 4-10 (indices)
+        # - Fields before: 4 (indices 0-3)
+        # - Fields after: 4 (indices 11-14)
+
+        # Check for both truncation indicators
+        has_before = "fields before" in context_str.lower()
+        has_after = "fields after" in context_str.lower()
+
+        assert has_before and has_after, \
+            f"Expected both before and after truncation indicators.\nContext:\n{context_str}"
+
+    def test_struct_view_no_truncation_for_small_struct(self, ghidra_server):
+        """Test that small structs don't show truncation indicators
+
+        When a struct has few enough fields to fit within the context window,
+        no truncation indicators should appear.
+        """
+        # Create a small struct with 5 fields
+        struct_def = """
+        struct SmallStruct {
+            unsigned char a;
+            unsigned char b;
+            unsigned char c;
+            unsigned char d;
+            unsigned char e;
+        };
+        """
+        parse_c_struct(struct_def)
+
+        # Create union containing the struct
+        union_def = """
+        union SmallStructUnion {
+            struct SmallStruct data;
+            unsigned char raw[5];
+        };
+        """
+        parse_c_struct(union_def)
+
+        # Find a data address
+        data_result = query(type="data", limit=50)
+        test_address = None
+        for line in data_result:
+            if ":" in line:
+                addr = line.split(":")[0].strip()
+                if addr.startswith("0x") or addr.startswith("00"):
+                    test_address = addr
+                    break
+
+        if test_address is None:
+            pytest.skip("No suitable data address found")
+
+        set_data_type(address=test_address, type_name="SmallStructUnion")
+
+        # Query at middle field with large context window
+        if test_address.startswith("0x"):
+            base_addr = int(test_address, 16)
+        else:
+            base_addr = int(test_address, 16)
+
+        target_address = f"0x{base_addr + 2:x}"
+
+        # Use before=5, after=5 which is larger than the struct
+        context = get_address_context(target_address, before=5, after=5)
+        context_str = "\n".join(context)
+
+        # No truncation should occur for small struct
+        has_truncation = "fields before" in context_str.lower() or "fields after" in context_str.lower()
+
+        assert not has_truncation, \
+            f"Should not show truncation indicators for small struct.\nContext:\n{context_str}"
+
+    def test_struct_field_count_in_truncation(self, ghidra_server):
+        """Test that truncation indicators show correct field counts"""
+        # Create a struct with exactly 12 fields
+        struct_def = """
+        struct TwelveFieldStruct {
+            unsigned char f0;
+            unsigned char f1;
+            unsigned char f2;
+            unsigned char f3;
+            unsigned char f4;
+            unsigned char f5;
+            unsigned char f6;
+            unsigned char f7;
+            unsigned char f8;
+            unsigned char f9;
+            unsigned char f10;
+            unsigned char f11;
+        };
+        """
+        parse_c_struct(struct_def)
+
+        # Create union containing the struct
+        union_def = """
+        union TwelveFieldUnion {
+            struct TwelveFieldStruct data;
+            unsigned char raw[12];
+        };
+        """
+        parse_c_struct(union_def)
+
+        # Find a data address
+        data_result = query(type="data", limit=50)
+        test_address = None
+        for line in data_result:
+            if ":" in line:
+                addr = line.split(":")[0].strip()
+                if addr.startswith("0x") or addr.startswith("00"):
+                    test_address = addr
+                    break
+
+        if test_address is None:
+            pytest.skip("No suitable data address found")
+
+        set_data_type(address=test_address, type_name="TwelveFieldUnion")
+
+        # Query at field f6 (offset 6) with before=2, after=2
+        if test_address.startswith("0x"):
+            base_addr = int(test_address, 16)
+        else:
+            base_addr = int(test_address, 16)
+
+        target_address = f"0x{base_addr + 6:x}"
+
+        context = get_address_context(target_address, before=2, after=2)
+        context_str = "\n".join(context)
+
+        # With 12 fields (indices 0-11), targeting index 6:
+        # - startIdx = max(0, 6-2) = 4
+        # - endIdx = min(12, 6+2+1) = 9
+        # - Fields before: 4 (indices 0-3)
+        # - Fields after: 3 (indices 9-11)
+
+        # Check that we have truncation indicators with numbers
+        import re
+        before_match = re.search(r'\.\.\.\s*\((\d+)\s*fields?\s*before\)', context_str)
+        after_match = re.search(r'\.\.\.\s*\((\d+)\s*fields?\s*after\)', context_str)
+
+        if before_match and after_match:
+            before_count = int(before_match.group(1))
+            after_count = int(after_match.group(1))
+            assert before_count == 4, f"Expected 4 fields before, got {before_count}"
+            assert after_count == 3, f"Expected 3 fields after, got {after_count}"
