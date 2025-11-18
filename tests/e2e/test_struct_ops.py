@@ -684,10 +684,11 @@ class TestStructQuery:
         assert "QueryTestStruct" in result_text
 
     def test_query_structs_with_filter(self, ghidra_server):
-        """Test querying structs with name filter"""
+        """Test querying structs with search filter"""
         create_struct(name="FilterQueryStruct", size=16)
 
-        result = query(type="structs", name="FilterQueryStruct", limit=50)
+        # Use filter parameter to search for the struct
+        result = query(type="structs", filter="FilterQueryStruct", limit=50)
         assert result is not None
 
 
@@ -744,8 +745,8 @@ class TestComplexStructScenarios:
 
     def test_modify_and_rebuild_struct(self, ghidra_server):
         """Test modifying struct fields then rebuilding"""
-        # Create initial struct
-        create_struct(name="ModifyRebuildStruct", size=32)
+        # Create initial struct with size=0 so fields start at ordinal 0
+        create_struct(name="ModifyRebuildStruct", size=0)
         add_struct_field(
             struct_name="ModifyRebuildStruct",
             field_type="int",
@@ -757,7 +758,12 @@ class TestComplexStructScenarios:
             field_name="original2"
         )
 
-        # Replace first field
+        # Verify initial state - fields are at ordinals 0 and 1
+        info = get_struct_info(name="ModifyRebuildStruct")
+        assert "original1" in info
+        assert "original2" in info
+
+        # Replace first field (ordinal 0)
         replace_struct_field(
             struct_name="ModifyRebuildStruct",
             ordinal=0,
@@ -765,7 +771,7 @@ class TestComplexStructScenarios:
             field_name="replaced1"
         )
 
-        # Delete second field
+        # Delete second field (now at ordinal 1)
         delete_struct_field(
             struct_name="ModifyRebuildStruct",
             ordinal=1
@@ -782,6 +788,7 @@ class TestComplexStructScenarios:
         info = get_struct_info(name="ModifyRebuildStruct")
         assert "replaced1" in info
         assert "new1" in info
+        # original1 was replaced, original2 was deleted
         assert "original1" not in info
         assert "original2" not in info
 
