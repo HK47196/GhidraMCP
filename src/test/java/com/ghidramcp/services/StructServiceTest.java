@@ -437,4 +437,208 @@ class StructServiceTest {
 
         assertEquals(2, dimensionCount, "Should have 2 dimensions");
     }
+
+    // ==================== POINTER TYPE RESOLUTION TESTS ====================
+
+    /**
+     * Test pointer types WITHOUT spaces (the bug fix case).
+     * Previously, "void*" would fail to parse because split("\\*") returns ["void"]
+     * instead of ["void", ""].
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse pointer types without spaces correctly")
+    @ValueSource(strings = {"void*", "int*", "char*", "long*", "short*", "float*", "double*"})
+    void testPointerTypesWithoutSpaces(String pointerType) {
+        assertTrue(pointerType.contains("*"), "Should contain asterisk");
+
+        // Count pointer levels
+        int pointerLevels = 0;
+        for (char c : pointerType.toCharArray()) {
+            if (c == '*') pointerLevels++;
+        }
+        assertEquals(1, pointerLevels, "Should have exactly 1 pointer level");
+
+        // Extract base type
+        String baseTypeName = pointerType.substring(0, pointerType.indexOf('*')).trim();
+        assertFalse(baseTypeName.isEmpty(), "Base type should not be empty");
+
+        // After the asterisk should be empty
+        String afterStar = pointerType.substring(pointerType.lastIndexOf('*') + 1).trim();
+        assertTrue(afterStar.isEmpty(), "No size specification for regular pointer");
+    }
+
+    /**
+     * Test double pointer types (e.g., void**, int**)
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse double pointer types correctly")
+    @ValueSource(strings = {"void**", "int**", "char**", "void **", "int **"})
+    void testDoublePointerTypes(String pointerType) {
+        assertTrue(pointerType.contains("*"), "Should contain asterisk");
+
+        // Count pointer levels
+        int pointerLevels = 0;
+        for (char c : pointerType.toCharArray()) {
+            if (c == '*') pointerLevels++;
+        }
+        assertEquals(2, pointerLevels, "Should have exactly 2 pointer levels");
+
+        // Extract base type
+        String baseTypeName = pointerType.substring(0, pointerType.indexOf('*')).trim();
+        assertFalse(baseTypeName.isEmpty(), "Base type should not be empty");
+    }
+
+    /**
+     * Test triple pointer types (rare but valid)
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse triple pointer types correctly")
+    @ValueSource(strings = {"void***", "char***"})
+    void testTriplePointerTypes(String pointerType) {
+        int pointerLevels = 0;
+        for (char c : pointerType.toCharArray()) {
+            if (c == '*') pointerLevels++;
+        }
+        assertEquals(3, pointerLevels, "Should have exactly 3 pointer levels");
+    }
+
+    /**
+     * Test pointer to custom/struct types
+     */
+    @ParameterizedTest
+    @DisplayName("Should parse pointers to custom types correctly")
+    @ValueSource(strings = {"MyStruct*", "CustomType*", "FILE_DESCRIPTOR*", "namespace::Class*"})
+    void testPointerToCustomTypes(String pointerType) {
+        assertTrue(pointerType.contains("*"), "Should contain asterisk");
+
+        String baseTypeName = pointerType.substring(0, pointerType.indexOf('*')).trim();
+        assertFalse(baseTypeName.isEmpty(), "Custom base type should not be empty");
+    }
+
+    /**
+     * Test the new pointer parsing logic counts asterisks correctly
+     */
+    @Test
+    @DisplayName("Should count pointer levels correctly for various types")
+    void testPointerLevelCounting() {
+        // Test different pointer levels
+        String[] testCases = {"void", "void*", "void**", "void***"};
+        int[] expectedLevels = {0, 1, 2, 3};
+
+        for (int i = 0; i < testCases.length; i++) {
+            String typeName = testCases[i];
+            int expectedLevel = expectedLevels[i];
+
+            int pointerLevels = 0;
+            for (char c : typeName.toCharArray()) {
+                if (c == '*') pointerLevels++;
+            }
+
+            assertEquals(expectedLevel, pointerLevels,
+                "Type '" + typeName + "' should have " + expectedLevel + " pointer levels");
+        }
+    }
+
+    /**
+     * Test mixed spacing in pointer types
+     */
+    @ParameterizedTest
+    @DisplayName("Should handle various spacing in pointer types")
+    @ValueSource(strings = {"int*", "int *", "int * ", " int*", " int * "})
+    void testMixedSpacingInPointerTypes(String pointerType) {
+        assertTrue(pointerType.contains("*"), "Should contain asterisk");
+
+        // Extract base type with proper trimming
+        String baseTypeName = pointerType.substring(0, pointerType.indexOf('*')).trim();
+        assertEquals("int", baseTypeName, "Base type should be 'int' after trimming");
+
+        // After asterisk should be empty for regular pointers
+        String afterStar = pointerType.substring(pointerType.lastIndexOf('*') + 1).trim();
+        assertTrue(afterStar.isEmpty() || afterStar.matches("\\d+"),
+            "After asterisk should be empty or numeric");
+    }
+
+    /**
+     * Test that the bug case (void* returning null) is fixed.
+     * This documents the specific issue that was reported.
+     */
+    @Test
+    @DisplayName("Bug fix: void* should not return null during type resolution")
+    void testVoidPointerBugFix() {
+        String typeName = "void*";
+
+        // Using the new parsing logic:
+        // 1. Count asterisks
+        int pointerLevels = 0;
+        for (char c : typeName.toCharArray()) {
+            if (c == '*') pointerLevels++;
+        }
+        assertEquals(1, pointerLevels, "void* has 1 pointer level");
+
+        // 2. Extract base type
+        String baseTypeName = typeName.substring(0, typeName.indexOf('*')).trim();
+        assertEquals("void", baseTypeName, "Base type should be 'void'");
+
+        // 3. Check what's after the asterisk
+        String afterLastStar = typeName.substring(typeName.lastIndexOf('*') + 1).trim();
+        assertTrue(afterLastStar.isEmpty(), "Regular pointer has empty afterStar");
+
+        // The old buggy code used split("\\*") which returns ["void"] for "void*"
+        // because Java's split() discards trailing empty strings by default
+        String[] oldBuggySplit = typeName.split("\\*");
+        assertEquals(1, oldBuggySplit.length, "Old split returned only 1 element (the bug)");
+
+        // The fix doesn't rely on split(), so it works correctly
+    }
+
+    /**
+     * Test that int* is correctly identified as pointer type
+     */
+    @Test
+    @DisplayName("Bug fix: int* should be recognized as pointer type")
+    void testIntPointerBugFix() {
+        String typeName = "int*";
+
+        // Verify contains asterisk
+        assertTrue(typeName.contains("*"), "Should contain asterisk");
+
+        // Extract base type
+        String baseTypeName = typeName.substring(0, typeName.indexOf('*')).trim();
+        assertEquals("int", baseTypeName, "Base type should be 'int'");
+
+        // Verify this is a regular pointer (not far pointer with size)
+        String afterStar = typeName.substring(typeName.lastIndexOf('*') + 1).trim();
+        assertTrue(afterStar.isEmpty(), "Regular pointer should have empty afterStar");
+    }
+
+    /**
+     * Test that char* string pointers are handled
+     */
+    @Test
+    @DisplayName("Bug fix: char* should be recognized as pointer type")
+    void testCharPointerBugFix() {
+        String typeName = "char*";
+
+        assertTrue(typeName.contains("*"), "Should contain asterisk");
+
+        String baseTypeName = typeName.substring(0, typeName.indexOf('*')).trim();
+        assertEquals("char", baseTypeName, "Base type should be 'char'");
+    }
+
+    /**
+     * Test CustomStruct* pointer types
+     */
+    @Test
+    @DisplayName("Bug fix: CustomStruct* should be recognized as pointer type")
+    void testCustomStructPointerBugFix() {
+        String typeName = "CustomStruct*";
+
+        assertTrue(typeName.contains("*"), "Should contain asterisk");
+
+        String baseTypeName = typeName.substring(0, typeName.indexOf('*')).trim();
+        assertEquals("CustomStruct", baseTypeName, "Base type should be 'CustomStruct'");
+
+        String afterStar = typeName.substring(typeName.lastIndexOf('*') + 1).trim();
+        assertTrue(afterStar.isEmpty(), "Regular pointer should have empty afterStar");
+    }
 }

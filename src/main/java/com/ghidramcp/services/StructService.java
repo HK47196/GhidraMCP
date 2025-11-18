@@ -931,49 +931,75 @@ public class StructService {
             }
         }
 
-        // Check for far pointer types with explicit size (e.g., "EffectData *32" for 32-bit pointer)
-        // Pattern: "BaseType *NN" where NN is the pointer size in bits
+        // Check for pointer types (e.g., "int*", "void*", "char**", "EffectData *32")
         if (typeName.contains("*")) {
-            String[] parts = typeName.split("\\*");
-            if (parts.length == 2) {
-                String baseTypeName = parts[0].trim();
-                String sizeStr = parts[1].trim();
+            // Count how many asterisks (pointer levels)
+            int pointerLevels = 0;
+            for (char c : typeName.toCharArray()) {
+                if (c == '*') pointerLevels++;
+            }
 
-                // Check if we have a size specification (e.g., "32", "16")
-                if (!sizeStr.isEmpty() && sizeStr.matches("\\d+")) {
-                    try {
-                        int pointerSizeBits = Integer.parseInt(sizeStr);
-                        int pointerSizeBytes = pointerSizeBits / 8;
+            // Extract base type name (everything before first asterisk)
+            String baseTypeName = typeName.substring(0, typeName.indexOf('*')).trim();
 
-                        if (pointerSizeBytes <= 0) {
-                            Msg.warn(this, "Invalid pointer size in type: " + typeName);
-                            return null;
-                        }
+            // Check for explicit size specification after the last asterisk (e.g., "EffectData *32")
+            String afterLastStar = typeName.substring(typeName.lastIndexOf('*') + 1).trim();
 
-                        // Resolve base type
-                        DataType baseType = resolveDataType(dtm, baseTypeName);
-                        if (baseType == null) {
-                            // Default to void* with specified size
-                            baseType = dtm.getDataType("/void");
-                        }
+            if (!afterLastStar.isEmpty() && afterLastStar.matches("\\d+")) {
+                // Far pointer with explicit size
+                try {
+                    int pointerSizeBits = Integer.parseInt(afterLastStar);
+                    int pointerSizeBytes = pointerSizeBits / 8;
 
-                        // Create pointer with specified size
-                        return new PointerDataType(baseType, pointerSizeBytes, dtm);
-                    } catch (NumberFormatException e) {
+                    if (pointerSizeBytes <= 0) {
                         Msg.warn(this, "Invalid pointer size in type: " + typeName);
                         return null;
                     }
-                }
-                // No size specified or empty after *, treat as regular pointer
-                else if (sizeStr.isEmpty()) {
-                    DataType baseType = resolveDataType(dtm, baseTypeName);
-                    if (baseType != null) {
-                        return new PointerDataType(baseType, dtm);
+
+                    // Resolve base type
+                    DataType baseType;
+                    if (baseTypeName.isEmpty()) {
+                        baseType = VoidDataType.dataType;
+                    } else {
+                        baseType = resolveDataType(dtm, baseTypeName);
+                        if (baseType == null) {
+                            Msg.warn(this, "Could not resolve base type: " + baseTypeName);
+                            return null;
+                        }
                     }
-                    // Default to void*
-                    return new PointerDataType(dtm.getDataType("/void"), dtm);
+
+                    // Wrap with pointer types, applying size only to outermost
+                    DataType currentType = baseType;
+                    for (int i = 0; i < pointerLevels - 1; i++) {
+                        currentType = new PointerDataType(currentType, dtm);
+                    }
+                    return new PointerDataType(currentType, pointerSizeBytes, dtm);
+                } catch (NumberFormatException e) {
+                    Msg.warn(this, "Invalid pointer size in type: " + typeName);
+                    return null;
                 }
+            } else if (afterLastStar.isEmpty()) {
+                // Regular pointer(s) without explicit size
+                // Resolve base type
+                DataType baseType;
+                if (baseTypeName.isEmpty()) {
+                    baseType = VoidDataType.dataType;
+                } else {
+                    baseType = resolveDataType(dtm, baseTypeName);
+                    if (baseType == null) {
+                        Msg.warn(this, "Could not resolve base type: " + baseTypeName);
+                        return null;
+                    }
+                }
+
+                // Wrap with pointer types
+                DataType currentType = baseType;
+                for (int i = 0; i < pointerLevels; i++) {
+                    currentType = new PointerDataType(currentType, dtm);
+                }
+                return currentType;
             }
+            // If afterLastStar is non-empty and non-numeric, fall through to unknown type
         }
 
         // Unknown type
