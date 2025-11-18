@@ -6,6 +6,7 @@ import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.util.template.TemplateSimplifier;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressIterator;
+import ghidra.program.model.data.*;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.listing.CodeUnitFormat;
 import ghidra.program.model.listing.CodeUnitFormatOptions;
@@ -1083,6 +1084,14 @@ public class DisassemblyService {
                                      boolean includeBytes) {
         Address addr = data.getMinAddress();
 
+        // Check if this is a union type
+        DataType dataType = data.getDataType();
+        if (dataType instanceof Union) {
+            displayUnionData(data, isTarget, targetAddr, result, program, listing,
+                           refManager, symbolTable, includeBytes);
+            return;
+        }
+
         // Show parent-level symbols with XREFs (only struct/array level, not field level)
         Symbol[] symbols = symbolTable.getSymbols(addr);
         if (symbols != null && symbols.length > 0) {
@@ -1213,6 +1222,300 @@ public class DisassemblyService {
             result.append("                             ; [POST] ");
             result.append(postComment.replace("\n", "\n                             ; "));
             result.append("\n");
+        }
+    }
+
+    /**
+     * Display a union data type with all its member views
+     * Each union member represents an alternative interpretation of the same memory
+     */
+    private void displayUnionData(Data data, boolean isTarget, Address targetAddr,
+                                 StringBuilder result,
+                                 Program program, Listing listing,
+                                 ReferenceManager refManager, SymbolTable symbolTable,
+                                 boolean includeBytes) {
+        Address addr = data.getMinAddress();
+        Union union = (Union) data.getDataType();
+        int unionSize = data.getLength();
+
+        // Calculate offset of target within union
+        int targetOffset = (int)(targetAddr.getOffset() - addr.getOffset());
+
+        // Show parent-level symbols with XREFs
+        Symbol[] symbols = symbolTable.getSymbols(addr);
+        if (symbols != null && symbols.length > 0) {
+            for (Symbol symbol : symbols) {
+                SymbolType symType = symbol.getSymbolType();
+                if (symType != SymbolType.LABEL &&
+                    symType != SymbolType.GLOBAL &&
+                    symType != SymbolType.LOCAL_VAR) {
+                    continue;
+                }
+
+                String symbolName = symbol.getName();
+                if (symbolName.contains(".")) {
+                    continue;
+                }
+
+                result.append("                         ");
+                Namespace namespace = symbol.getParentNamespace();
+                if (namespace != null && !namespace.isGlobal()) {
+                    result.append(namespace.getName()).append("::");
+                }
+                result.append(symbolName).append("\n");
+
+                // Show XREFs with function names
+                List<String> xrefList = collectXRefsWithFunctionNames(addr, refManager, program);
+                if (!xrefList.isEmpty()) {
+                    result.append("                                  XREF[").append(xrefList.size()).append("]:     ");
+                    result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+                    if (xrefList.size() > 3) {
+                        result.append(", ...");
+                    }
+                    result.append("\n");
+                }
+            }
+        }
+
+        // Show union type header line
+        result.append("        ");
+        result.append(String.format("%-10s", addr.toString()));
+        result.append(union.getDisplayName());
+        result.append("  (union, ").append(unionSize).append(" bytes)\n\n");
+
+        // Get union components (each is a different view)
+        DataTypeComponent[] components = union.getComponents();
+
+        // Display each union member as a separate view
+        int viewNumber = 1;
+        for (DataTypeComponent component : components) {
+            String memberName = component.getFieldName();
+            if (memberName == null || memberName.isEmpty()) {
+                memberName = component.getDataType().getDisplayName();
+            }
+
+            result.append("        === View ").append(viewNumber).append(": ");
+            result.append(memberName).append(" ===\n");
+
+            DataType memberType = component.getDataType();
+
+            // Handle different member types
+            if (memberType instanceof Structure) {
+                // Expand struct fields
+                displayUnionStructView(data, (Structure) memberType, addr, targetAddr, targetOffset,
+                                      result, program, listing, refManager, symbolTable, includeBytes);
+            } else if (memberType instanceof Array) {
+                // Show array with offset notation
+                displayUnionArrayView(data, (Array) memberType, memberName, addr, targetAddr, targetOffset,
+                                     result, program, refManager, includeBytes);
+            } else if (memberType instanceof Union) {
+                // Nested union - show recursively (simplified)
+                displayUnionNestedView(data, (Union) memberType, memberName, addr, targetAddr, targetOffset,
+                                      result, program, refManager, includeBytes);
+            } else {
+                // Simple type - show single line
+                displayUnionSimpleView(data, memberType, memberName, addr, targetAddr, targetOffset,
+                                      result, program, refManager, includeBytes);
+            }
+
+            result.append("\n");
+            viewNumber++;
+        }
+    }
+
+    /**
+     * Display a struct member view within a union
+     */
+    private void displayUnionStructView(Data unionData, Structure struct, Address baseAddr,
+                                        Address targetAddr, int targetOffset,
+                                        StringBuilder result, Program program, Listing listing,
+                                        ReferenceManager refManager, SymbolTable symbolTable,
+                                        boolean includeBytes) {
+        DataTypeComponent[] fields = struct.getComponents();
+
+        for (int i = 0; i < fields.length; i++) {
+            DataTypeComponent field = fields[i];
+            int fieldOffset = field.getOffset();
+            int fieldLength = field.getLength();
+            Address fieldAddr = baseAddr.add(fieldOffset);
+
+            // Check if this field contains the target address
+            boolean isTargetField = (fieldOffset <= targetOffset &&
+                                    targetOffset < fieldOffset + fieldLength);
+
+            // Mark target field with arrow
+            if (isTargetField) {
+                result.append("  --> ");
+            } else {
+                result.append("        ");
+            }
+
+            // Show address
+            result.append(String.format("%-10s", fieldAddr.toString()));
+
+            // Show field type
+            String fieldTypeName = field.getDataType().getDisplayName();
+            result.append(String.format("%-12s", fieldTypeName));
+
+            // Get field value from memory
+            String valueStr = getFieldValue(unionData, fieldOffset, field.getDataType(), program);
+            result.append(String.format("%-24s", valueStr));
+
+            // Show field name
+            String fieldName = field.getFieldName();
+            if (fieldName != null && !fieldName.isEmpty()) {
+                result.append(fieldName);
+            }
+
+            // Show XREFs for this field address
+            List<String> xrefList = collectXRefsWithFunctionNames(fieldAddr, refManager, program);
+            if (!xrefList.isEmpty()) {
+                result.append("\n                                  XREF[").append(xrefList.size()).append("]:     ");
+                result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+                if (xrefList.size() > 3) {
+                    result.append(", ...");
+                }
+            }
+
+            result.append("\n");
+        }
+    }
+
+    /**
+     * Display an array member view within a union
+     */
+    private void displayUnionArrayView(Data unionData, Array arrayType, String memberName,
+                                       Address baseAddr, Address targetAddr, int targetOffset,
+                                       StringBuilder result, Program program,
+                                       ReferenceManager refManager, boolean includeBytes) {
+        int elementSize = arrayType.getElementLength();
+        int numElements = arrayType.getNumElements();
+        String elementTypeName = arrayType.getDataType().getDisplayName();
+
+        // Calculate which element contains the target
+        int targetElement = (elementSize > 0) ? targetOffset / elementSize : 0;
+        int offsetInElement = (elementSize > 0) ? targetOffset % elementSize : targetOffset;
+
+        // For array views, show the target offset notation
+        boolean isTarget = (targetOffset >= 0 && targetOffset < arrayType.getLength());
+
+        if (isTarget) {
+            result.append("  --> ");
+        } else {
+            result.append("        ");
+        }
+
+        result.append(String.format("%-10s", targetAddr.toString()));
+        result.append(String.format("%-12s", elementTypeName + "[" + numElements + "]"));
+        result.append(String.format("%-24s", "(offset +" + targetOffset + ")"));
+
+        // Show XREFs inherited from union base
+        List<String> xrefList = collectXRefsWithFunctionNames(baseAddr, refManager, program);
+        if (!xrefList.isEmpty()) {
+            result.append("\n                                  XREF[").append(xrefList.size()).append("]:     ");
+            result.append("(inherits from union base)");
+        }
+
+        result.append("\n");
+    }
+
+    /**
+     * Display a nested union member view
+     */
+    private void displayUnionNestedView(Data unionData, Union nestedUnion, String memberName,
+                                        Address baseAddr, Address targetAddr, int targetOffset,
+                                        StringBuilder result, Program program,
+                                        ReferenceManager refManager, boolean includeBytes) {
+        // Simplified display for nested unions
+        boolean isTarget = (targetOffset >= 0 && targetOffset < nestedUnion.getLength());
+
+        if (isTarget) {
+            result.append("  --> ");
+        } else {
+            result.append("        ");
+        }
+
+        result.append(String.format("%-10s", baseAddr.toString()));
+        result.append(String.format("%-12s", nestedUnion.getDisplayName()));
+        result.append("(nested union, ").append(nestedUnion.getLength()).append(" bytes)");
+
+        // Show components count
+        result.append("  [").append(nestedUnion.getNumComponents()).append(" members]");
+
+        result.append("\n");
+    }
+
+    /**
+     * Display a simple type member view within a union
+     */
+    private void displayUnionSimpleView(Data unionData, DataType memberType, String memberName,
+                                        Address baseAddr, Address targetAddr, int targetOffset,
+                                        StringBuilder result, Program program,
+                                        ReferenceManager refManager, boolean includeBytes) {
+        boolean isTarget = (targetOffset >= 0 && targetOffset < memberType.getLength());
+
+        if (isTarget) {
+            result.append("  --> ");
+        } else {
+            result.append("        ");
+        }
+
+        result.append(String.format("%-10s", baseAddr.toString()));
+        result.append(String.format("%-12s", memberType.getDisplayName()));
+
+        // Get value
+        String valueStr = getFieldValue(unionData, 0, memberType, program);
+        result.append(String.format("%-24s", valueStr));
+
+        if (memberName != null && !memberName.isEmpty()) {
+            result.append(memberName);
+        }
+
+        // Show XREFs
+        List<String> xrefList = collectXRefsWithFunctionNames(baseAddr, refManager, program);
+        if (!xrefList.isEmpty()) {
+            result.append("\n                                  XREF[").append(xrefList.size()).append("]:     ");
+            result.append(String.join(", ", xrefList.stream().limit(3).collect(Collectors.toList())));
+            if (xrefList.size() > 3) {
+                result.append(", ...");
+            }
+        }
+
+        result.append("\n");
+    }
+
+    /**
+     * Get the value of a field from memory
+     */
+    private String getFieldValue(Data data, int offset, DataType fieldType, Program program) {
+        try {
+            Address fieldAddr = data.getMinAddress().add(offset);
+            int length = fieldType.getLength();
+
+            if (length <= 0 || length > 8) {
+                return "";
+            }
+
+            // Read bytes from memory
+            byte[] bytes = new byte[length];
+            program.getMemory().getBytes(fieldAddr, bytes);
+
+            // Format based on type
+            if (length == 1) {
+                return String.format("%02xh", bytes[0] & 0xFF);
+            } else if (length == 2) {
+                int value = (bytes[0] & 0xFF) | ((bytes[1] & 0xFF) << 8);
+                return String.format("%04xh", value);
+            } else if (length == 4) {
+                int value = (bytes[0] & 0xFF) | ((bytes[1] & 0xFF) << 8) |
+                           ((bytes[2] & 0xFF) << 16) | ((bytes[3] & 0xFF) << 24);
+                return String.format("%08xh", value);
+            } else {
+                // Just show first byte for now
+                return String.format("%02xh", bytes[0] & 0xFF);
+            }
+        } catch (Exception e) {
+            return "??";
         }
     }
 
