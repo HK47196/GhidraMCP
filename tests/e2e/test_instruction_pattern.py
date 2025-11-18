@@ -172,10 +172,91 @@ class TestInstructionPatternSearch:
         assert isinstance(result, list)
         text = "\n".join(result) if result else ""
 
-        # Should return "No matches" message
+        # Should return message indicating pattern compiled but no matches found
         if text:
             assert "No matches" in text or "0 matches" in text or len(result) == 0, \
                 f"Expected 'No matches' message, got: {text[:200]}"
+
+    def test_instruction_pattern_valid_regex_no_matches_feedback(self, ghidra_server):
+        """Test that valid regex with no matches provides clear feedback about successful compilation"""
+        # Search for a valid but unlikely pattern
+        result = query(type="instruction_pattern", search="qwertyuiop987654321", limit=10)
+
+        assert isinstance(result, list)
+        text = "\n".join(result)
+
+        # Should indicate pattern compiled successfully even with no matches
+        assert "compiled successfully" in text.lower(), \
+            f"Expected 'compiled successfully' in message for valid regex with no matches, got: {text[:200]}"
+        assert "No matches" in text, \
+            f"Expected 'No matches' in message, got: {text[:200]}"
+        # Should NOT contain "Error" since the pattern is valid
+        assert not text.startswith("Error"), \
+            f"Valid regex should not return error, got: {text[:200]}"
+
+    def test_instruction_pattern_invalid_regex_error_feedback(self, ghidra_server):
+        """Test that invalid regex provides clear error feedback about syntax error"""
+        # Search with invalid regex - unclosed parenthesis
+        result = query(type="instruction_pattern", search="mov(", limit=10)
+
+        assert isinstance(result, list)
+        text = "\n".join(result)
+
+        # Should return error indicating invalid regex pattern
+        assert "Error" in text, \
+            f"Expected 'Error' for invalid regex, got: {text[:200]}"
+        assert "Invalid regex" in text or "invalid regex" in text.lower(), \
+            f"Expected 'Invalid regex' in error message, got: {text[:200]}"
+        # Should NOT contain 'compiled successfully' since the pattern is invalid
+        assert "compiled successfully" not in text.lower(), \
+            f"Invalid regex should not say 'compiled successfully', got: {text[:200]}"
+
+    def test_instruction_pattern_invalid_regex_unclosed_bracket(self, ghidra_server):
+        """Test error feedback for unclosed character class bracket"""
+        result = query(type="instruction_pattern", search="[abc", limit=10)
+
+        assert isinstance(result, list)
+        text = "\n".join(result)
+
+        # Should indicate invalid regex with helpful message
+        assert "Error" in text, \
+            f"Expected error for unclosed bracket, got: {text[:200]}"
+        assert "Invalid regex" in text or "invalid regex" in text.lower(), \
+            f"Expected 'Invalid regex' message, got: {text[:200]}"
+
+    def test_instruction_pattern_invalid_regex_bad_quantifier(self, ghidra_server):
+        """Test error feedback for invalid quantifier at start of pattern"""
+        # Quantifier without preceding element is invalid
+        result = query(type="instruction_pattern", search="*mov", limit=10)
+
+        assert isinstance(result, list)
+        text = "\n".join(result)
+
+        # Should indicate invalid regex
+        assert "Error" in text, \
+            f"Expected error for bad quantifier, got: {text[:200]}"
+
+    def test_instruction_pattern_distinguishes_valid_vs_invalid_regex(self, ghidra_server):
+        """Test that valid and invalid regex patterns give distinctly different feedback"""
+        # Valid regex that finds no matches
+        valid_result = query(type="instruction_pattern", search="zzznonexistent123", limit=10)
+        valid_text = "\n".join(valid_result)
+
+        # Invalid regex (syntax error)
+        invalid_result = query(type="instruction_pattern", search="mov[", limit=10)
+        invalid_text = "\n".join(invalid_result)
+
+        # Valid regex should mention successful compilation
+        assert "compiled successfully" in valid_text.lower(), \
+            f"Valid regex should mention successful compilation, got: {valid_text[:200]}"
+
+        # Invalid regex should mention error
+        assert "Error" in invalid_text, \
+            f"Invalid regex should mention error, got: {invalid_text[:200]}"
+
+        # They should be clearly different messages
+        assert valid_text != invalid_text, \
+            "Valid and invalid regex should produce different messages"
 
     def test_instruction_pattern_pagination(self, ghidra_server):
         """Test pagination of instruction pattern results"""

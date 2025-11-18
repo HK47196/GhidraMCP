@@ -128,7 +128,7 @@ public class InstructionPatternSearchService {
         }
 
         if (results.isEmpty()) {
-            return "No matches found for pattern: " + searchPattern;
+            return "Pattern compiled successfully. No matches found for: " + searchPattern;
         }
 
         // Format and paginate results
