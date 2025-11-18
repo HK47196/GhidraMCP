@@ -674,6 +674,13 @@ class TestMCPTools:
             "search": "Error"
         })
 
+    def test_query_strings_empty_search_error(self):
+        """Test query tool for strings type with empty search parameter returns error."""
+        result = bridge_mcp_ghidra.query(type="strings", search="", offset=0, limit=100)
+
+        assert len(result) == 1
+        assert "Error: query string is required" in result[0]
+
     @patch('bridge_mcp_ghidra.safe_get')
     def test_query_strings_default_limit(self, mock_safe_get):
         """Test query tool for strings uses default limit of 2000."""

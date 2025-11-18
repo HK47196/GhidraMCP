@@ -26,7 +26,7 @@ public class PluginUtils {
         if (query != null) {
             String[] pairs = query.split("&");
             for (String p : pairs) {
-                String[] kv = p.split("=");
+                String[] kv = p.split("=", 2);
                 if (kv.length == 2) {
                     // URL decode parameter values
                     try {

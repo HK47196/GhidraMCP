@@ -317,7 +317,10 @@ def query(
             return safe_get("struct/list", params)
         elif type == "strings":
             # Use strings endpoint with search parameter
-            params = {"offset": offset, "limit": limit if limit else 2000, "search": search}
+            query_str = str(search) if search is not None else ""
+            if not query_str:
+                return ["Error: query string is required"]
+            params = {"offset": offset, "limit": limit if limit else 2000, "search": query_str}
             return safe_get("strings", params)
         elif type == "instruction_pattern":
             # Handle instruction pattern search with regex
