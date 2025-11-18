@@ -381,9 +381,13 @@ public class StructService {
                     String finalFieldName = fieldName != null && !fieldName.isEmpty() ? fieldName : existing.getFieldName();
                     String finalComment = comment != null ? comment : existing.getComment();
                     int fieldLength = length > 0 ? length : -1;
+                    int existingOffset = existing.getOffset();
 
-                    DataTypeComponent component = struct.replace(
-                        ordinal,
+                    // Delete existing component and insert new one at same offset
+                    // This handles the case where new type is larger than existing
+                    struct.delete(ordinal);
+                    DataTypeComponent component = struct.insertAtOffset(
+                        existingOffset,
                         fieldDataType,
                         fieldLength,
                         finalFieldName,
@@ -836,18 +840,23 @@ public class StructService {
             if (dt != null) return dt;
         }
 
-        // Search all data types
+        // Try with leading slash first (most common case for user-created structs)
+        DataType directMatch = dtm.getDataType("/" + typeName);
+        if (directMatch != null) {
+            return directMatch;
+        }
+
+        // Search all data types as fallback
         Iterator<DataType> allTypes = dtm.getAllDataTypes();
         while (allTypes.hasNext()) {
             DataType dt = allTypes.next();
             if (dt.getName().equals(typeName)) {
-                // Get the actual type from the manager by its path to ensure we have the mutable instance
-                return dtm.getDataType(dt.getDataTypePath());
+                // Get the actual mutable instance using the full path name
+                return dtm.getDataType(dt.getPathName());
             }
         }
 
-        // Try with leading slash
-        return dtm.getDataType("/" + typeName);
+        return null;
     }
 
     /**
@@ -855,7 +864,14 @@ public class StructService {
      * Similar to FunctionSignatureService.resolveDataType but simplified
      */
     private DataType resolveDataType(DataTypeManager dtm, String typeName) {
-        // First try to find exact match
+        // Check for common built-in types FIRST to ensure correct mapping
+        // (e.g., "long" -> "/longlong", not "/long" which may be 4 bytes)
+        DataType builtInType = resolveBuiltInType(dtm, typeName);
+        if (builtInType != null) {
+            return builtInType;
+        }
+
+        // Try to find exact match for custom types
         DataType dataType = findDataType(dtm, typeName);
         if (dataType != null) {
             return dataType;
@@ -960,47 +976,57 @@ public class StructService {
             }
         }
 
-        // Handle common built-in types
+        // Unknown type
+        Msg.warn(this, "Unknown type: " + typeName);
+        return null;
+    }
+
+    /**
+     * Resolve built-in type names to their Ghidra data types
+     * Returns null if the type name is not a recognized built-in type
+     */
+    private DataType resolveBuiltInType(DataTypeManager dtm, String typeName) {
         switch (typeName.toLowerCase()) {
             case "int":
+                return IntegerDataType.dataType;
             case "long":
-                return dtm.getDataType("/int");
+            case "long long":
+            case "longlong":
+            case "__int64":
+                return LongLongDataType.dataType;
             case "uint":
             case "unsigned int":
-            case "unsigned long":
             case "dword":
-                return dtm.getDataType("/uint");
+                return UnsignedIntegerDataType.dataType;
+            case "ulong":
+            case "unsigned long":
+            case "ulonglong":
+            case "unsigned long long":
+            case "unsigned __int64":
+                return UnsignedLongLongDataType.dataType;
             case "short":
-                return dtm.getDataType("/short");
+                return ShortDataType.dataType;
             case "ushort":
             case "unsigned short":
             case "word":
-                return dtm.getDataType("/ushort");
+                return UnsignedShortDataType.dataType;
             case "char":
             case "byte":
-                return dtm.getDataType("/char");
+                return CharDataType.dataType;
             case "uchar":
             case "unsigned char":
-                return dtm.getDataType("/uchar");
-            case "longlong":
-            case "__int64":
-                return dtm.getDataType("/longlong");
-            case "ulonglong":
-            case "unsigned __int64":
-                return dtm.getDataType("/ulonglong");
+                return UnsignedCharDataType.dataType;
             case "bool":
             case "boolean":
-                return dtm.getDataType("/bool");
+                return BooleanDataType.dataType;
             case "void":
-                return dtm.getDataType("/void");
+                return VoidDataType.dataType;
             case "float":
-                return dtm.getDataType("/float");
+                return FloatDataType.dataType;
             case "double":
-                return dtm.getDataType("/double");
+                return DoubleDataType.dataType;
             default:
-                // Default to int if we couldn't find it
-                Msg.warn(this, "Unknown type: " + typeName + ", defaulting to int");
-                return dtm.getDataType("/int");
+                return null;
         }
     }
 
