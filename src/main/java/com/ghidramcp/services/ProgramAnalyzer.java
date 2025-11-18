@@ -83,18 +83,27 @@ public class ProgramAnalyzer {
     }
 
     /**
-     * List memory segments with pagination
+     * List memory segments with pagination and optional search filter
      * @param offset Pagination offset
      * @param limit Pagination limit
+     * @param search Optional search string for filtering segment names (case-insensitive substring match)
      * @return Paginated list of memory segments
      */
-    public String listSegments(int offset, int limit) {
+    public String listSegments(int offset, int limit, String search) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
 
         List<String> lines = new ArrayList<>();
         for (MemoryBlock block : program.getMemory().getBlocks()) {
-            lines.add(String.format("%s: %s - %s", block.getName(), block.getStart(), block.getEnd()));
+            String line = String.format("%s: %s - %s", block.getName(), block.getStart(), block.getEnd());
+            // Apply search filter if provided
+            if (search != null && !search.isEmpty()) {
+                if (line.toLowerCase().contains(search.toLowerCase())) {
+                    lines.add(line);
+                }
+            } else {
+                lines.add(line);
+            }
         }
         return PluginUtils.paginateList(lines, offset, limit);
     }

@@ -177,7 +177,8 @@ public class GhidraMCPPlugin extends Plugin {
             Map<String, String> qparams = PluginUtils.parseQueryParams(exchange);
             int offset = PluginUtils.parseIntOrDefault(qparams.get("offset"), 0);
             int limit  = PluginUtils.parseIntOrDefault(qparams.get("limit"),  100);
-            sendResponse(exchange, programAnalyzer.listSegments(offset, limit));
+            String search = qparams.get("search");
+            sendResponse(exchange, programAnalyzer.listSegments(offset, limit, search));
         });
 
         server.createContext("/imports", exchange -> {
@@ -805,7 +806,8 @@ public class GhidraMCPPlugin extends Plugin {
                 case "/segments":
                     return programAnalyzer.listSegments(
                         PluginUtils.parseIntOrDefault(params.get("offset"), 0),
-                        PluginUtils.parseIntOrDefault(params.get("limit"), 100)
+                        PluginUtils.parseIntOrDefault(params.get("limit"), 100),
+                        params.get("search")
                     );
 
                 case "/imports":
