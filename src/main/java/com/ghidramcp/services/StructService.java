@@ -841,7 +841,8 @@ public class StructService {
         while (allTypes.hasNext()) {
             DataType dt = allTypes.next();
             if (dt.getName().equals(typeName)) {
-                return dt;
+                // Get the actual type from the manager by its path to ensure we have the mutable instance
+                return dtm.getDataType(dt.getDataTypePath());
             }
         }
 
