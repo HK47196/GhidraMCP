@@ -28,9 +28,17 @@ from http_client import (
 import tools
 
 # Re-export commonly used functions and classes for backward compatibility with tests
-from http_client import safe_get, safe_post
+from http_client import (
+    safe_get, safe_post,
+    ghidra_server_url, ghidra_request_timeout
+)
 from tools.bulk_tools import bulk_operations
-from config import TOOL_CATEGORIES
+from config import (
+    TOOL_CATEGORIES,
+    _tool_registry, _enabled_tools, _tools_registered, _tool_tracker,
+    get_tool_tracker
+)
+from manual import MANUAL
 from tool_tracker import ToolTracker
 import requests
 
@@ -66,6 +74,8 @@ from tools import (
 # Export for test compatibility
 __all__ = [
     'safe_get', 'safe_post', 'bulk_operations', 'TOOL_CATEGORIES', 'ToolTracker', 'requests',
+    'MANUAL', '_tool_registry', '_enabled_tools', '_tools_registered', '_tool_tracker',
+    'ghidra_server_url', 'ghidra_request_timeout', 'get_tool_tracker',
     # Query tools
     'man', 'query', 'get_data_by_address', 'get_data_in_range',
     'get_function_by_address', 'get_current_address', 'get_current_function',
