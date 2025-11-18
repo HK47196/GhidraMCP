@@ -36,6 +36,7 @@ public class SymbolManager {
      * @return true if successful
      */
     public boolean renameFunction(String oldName, String newName) {
+        if (navigator == null) return false;
         Program program = navigator.getCurrentProgram();
         if (program == null) return false;
 
@@ -74,6 +75,7 @@ public class SymbolManager {
      * @return true if successful
      */
     public boolean renameFunctionByAddress(String functionAddrStr, String newName) {
+        if (navigator == null) return false;
         Program program = navigator.getCurrentProgram();
         if (program == null) return false;
         if (functionAddrStr == null || functionAddrStr.isEmpty() ||
@@ -100,6 +102,7 @@ public class SymbolManager {
      * @param newName New name for the data
      */
     public void renameDataAtAddress(String addressStr, String newName) {
+        if (navigator == null) return;
         Program program = navigator.getCurrentProgram();
         if (program == null) return;
 
@@ -141,6 +144,7 @@ public class SymbolManager {
      * @return Status message
      */
     public String renameVariableInFunction(String functionName, String oldVarName, String newVarName) {
+        if (navigator == null) return "No program loaded";
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
 
