@@ -683,12 +683,12 @@ class TestStructQuery:
         result_text = "\n".join(result) if isinstance(result, list) else str(result)
         assert "QueryTestStruct" in result_text
 
-    def test_query_structs_with_filter(self, ghidra_server):
-        """Test querying structs with search filter"""
+    def test_query_structs_with_search(self, ghidra_server):
+        """Test querying structs with search parameter"""
         create_struct(name="FilterQueryStruct", size=16)
 
-        # Use filter parameter to search for the struct
-        result = query(type="structs", filter="FilterQueryStruct", limit=50)
+        # Use search parameter to search for the struct
+        result = query(type="structs", search="FilterQueryStruct", limit=50)
         assert result is not None
 
 
