@@ -62,9 +62,9 @@ public class ProgramAnalyzer {
 
         Set<String> classNames = new HashSet<>();
         for (Symbol symbol : program.getSymbolTable().getAllSymbols(true)) {
-            Namespace ns = symbol.getParentNamespace();
-            if (ns != null && !ns.isGlobal()) {
-                classNames.add(ns.getName());
+            // Only include symbols that are actual classes, not all namespaces
+            if (symbol.getSymbolType() == SymbolType.CLASS) {
+                classNames.add(symbol.getName());
             }
         }
         // Convert set to list for pagination
