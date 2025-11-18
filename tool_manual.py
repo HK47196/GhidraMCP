@@ -317,19 +317,19 @@ Params:
         - "exports": Exported functions/symbols
         - "namespaces": Non-global namespaces
         - "data": Data labels and values (supports search parameter)
-        - "strings": Defined strings with addresses (supports filter)
+        - "strings": Defined strings with addresses (supports search)
         - "structs": Struct types (supports search and category_path)
         - "instruction_pattern": Instruction patterns (requires search parameter with regex)
     search: Search/filter query. Usage varies by type:
         - "methods": Supports namespace syntax (e.g., "funcName", "MyClass::", "MyClass::funcName")
         - "data": Substring search on data labels
+        - "strings": Case-insensitive substring search on string values
         - "structs": Case-insensitive substring search on struct names
         - "instruction_pattern": Regex pattern to match against disassembly (REQUIRED)
     start_address: Start address of range to search (optional for instruction_pattern)
     end_address: End address of range to search (optional for instruction_pattern)
     offset: Pagination offset (default: 0)
     limit: Max results (default: 100 for most types, 2000 for strings)
-    filter: String content filter for "strings" type
     category_path: Category filter for "structs" type
 
 Instruction Pattern Search:
