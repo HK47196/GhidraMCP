@@ -94,15 +94,17 @@ public class ProgramAnalyzer {
         if (program == null) return "No program loaded";
 
         List<String> lines = new ArrayList<>();
+        String searchLower = (search != null && !search.isEmpty()) ? search.toLowerCase() : null;
+
         for (MemoryBlock block : program.getMemory().getBlocks()) {
-            String line = String.format("%s: %s - %s", block.getName(), block.getStart(), block.getEnd());
-            // Apply search filter if provided
-            if (search != null && !search.isEmpty()) {
-                if (line.toLowerCase().contains(search.toLowerCase())) {
-                    lines.add(line);
+            String name = block.getName();
+            // Apply search filter if provided (filter on segment name only, not addresses)
+            if (searchLower != null) {
+                if (name.toLowerCase().contains(searchLower)) {
+                    lines.add(String.format("%s: %s - %s", name, block.getStart(), block.getEnd()));
                 }
             } else {
-                lines.add(line);
+                lines.add(String.format("%s: %s - %s", name, block.getStart(), block.getEnd()));
             }
         }
         return PluginUtils.paginateList(lines, offset, limit);
