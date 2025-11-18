@@ -359,13 +359,13 @@ public class ProgramAnalyzer {
     }
 
     /**
-     * List defined strings with optional filtering
+     * List defined strings with optional search
      * @param offset Pagination offset
      * @param limit Pagination limit
-     * @param filter Optional filter string (substring match on string value)
+     * @param search Optional search string (substring match on string value)
      * @return Paginated list of strings
      */
-    public String listDefinedStrings(int offset, int limit, String filter) {
+    public String listDefinedStrings(int offset, int limit, String search) {
         Program program = navigator.getCurrentProgram();
         if (program == null) return "No program loaded";
 
@@ -378,7 +378,7 @@ public class ProgramAnalyzer {
             if (data != null && isStringData(data)) {
                 String value = data.getValue() != null ? data.getValue().toString() : "";
 
-                if (filter == null || value.toLowerCase().contains(filter.toLowerCase())) {
+                if (search == null || value.toLowerCase().contains(search.toLowerCase())) {
                     String escapedValue = escapeString(value);
                     lines.add(String.format("%s: \"%s\"", data.getAddress(), escapedValue));
                 }

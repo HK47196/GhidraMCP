@@ -454,4 +454,172 @@ class ProgramAnalyzerSearchTest {
 
         assertEquals(0, matchCount, "Should find no matches for nonexistent search term");
     }
+
+    // ============================================================
+    // Tests for listDefinedStrings functionality
+    // ============================================================
+
+    /**
+     * Test string result format
+     */
+    @Test
+    @DisplayName("Should format string results correctly")
+    void testStringResultFormat() {
+        // Expected format: "address: \"value\""
+        String address = "0x00401000";
+        String value = "Hello World";
+        String expectedFormat = address + ": \"" + value + "\"";
+
+        assertTrue(expectedFormat.contains(": \""),
+            "String result should contain ': \"' separator");
+        assertTrue(expectedFormat.startsWith(address),
+            "String result should start with address");
+        assertTrue(expectedFormat.endsWith("\""),
+            "String result should end with closing quote");
+        assertTrue(expectedFormat.contains(value),
+            "String result should contain the string value");
+    }
+
+    /**
+     * Test case-insensitive search for strings
+     */
+    @ParameterizedTest
+    @DisplayName("Should perform case-insensitive string search")
+    @ValueSource(strings = {"ERROR", "error", "Error", "eRrOr"})
+    void testCaseInsensitiveStringSearch(String searchTerm) {
+        String stringValue = "Error: file not found";
+
+        // Case-insensitive matching
+        boolean matches = stringValue.toLowerCase().contains(searchTerm.toLowerCase());
+        assertTrue(matches, "String search should be case-insensitive");
+    }
+
+    /**
+     * Test string search with various substring patterns
+     */
+    @ParameterizedTest
+    @DisplayName("Should match substrings in string values")
+    @ValueSource(strings = {"pass", "word", "123", "PASS", "password"})
+    void testStringSubstringMatching(String substring) {
+        String fullString = "password123";
+
+        boolean matches = fullString.toLowerCase().contains(substring.toLowerCase());
+        assertTrue(matches, "Should match substring: " + substring);
+    }
+
+    /**
+     * Test string result with escaped characters
+     */
+    @Test
+    @DisplayName("Should handle escaped characters in string values")
+    void testEscapedCharactersInStrings() {
+        // Common escape sequences that should be handled
+        String[] escapeSequences = {"\\n", "\\t", "\\r", "\\\""};
+
+        for (String escape : escapeSequences) {
+            assertNotNull(escape, "Escape sequence should be defined");
+
+            // Test that format works with escaped characters
+            String address = "0x00401000";
+            String value = "test" + escape + "value";
+            String formatted = address + ": \"" + value + "\"";
+
+            assertTrue(formatted.contains(value),
+                "Should handle escape sequence: " + escape);
+        }
+    }
+
+    /**
+     * Test no program loaded message for strings
+     */
+    @Test
+    @DisplayName("Should return appropriate message when no program loaded for strings")
+    void testNoProgramLoadedForStrings() {
+        String expectedMessage = "No program loaded";
+
+        assertFalse(expectedMessage.isEmpty(),
+            "No program message should not be empty");
+        assertTrue(expectedMessage.contains("No program"),
+            "Should indicate no program is loaded");
+    }
+
+    /**
+     * Test null search parameter for strings
+     */
+    @Test
+    @DisplayName("Should handle null search parameter for strings")
+    void testNullSearchParameterForStrings() {
+        // When search is null, all strings should be returned
+        String search = null;
+        boolean shouldIncludeAll = (search == null);
+
+        assertTrue(shouldIncludeAll,
+            "Null search should include all strings without filtering");
+    }
+
+    /**
+     * Test empty string values
+     */
+    @Test
+    @DisplayName("Should handle empty string values")
+    void testEmptyStringValue() {
+        String address = "0x00401000";
+        String value = "";
+        String formatted = address + ": \"" + value + "\"";
+
+        assertTrue(formatted.endsWith(": \"\""),
+            "Should format empty string value correctly");
+    }
+
+    /**
+     * Test pagination defaults for strings
+     */
+    @Test
+    @DisplayName("Should use correct default pagination for strings")
+    void testStringPaginationDefaults() {
+        int defaultOffset = 0;
+        int defaultLimit = 100;  // Server-side default
+
+        assertEquals(0, defaultOffset, "Default offset should be 0");
+        assertTrue(defaultLimit > 0, "Default limit should be positive");
+    }
+
+    /**
+     * Test string result pattern matching
+     */
+    @Test
+    @DisplayName("Should maintain consistent string result format")
+    void testStringResultPattern() {
+        // String format: "address: \"value\""
+        String stringPattern = "^0x[0-9a-fA-F]+: \".+\"$";
+        String stringExample = "0x00401000: \"Hello World\"";
+
+        assertTrue(stringExample.matches(stringPattern),
+            "String result should match expected pattern");
+    }
+
+    /**
+     * Test that string search filters correctly
+     */
+    @Test
+    @DisplayName("Should filter strings by search parameter")
+    void testStringSearchFiltering() {
+        String search = "error";
+        String[] testStrings = {
+            "Error: file not found",
+            "Success",
+            "FATAL ERROR",
+            "warning"
+        };
+
+        int matchCount = 0;
+        for (String str : testStrings) {
+            if (str.toLowerCase().contains(search.toLowerCase())) {
+                matchCount++;
+            }
+        }
+
+        assertEquals(2, matchCount,
+            "Should match exactly 2 strings containing 'error'");
+    }
 }

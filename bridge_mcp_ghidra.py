@@ -255,7 +255,6 @@ def query(
     end_address: str = None,
     offset: int = 0,
     limit: int = None,
-    filter: str = None,
     category_path: str = None
 ) -> list | str:
     """Query items by type with filtering. Supports search (search param with namespace::), instruction pattern, and address range filters."""
@@ -316,6 +315,10 @@ def query(
             if category_path:
                 params["category_path"] = category_path
             return safe_get("struct/list", params)
+        elif type == "strings":
+            # Use strings endpoint with search parameter
+            params = {"offset": offset, "limit": limit if limit else 2000, "search": search}
+            return safe_get("strings", params)
         elif type == "instruction_pattern":
             # Handle instruction pattern search with regex
             # Validate that search is not empty
@@ -392,8 +395,8 @@ def query(
     params["limit"] = limit
 
     # Add type-specific parameters
-    if type == "strings" and filter:
-        params["filter"] = filter
+    if type == "strings" and search:
+        params["search"] = search
 
     if type == "structs" and category_path:
         params["category_path"] = category_path
@@ -632,11 +635,11 @@ def get_function_callees(address: str, depth: int = 1) -> str:
     return "\n".join(result) if result else ""
 
 @conditional_tool
-def list_strings(offset: int = 0, limit: int = 2000, filter: str = None) -> list:
+def list_strings(offset: int = 0, limit: int = 2000, search: str = None) -> list:
     """List all defined strings in the program with their addresses."""
     params = {"offset": offset, "limit": limit}
-    if filter:
-        params["filter"] = filter
+    if search:
+        params["search"] = search
     return safe_get("strings", params)
 
 @conditional_tool
