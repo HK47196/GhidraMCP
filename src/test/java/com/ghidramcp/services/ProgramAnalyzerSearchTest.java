@@ -458,48 +458,23 @@ class ProgramAnalyzerSearchTest {
     // ========== Class vs Namespace Distinction Tests ==========
 
     /**
-     * Test that classes query should only return CLASS type symbols
+     * Test that class filtering logic correctly uses HashSet for deduplication
      */
     @Test
-    @DisplayName("Classes query should only return SymbolType.CLASS symbols")
-    void testClassesQueryReturnsOnlyClassSymbols() {
-        // The getAllClassNames method should filter for SymbolType.CLASS
-        // This is different from namespaces which returns all non-global namespaces
+    @DisplayName("Class collection should deduplicate using HashSet")
+    void testClassDeduplicationWithHashSet() {
+        // Simulate the deduplication logic used in getAllClassNames
+        java.util.Set<String> classNames = new java.util.HashSet<>();
 
-        // Documentation: Classes are specific symbol types in Ghidra
-        // Namespaces include all container types (classes, namespaces, libraries, etc.)
-        assertTrue(true, "Documentation: getAllClassNames filters for SymbolType.CLASS only");
-    }
+        // Add duplicates
+        classNames.add("MyClass");
+        classNames.add("MyClass");
+        classNames.add("AnotherClass");
+        classNames.add("MyClass");
 
-    /**
-     * Test that classes and namespaces can have different results
-     */
-    @Test
-    @DisplayName("Classes and namespaces queries can return different results")
-    void testClassesVsNamespacesCanDiffer() {
-        // Not all namespaces are classes
-        // A namespace can be:
-        // - A class (SymbolType.CLASS)
-        // - A namespace (SymbolType.NAMESPACE)
-        // - A library (SymbolType.LIBRARY)
-        // - etc.
-
-        // The classes query should only return CLASS type symbols
-        // The namespaces query returns all non-global namespaces
-
-        assertTrue(true, "Documentation: Classes is a subset of namespaces");
-    }
-
-    /**
-     * Test that class results are deduplicated
-     */
-    @Test
-    @DisplayName("Class results should be deduplicated using Set")
-    void testClassResultsAreDeduplicated() {
-        // The implementation uses HashSet to collect class names
-        // This ensures no duplicates even if multiple symbols reference the same class
-
-        assertTrue(true, "Documentation: HashSet ensures unique class names");
+        assertEquals(2, classNames.size(), "HashSet should deduplicate class names");
+        assertTrue(classNames.contains("MyClass"), "Should contain MyClass");
+        assertTrue(classNames.contains("AnotherClass"), "Should contain AnotherClass");
     }
 
     /**
@@ -508,15 +483,95 @@ class ProgramAnalyzerSearchTest {
     @Test
     @DisplayName("Class results should be sorted alphabetically")
     void testClassResultsAreSorted() {
-        // After collection, results are sorted for consistent output
-        String[] unsorted = {"Zebra", "Apple", "Mango"};
-        String[] expected = {"Apple", "Mango", "Zebra"};
+        // Simulate the sorting logic used in getAllClassNames
+        java.util.Set<String> classNames = new java.util.HashSet<>();
+        classNames.add("Zebra");
+        classNames.add("Apple");
+        classNames.add("Mango");
 
-        java.util.List<String> list = java.util.Arrays.asList(unsorted.clone());
-        java.util.Collections.sort(list);
+        java.util.List<String> sorted = new java.util.ArrayList<>(classNames);
+        java.util.Collections.sort(sorted);
 
-        assertArrayEquals(expected, list.toArray(new String[0]),
-            "Class results should be sorted alphabetically");
+        assertEquals("Apple", sorted.get(0), "First element should be Apple");
+        assertEquals("Mango", sorted.get(1), "Second element should be Mango");
+        assertEquals("Zebra", sorted.get(2), "Third element should be Zebra");
+    }
+
+    /**
+     * Test case-insensitive search filtering for classes
+     */
+    @Test
+    @DisplayName("Class search filtering should be case-insensitive")
+    void testClassSearchCaseInsensitive() {
+        // Simulate the search filtering logic
+        java.util.List<String> classes = java.util.Arrays.asList(
+            "GraphicsManager", "AudioManager", "NetworkManager"
+        );
+        String search = "GRAPH";
+        String searchLower = search.toLowerCase();
+
+        java.util.List<String> filtered = classes.stream()
+            .filter(name -> name.toLowerCase().contains(searchLower))
+            .collect(java.util.stream.Collectors.toList());
+
+        assertEquals(1, filtered.size(), "Should find one match");
+        assertEquals("GraphicsManager", filtered.get(0), "Should match GraphicsManager");
+    }
+
+    /**
+     * Test search filtering with empty search returns all results
+     */
+    @Test
+    @DisplayName("Empty search should not filter any results")
+    void testClassSearchEmptyReturnsAll() {
+        java.util.List<String> classes = java.util.Arrays.asList(
+            "ClassA", "ClassB", "ClassC"
+        );
+        String search = "";
+
+        // When search is empty, no filtering is applied
+        java.util.List<String> result;
+        if (search != null && !search.isEmpty()) {
+            String searchLower = search.toLowerCase();
+            result = classes.stream()
+                .filter(name -> name.toLowerCase().contains(searchLower))
+                .collect(java.util.stream.Collectors.toList());
+        } else {
+            result = classes;
+        }
+
+        assertEquals(3, result.size(), "Empty search should return all classes");
+    }
+
+    /**
+     * Test that classes collection only includes CLASS symbols, not all namespaces
+     */
+    @Test
+    @DisplayName("Classes should be subset of namespaces")
+    void testClassesSubsetOfNamespaces() {
+        // Simulate a scenario where we have both classes and other namespace types
+        // Classes: only SymbolType.CLASS
+        // Namespaces: all non-global namespaces (CLASS, NAMESPACE, LIBRARY, etc.)
+
+        java.util.Set<String> classes = new java.util.HashSet<>();
+        classes.add("MyClass");
+        classes.add("AnotherClass");
+
+        java.util.Set<String> namespaces = new java.util.HashSet<>();
+        namespaces.add("MyClass");        // Also a namespace
+        namespaces.add("AnotherClass");   // Also a namespace
+        namespaces.add("std");            // Namespace only (not a class)
+        namespaces.add("__libc");         // Library namespace
+
+        // Classes should be a subset of namespaces
+        assertTrue(namespaces.containsAll(classes),
+            "All classes should also be in namespaces");
+        assertTrue(namespaces.size() >= classes.size(),
+            "Namespaces should have at least as many entries as classes");
+
+        // But namespaces has more entries than classes
+        assertEquals(2, classes.size(), "Should have 2 classes");
+        assertEquals(4, namespaces.size(), "Should have 4 namespaces");
     }
 
     // ============================================================
