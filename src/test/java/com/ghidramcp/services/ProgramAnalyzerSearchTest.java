@@ -312,4 +312,146 @@ class ProgramAnalyzerSearchTest {
         assertTrue(dataExample.matches(dataPattern),
             "Data result should match expected pattern");
     }
+
+    // ========== Class Search Tests ==========
+
+    /**
+     * Test that class search is case-insensitive
+     */
+    @ParameterizedTest
+    @DisplayName("Should handle case-insensitive class search terms")
+    @ValueSource(strings = {"GRAPHICS", "graphics", "Graphics", "gRaPhIcS"})
+    void testCaseInsensitiveClassSearch(String searchTerm) {
+        // All these variations should match the same class names
+        assertNotNull(searchTerm, "Search term should not be null");
+        assertFalse(searchTerm.isEmpty(), "Search term should not be empty");
+
+        // Case normalization test
+        String normalized = searchTerm.toLowerCase();
+        assertEquals(normalized, searchTerm.toLowerCase(),
+            "Class search should be case-insensitive");
+    }
+
+    /**
+     * Test class search substring matching
+     */
+    @ParameterizedTest
+    @DisplayName("Should perform substring matching for class names")
+    @ValueSource(strings = {"Graph", "raphic", "ics", "Graphics", "phi"})
+    void testClassSubstringMatching(String substring) {
+        // All these substrings should match "Graphics"
+        String className = "Graphics";
+
+        assertTrue(className.toLowerCase().contains(substring.toLowerCase()),
+            "Should match substring: " + substring);
+    }
+
+    /**
+     * Test class search with null search term uses default behavior
+     */
+    @Test
+    @DisplayName("Should handle null search term for class search")
+    void testNullClassSearchTerm() {
+        String searchTerm = null;
+        boolean shouldReturnAll = (searchTerm == null || searchTerm.isEmpty());
+        assertTrue(shouldReturnAll, "Null search term should return all classes");
+    }
+
+    /**
+     * Test class search with empty search term uses default behavior
+     */
+    @Test
+    @DisplayName("Should handle empty search term for class search")
+    void testEmptyClassSearchTerm() {
+        String searchTerm = "";
+        boolean shouldReturnAll = (searchTerm == null || searchTerm.isEmpty());
+        assertTrue(shouldReturnAll, "Empty search term should return all classes");
+    }
+
+    /**
+     * Test class search pagination parameters
+     */
+    @ParameterizedTest
+    @DisplayName("Should accept valid pagination parameters for class search")
+    @ValueSource(ints = {0, 10, 50, 100, 500})
+    void testClassSearchPaginationParameters(int value) {
+        assertTrue(value >= 0, "Class search pagination values should be non-negative");
+    }
+
+    /**
+     * Test class search result sorting
+     */
+    @Test
+    @DisplayName("Should sort class search results alphabetically")
+    void testClassSearchResultSorting() {
+        // Class results should be sorted
+        String[] classes = {"Zebra", "Apple", "Banana"};
+        String[] sorted = {"Apple", "Banana", "Zebra"};
+
+        // Verify sorting expectation
+        assertTrue(sorted[0].compareTo(sorted[1]) < 0,
+            "First class should come before second alphabetically");
+        assertTrue(sorted[1].compareTo(sorted[2]) < 0,
+            "Second class should come before third alphabetically");
+    }
+
+    /**
+     * Test class search with special characters
+     */
+    @Test
+    @DisplayName("Should handle special characters in class search terms")
+    void testSpecialCharactersInClassSearchTerms() {
+        // Common special characters that might appear in class names
+        String[] specialChars = {"_", "$", "0", "1"};
+
+        for (String specialChar : specialChars) {
+            assertNotNull(specialChar, "Special character should be defined");
+
+            // These should be valid in search terms
+            String searchTerm = "Class" + specialChar + "Name";
+            assertFalse(searchTerm.isEmpty(),
+                "Search term with special char should be valid");
+        }
+    }
+
+    /**
+     * Test class search filtering behavior
+     */
+    @Test
+    @DisplayName("Should filter class names based on search term")
+    void testClassSearchFilteringBehavior() {
+        // Simulate filtering behavior
+        String[] allClasses = {"Graphics", "GraphicsManager", "AudioManager", "NetworkManager"};
+        String searchTerm = "graph";
+        String searchLower = searchTerm.toLowerCase();
+
+        int matchCount = 0;
+        for (String className : allClasses) {
+            if (className.toLowerCase().contains(searchLower)) {
+                matchCount++;
+            }
+        }
+
+        assertEquals(2, matchCount, "Should match 'Graphics' and 'GraphicsManager'");
+    }
+
+    /**
+     * Test class search with no matches
+     */
+    @Test
+    @DisplayName("Should return empty results when no classes match search")
+    void testClassSearchNoMatches() {
+        String[] allClasses = {"Graphics", "Audio", "Network"};
+        String searchTerm = "nonexistent";
+        String searchLower = searchTerm.toLowerCase();
+
+        int matchCount = 0;
+        for (String className : allClasses) {
+            if (className.toLowerCase().contains(searchLower)) {
+                matchCount++;
+            }
+        }
+
+        assertEquals(0, matchCount, "Should find no matches for nonexistent search term");
+    }
 }

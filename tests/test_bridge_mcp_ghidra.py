@@ -174,6 +174,77 @@ class TestMCPTools:
         mock_safe_get.assert_called_once_with("classes", {"offset": 0, "limit": 100})
 
     @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_by_name_with_string(self, mock_safe_get):
+        """Test search classes by name with regular string query."""
+        mock_safe_get.return_value = ["Graphics", "GraphicsManager"]
+
+        result = bridge_mcp_ghidra.query(type="classes", search="Graphics", offset=0, limit=100)
+
+        assert result == ["Graphics", "GraphicsManager"]
+        mock_safe_get.assert_called_once_with("classes", {"search": "Graphics", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_by_name_with_numeric_string(self, mock_safe_get):
+        """Test search classes by name with numeric string query."""
+        mock_safe_get.return_value = ["Class2D", "Vector2D"]
+
+        result = bridge_mcp_ghidra.query(type="classes", search="2D", offset=0, limit=100)
+
+        assert result == ["Class2D", "Vector2D"]
+        mock_safe_get.assert_called_once_with("classes", {"search": "2D", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_by_name_with_integer(self, mock_safe_get):
+        """Test search classes by name with integer query (handles JSON parsing as int)."""
+        mock_safe_get.return_value = ["Class123"]
+
+        # Simulate MCP client sending an integer due to JSON parsing
+        result = bridge_mcp_ghidra.query(type="classes", search=123, offset=0, limit=50)
+
+        assert result == ["Class123"]
+        mock_safe_get.assert_called_once_with("classes", {"search": "123", "offset": 0, "limit": 50})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_by_name_with_empty_string(self, mock_safe_get):
+        """Test search classes by name with empty string returns error."""
+        result = bridge_mcp_ghidra.query(type="classes", search="", offset=0, limit=100)
+
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "query string is required" in result[0]
+        mock_safe_get.assert_not_called()
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_by_name_with_pagination(self, mock_safe_get):
+        """Test search classes by name with custom pagination."""
+        mock_safe_get.return_value = ["NetworkManager"]
+
+        result = bridge_mcp_ghidra.query(type="classes", search="Manager", offset=10, limit=25)
+
+        assert result == ["NetworkManager"]
+        mock_safe_get.assert_called_once_with("classes", {"search": "Manager", "offset": 10, "limit": 25})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_by_name_with_underscore(self, mock_safe_get):
+        """Test search classes by name with underscore in search term."""
+        mock_safe_get.return_value = ["My_Class", "Another_Class"]
+
+        result = bridge_mcp_ghidra.query(type="classes", search="_Class", offset=0, limit=100)
+
+        assert result == ["My_Class", "Another_Class"]
+        mock_safe_get.assert_called_once_with("classes", {"search": "_Class", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_search_classes_default_limit(self, mock_safe_get):
+        """Test search classes uses default limit of 100."""
+        mock_safe_get.return_value = ["Graphics"]
+
+        result = bridge_mcp_ghidra.query(type="classes", search="Graphics", offset=0)
+
+        assert result == ["Graphics"]
+        mock_safe_get.assert_called_once_with("classes", {"search": "Graphics", "offset": 0, "limit": 100})
+
+    @patch('bridge_mcp_ghidra.safe_get')
     def test_list_segments(self, mock_safe_get):
         """Test query tool for segments type."""
         mock_safe_get.return_value = [".text", ".data", ".bss"]
