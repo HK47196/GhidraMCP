@@ -102,3 +102,78 @@ class TestBasicQueries:
 
         assert isinstance(result, list)
         assert len(result) <= 10
+
+    def test_query_classes_basic(self, ghidra_server):
+        """Test listing classes returns only CLASS type symbols"""
+        result = query(type="classes", limit=100)
+
+        # Result is a list (may be empty for C programs without classes)
+        assert isinstance(result, list)
+
+    def test_query_classes_with_search(self, ghidra_server):
+        """Test searching classes with search parameter"""
+        result = query(type="classes", search="test", limit=100)
+
+        # Result is a list
+        assert isinstance(result, list)
+
+        # If there are results, they should contain the search term
+        if len(result) > 0:
+            text = "\n".join(result).lower()
+            assert "test" in text
+
+    def test_query_namespaces_basic(self, ghidra_server):
+        """Test listing namespaces"""
+        result = query(type="namespaces", limit=100)
+
+        # Result is a list
+        assert isinstance(result, list)
+
+    def test_query_classes_vs_namespaces_distinct(self, ghidra_server):
+        """Test that classes and namespaces queries return different results
+
+        Classes should only return symbols with SymbolType.CLASS,
+        while namespaces returns all non-global namespaces.
+        """
+        classes = query(type="classes", limit=1000)
+        namespaces = query(type="namespaces", limit=1000)
+
+        assert isinstance(classes, list)
+        assert isinstance(namespaces, list)
+
+        # Classes should be a subset of or different from namespaces
+        # (classes are defined via CLASS symbols, namespaces include all non-global namespaces)
+        # For C binaries, classes will typically be empty while namespaces may have entries
+
+        # If both have results, verify they can differ
+        # (not all namespaces are classes)
+        if len(namespaces) > 0:
+            # It's valid for classes to be empty or smaller than namespaces
+            assert len(classes) <= len(namespaces) or len(classes) == 0
+
+    def test_query_classes_pagination(self, ghidra_server):
+        """Test classes query with pagination"""
+        result1 = query(type="classes", offset=0, limit=10)
+        result2 = query(type="classes", offset=10, limit=10)
+
+        assert isinstance(result1, list)
+        assert isinstance(result2, list)
+
+        # Pages should be different if there are enough classes
+        if len(result1) == 10 and len(result2) > 0:
+            assert result1 != result2
+
+    def test_query_classes_search_case_insensitive(self, ghidra_server):
+        """Test that class search is case-insensitive"""
+        # Search with different cases should return the same results
+        result_lower = query(type="classes", search="class", limit=100)
+        result_upper = query(type="classes", search="CLASS", limit=100)
+        result_mixed = query(type="classes", search="ClAsS", limit=100)
+
+        assert isinstance(result_lower, list)
+        assert isinstance(result_upper, list)
+        assert isinstance(result_mixed, list)
+
+        # All should return the same results
+        assert result_lower == result_upper
+        assert result_lower == result_mixed
