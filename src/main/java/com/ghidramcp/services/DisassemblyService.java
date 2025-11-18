@@ -843,7 +843,7 @@ public class DisassemblyService {
                                       refManager, symbolTable, containingFunc, includeBytes);
                 } else if (cu instanceof Data) {
                     displayData((Data)cu, isTarget, targetAddr, result, program, listing,
-                               refManager, symbolTable, includeBytes);
+                               refManager, symbolTable, includeBytes, before, after);
                 }
             }
 
@@ -986,7 +986,8 @@ public class DisassemblyService {
      */
     private void displayData(Data data, boolean isTarget, Address targetAddr, StringBuilder result,
                             Program program, Listing listing,
-                            ReferenceManager refManager, SymbolTable symbolTable, boolean includeBytes) {
+                            ReferenceManager refManager, SymbolTable symbolTable, boolean includeBytes,
+                            int before, int after) {
         Address addr = data.getMinAddress();
 
         // Check if this is a composite type (needed to decide symbol display)
@@ -1066,7 +1067,7 @@ public class DisassemblyService {
         if (hasComponents) {
             // This is a composite type - show parent type line then components
             displayCompositeData(data, isTarget, targetAddr, result, program, listing,
-                               refManager, symbolTable, includeBytes);
+                               refManager, symbolTable, includeBytes, before, after);
         } else {
             // Simple data type - show single line
             displaySimpleData(data, isTarget, result, listing, includeBytes, refManager, program);
@@ -1081,14 +1082,14 @@ public class DisassemblyService {
                                      StringBuilder result,
                                      Program program, Listing listing,
                                      ReferenceManager refManager, SymbolTable symbolTable,
-                                     boolean includeBytes) {
+                                     boolean includeBytes, int before, int after) {
         Address addr = data.getMinAddress();
 
         // Check if this is a union type
         DataType dataType = data.getDataType();
         if (dataType instanceof Union) {
             displayUnionData(data, isTarget, targetAddr, result, program, listing,
-                           refManager, symbolTable, includeBytes);
+                           refManager, symbolTable, includeBytes, before, after);
             return;
         }
 
@@ -1233,7 +1234,7 @@ public class DisassemblyService {
                                  StringBuilder result,
                                  Program program, Listing listing,
                                  ReferenceManager refManager, SymbolTable symbolTable,
-                                 boolean includeBytes) {
+                                 boolean includeBytes, int before, int after) {
         Address addr = data.getMinAddress();
         Union union = (Union) data.getDataType();
         int unionSize = data.getLength();
@@ -1303,7 +1304,8 @@ public class DisassemblyService {
             if (memberType instanceof Structure) {
                 // Expand struct fields
                 displayUnionStructView(data, (Structure) memberType, addr, targetAddr, targetOffset,
-                                      result, program, listing, refManager, symbolTable, includeBytes);
+                                      result, program, listing, refManager, symbolTable, includeBytes,
+                                      before, after);
             } else if (memberType instanceof Array) {
                 // Show array with offset notation
                 displayUnionArrayView(data, (Array) memberType, memberName, addr, targetAddr, targetOffset,
@@ -1325,15 +1327,45 @@ public class DisassemblyService {
 
     /**
      * Display a struct member view within a union
+     * Applies context window to show only fields around the target offset
      */
     private void displayUnionStructView(Data unionData, Structure struct, Address baseAddr,
                                         Address targetAddr, int targetOffset,
                                         StringBuilder result, Program program, Listing listing,
                                         ReferenceManager refManager, SymbolTable symbolTable,
-                                        boolean includeBytes) {
+                                        boolean includeBytes, int before, int after) {
         DataTypeComponent[] fields = struct.getComponents();
+        int numFields = fields.length;
 
-        for (int i = 0; i < fields.length; i++) {
+        // Find the target field index
+        int targetFieldIndex = -1;
+        for (int i = 0; i < numFields; i++) {
+            DataTypeComponent field = fields[i];
+            int fieldOffset = field.getOffset();
+            int fieldLength = field.getLength();
+
+            if (fieldOffset <= targetOffset && targetOffset < fieldOffset + fieldLength) {
+                targetFieldIndex = i;
+                break;
+            }
+        }
+
+        // If target field not found, default to first field
+        if (targetFieldIndex < 0) {
+            targetFieldIndex = 0;
+        }
+
+        // Calculate window around target field
+        int startIdx = Math.max(0, targetFieldIndex - before);
+        int endIdx = Math.min(numFields, targetFieldIndex + after + 1);
+
+        // Show truncation indicator for fields before the window
+        if (startIdx > 0) {
+            result.append("        ... (").append(startIdx).append(" fields before)\n");
+        }
+
+        // Display fields within the window
+        for (int i = startIdx; i < endIdx; i++) {
             DataTypeComponent field = fields[i];
             int fieldOffset = field.getOffset();
             int fieldLength = field.getLength();
@@ -1361,10 +1393,12 @@ public class DisassemblyService {
             String valueStr = getFieldValue(unionData, fieldOffset, field.getDataType(), program);
             result.append(String.format("%-24s", valueStr));
 
-            // Show field name
+            // Show field name or offset notation
             String fieldName = field.getFieldName();
             if (fieldName != null && !fieldName.isEmpty()) {
                 result.append(fieldName);
+            } else {
+                result.append("(offset +").append(fieldOffset).append(")");
             }
 
             // Show XREFs for this field address
@@ -1378,6 +1412,11 @@ public class DisassemblyService {
             }
 
             result.append("\n");
+        }
+
+        // Show truncation indicator for fields after the window
+        if (endIdx < numFields) {
+            result.append("        ... (").append(numFields - endIdx).append(" fields after)\n");
         }
     }
 
@@ -1407,7 +1446,7 @@ public class DisassemblyService {
 
         result.append(String.format("%-10s", targetAddr.toString()));
         result.append(String.format("%-12s", elementTypeName + "[" + numElements + "]"));
-        result.append(String.format("%-24s", "(offset +" + targetOffset + ")"));
+        result.append(String.format("%-24s", " (offset +" + targetOffset + ")"));
 
         // Show XREFs inherited from union base
         List<String> xrefList = collectXRefsWithFunctionNames(baseAddr, refManager, program);
