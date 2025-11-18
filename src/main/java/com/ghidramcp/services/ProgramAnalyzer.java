@@ -588,8 +588,23 @@ public class ProgramAnalyzer {
 
             // Get the data at this address
             Data data = program.getListing().getDataAt(addr);
+
+            // If no data at exact address, check if it's inside a composite type (struct/array)
+            Data containingData = null;
+            Data componentData = null;
             if (data == null) {
-                return "Error: No data defined at address " + addressStr;
+                containingData = program.getListing().getDataContaining(addr);
+                if (containingData == null) {
+                    return "Error: No data defined at address " + addressStr;
+                }
+                // Get the specific component at this address
+                componentData = containingData.getComponentAt((int)(addr.getOffset() - containingData.getAddress().getOffset()));
+                if (componentData != null) {
+                    data = componentData;
+                } else {
+                    // Fall back to using the containing data
+                    data = containingData;
+                }
             }
 
             // Build the result
@@ -601,7 +616,13 @@ public class ProgramAnalyzer {
             if (label != null && !label.isEmpty()) {
                 result.append("Name: ").append(PluginUtils.escapeNonAscii(label)).append("\n");
             } else {
-                result.append("Name: (unnamed)\n");
+                // For struct/array members, try to get the field name
+                String fieldName = data.getFieldName();
+                if (fieldName != null && !fieldName.isEmpty()) {
+                    result.append("Name: ").append(PluginUtils.escapeNonAscii(fieldName)).append("\n");
+                } else {
+                    result.append("Name: (unnamed)\n");
+                }
             }
 
             // Get the type
@@ -622,6 +643,23 @@ public class ProgramAnalyzer {
 
             // Get the size
             result.append("Size: ").append(data.getLength()).append(" bytes\n");
+
+            // If this is a component of a larger structure, show parent info
+            if (containingData != null) {
+                result.append("\n--- Parent Structure ---\n");
+                result.append("Parent Address: ").append(containingData.getAddress().toString()).append("\n");
+                String parentLabel = containingData.getLabel();
+                if (parentLabel != null && !parentLabel.isEmpty()) {
+                    result.append("Parent Name: ").append(PluginUtils.escapeNonAscii(parentLabel)).append("\n");
+                }
+                DataType parentType = containingData.getDataType();
+                if (parentType != null) {
+                    result.append("Parent Type: ").append(parentType.getDisplayName()).append("\n");
+                }
+                result.append("Parent Size: ").append(containingData.getLength()).append(" bytes\n");
+                int offset = (int)(addr.getOffset() - containingData.getAddress().getOffset());
+                result.append("Offset in Parent: ").append(offset).append("\n");
+            }
 
             return result.toString();
 
