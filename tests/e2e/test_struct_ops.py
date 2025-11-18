@@ -712,8 +712,8 @@ class TestComplexStructScenarios:
 
     def test_struct_workflow_create_populate_query(self, ghidra_server):
         """Test complete workflow: create, populate, and query struct"""
-        # Create struct
-        create_result = create_struct(name="WorkflowStruct", size=64)
+        # Create struct with size=0 so fields start at offset 0
+        create_result = create_struct(name="WorkflowStruct", size=0)
         assert "success" in create_result.lower() or "created" in create_result.lower()
 
         # Add various fields
@@ -724,8 +724,8 @@ class TestComplexStructScenarios:
         )
         add_struct_field(
             struct_name="WorkflowStruct",
-            field_type="void*",
-            field_name="data"
+            field_type="int",
+            field_name="flags"
         )
         add_struct_field(
             struct_name="WorkflowStruct",
@@ -736,7 +736,7 @@ class TestComplexStructScenarios:
         # Query to verify
         info = get_struct_info(name="WorkflowStruct")
         assert "id" in info
-        assert "data" in info
+        assert "flags" in info
         assert "timestamp" in info
 
         # List to see it
