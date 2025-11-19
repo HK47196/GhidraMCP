@@ -100,17 +100,24 @@ public class SymbolManager {
      * Rename data at a given address
      * @param addressStr Address as string
      * @param newName New name for the data
+     * @return true if successful
      */
-    public void renameDataAtAddress(String addressStr, String newName) {
-        if (navigator == null) return;
+    public boolean renameDataAtAddress(String addressStr, String newName) {
+        if (navigator == null) return false;
         Program program = navigator.getCurrentProgram();
-        if (program == null) return;
+        if (program == null) return false;
+
+        AtomicBoolean success = new AtomicBoolean(false);
 
         try {
             SwingUtilities.invokeAndWait(() -> {
                 int tx = program.startTransaction("Rename data");
                 try {
                     Address addr = program.getAddressFactory().getAddress(addressStr);
+                    if (addr == null) {
+                        Msg.error(this, "Invalid address: " + addressStr);
+                        return;
+                    }
                     Listing listing = program.getListing();
                     Data data = listing.getDefinedDataAt(addr);
                     if (data != null) {
@@ -121,19 +128,23 @@ public class SymbolManager {
                         } else {
                             symTable.createLabel(addr, newName, SourceType.USER_DEFINED);
                         }
+                        success.set(true);
+                    } else {
+                        Msg.error(this, "No data found at address: " + addressStr);
                     }
                 }
                 catch (Exception e) {
                     Msg.error(this, "Rename data error", e);
                 }
                 finally {
-                    program.endTransaction(tx, true);
+                    program.endTransaction(tx, success.get());
                 }
             });
         }
         catch (InterruptedException | InvocationTargetException e) {
             Msg.error(this, "Failed to execute rename data on Swing thread", e);
         }
+        return success.get();
     }
 
     /**

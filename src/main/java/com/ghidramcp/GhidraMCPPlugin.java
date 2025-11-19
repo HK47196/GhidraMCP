@@ -157,11 +157,11 @@ public class GhidraMCPPlugin extends Plugin {
 
         server.createContext("/renameData", exchange -> {
             Map<String, String> params = PluginUtils.parsePostParams(exchange);
-            symbolManager.renameDataAtAddress(
+            String response = symbolManager.renameDataAtAddress(
                 params.get("address"),
                 PluginUtils.getParamFlexible(params, "newName", "new_name")
-            );
-            sendResponse(exchange, "Rename data attempted");
+            ) ? "Renamed successfully" : "Rename failed";
+            sendResponse(exchange, response);
         });
 
         server.createContext("/renameVariable", exchange -> {
@@ -790,11 +790,10 @@ public class GhidraMCPPlugin extends Plugin {
 
                 case "/renameData":
                 case "/rename_data":
-                    symbolManager.renameDataAtAddress(
+                    return symbolManager.renameDataAtAddress(
                         params.get("address"),
                         PluginUtils.getParamFlexible(params, "newName", "new_name")
-                    );
-                    return "Rename data attempted";
+                    ) ? "Renamed successfully" : "Rename failed";
 
                 case "/renameVariable":
                 case "/rename_variable":
