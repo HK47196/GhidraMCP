@@ -2054,78 +2054,87 @@ class TestBulkDisassemble:
         assert "PUSH       BP" in result[1]
         mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000", "include_bytes": "false"})
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
-    def test_disassemble_function_bulk_addresses(self, mock_bulk_operations):
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_disassemble_function_bulk_addresses(self, mock_safe_get):
         """Test disassemble_function with multiple addresses."""
-        mock_bulk_operations.return_value = '{"results": [{"success": true}, {"success": true}]}'
+        mock_safe_get.return_value = ["0x401000 PUSH BP", "0x401001 MOV BP,SP"]
 
         addresses = ["0x401000", "0x402000", "0x403000"]
         result = bridge_mcp_ghidra.disassemble_function(addresses)
 
-        # Should call bulk_operations
-        mock_bulk_operations.assert_called_once()
-        call_args = mock_bulk_operations.call_args[0][0]
+        # Should call safe_get for each address
+        assert mock_safe_get.call_count == 3
 
-        # Verify all addresses are in the operations
-        assert len(call_args) == 3
-        assert call_args[0]["endpoint"] == "/disassemble_function"
-        assert call_args[0]["params"]["address"] == "0x401000"
-        assert call_args[1]["params"]["address"] == "0x402000"
-        assert call_args[2]["params"]["address"] == "0x403000"
+        # Verify all addresses are passed correctly
+        calls = mock_safe_get.call_args_list
+        assert calls[0][0] == ("disassemble_function", {"address": "0x401000", "include_bytes": "false"})
+        assert calls[1][0] == ("disassemble_function", {"address": "0x402000", "include_bytes": "false"})
+        assert calls[2][0] == ("disassemble_function", {"address": "0x403000", "include_bytes": "false"})
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
-    def test_disassemble_function_bulk_empty_list(self, mock_bulk_operations):
+        # Result should be a list of lists
+        assert isinstance(result, list)
+        assert len(result) == 3
+
+    def test_disassemble_function_bulk_empty_list(self):
         """Test disassemble_function with empty list returns error."""
         result = bridge_mcp_ghidra.disassemble_function([])
 
         assert "Error" in result
         assert "cannot be empty" in result
-        mock_bulk_operations.assert_not_called()
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
-    def test_disassemble_function_bulk_single_item_list(self, mock_bulk_operations):
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_disassemble_function_bulk_single_item_list(self, mock_safe_get):
         """Test disassemble_function with single-item list."""
-        mock_bulk_operations.return_value = '{"results": [{"success": true}]}'
+        mock_safe_get.return_value = ["0x401000 PUSH BP"]
 
         result = bridge_mcp_ghidra.disassemble_function(["0x401000"])
 
-        # Even single item in list uses bulk operations
-        mock_bulk_operations.assert_called_once()
-        call_args = mock_bulk_operations.call_args[0][0]
-        assert len(call_args) == 1
-        assert call_args[0]["params"]["address"] == "0x401000"
+        # Single item in list still uses safe_get
+        mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000", "include_bytes": "false"})
+        assert isinstance(result, list)
+        assert len(result) == 1
+        # Result should have START/END markers
+        assert result[0] == ["=== START: 0x401000 ===", "0x401000 PUSH BP", "=== END: 0x401000 ==="]
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
-    def test_disassemble_function_bulk_return_type(self, mock_bulk_operations):
-        """Test that bulk disassemble returns JSON string."""
-        mock_response = '{"results": [{"result": "disassembly1"}, {"result": "disassembly2"}]}'
-        mock_bulk_operations.return_value = mock_response
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_disassemble_function_bulk_return_type(self, mock_safe_get):
+        """Test that bulk disassemble returns list of lists with markers."""
+        mock_safe_get.side_effect = [
+            ["disassembly1_line1", "disassembly1_line2"],
+            ["disassembly2_line1", "disassembly2_line2"]
+        ]
 
         result = bridge_mcp_ghidra.disassemble_function(["0x401000", "0x402000"])
 
-        assert result == mock_response
-        assert isinstance(result, str)
+        # Result should be a list of lists where each index maps to input address
+        assert isinstance(result, list)
+        assert len(result) == 2
+        # Each result should have START/END markers
+        assert result[0] == ["=== START: 0x401000 ===", "disassembly1_line1", "disassembly1_line2", "=== END: 0x401000 ==="]
+        assert result[1] == ["=== START: 0x402000 ===", "disassembly2_line1", "disassembly2_line2", "=== END: 0x402000 ==="]
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
-    def test_disassemble_function_bulk_preserves_order(self, mock_bulk_operations):
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_disassemble_function_bulk_preserves_order(self, mock_safe_get):
         """Test that bulk operations preserve address order."""
         addresses = ["0x405000", "0x401000", "0x403000", "0x402000"]
+        mock_safe_get.return_value = ["line1"]
         bridge_mcp_ghidra.disassemble_function(addresses)
 
-        call_args = mock_bulk_operations.call_args[0][0]
+        calls = mock_safe_get.call_args_list
         for i, addr in enumerate(addresses):
-            assert call_args[i]["params"]["address"] == addr
+            assert calls[i][0][1]["address"] == addr
 
-    @patch('bridge_mcp_ghidra.bulk_operations')
-    def test_disassemble_function_bulk_hex_and_segment_addresses(self, mock_bulk_operations):
+    @patch('bridge_mcp_ghidra.safe_get')
+    def test_disassemble_function_bulk_hex_and_segment_addresses(self, mock_safe_get):
         """Test bulk disassemble with mixed address formats."""
         addresses = ["0x401000", "5356:3cd8", "0x1400010a0"]
+        mock_safe_get.return_value = ["line1"]
         bridge_mcp_ghidra.disassemble_function(addresses)
 
-        call_args = mock_bulk_operations.call_args[0][0]
-        assert call_args[0]["params"]["address"] == "0x401000"
-        assert call_args[1]["params"]["address"] == "5356:3cd8"
-        assert call_args[2]["params"]["address"] == "0x1400010a0"
+        calls = mock_safe_get.call_args_list
+        assert calls[0][0][1]["address"] == "0x401000"
+        assert calls[1][0][1]["address"] == "5356:3cd8"
+        assert calls[2][0][1]["address"] == "0x1400010a0"
 
 
 class TestXrefsIncludeInstruction:

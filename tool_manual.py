@@ -415,7 +415,8 @@ Params:
 
 Returns:
     - For single address: List of assembly lines with full disassembly details
-    - For multiple addresses: JSON string with array of results, each containing the disassembly for that address
+    - For multiple addresses: List of lists where results[i] corresponds to address[i].
+      Each result includes START/END markers: ["=== START: addr ===", ...lines..., "=== END: addr ==="]
 
 Example (single):
     disassemble_function("0x401000")
@@ -423,8 +424,11 @@ Example (single):
 
 Example (bulk):
     disassemble_function(["0x401000", "0x402000", "0x403000"])
-
-Note: Bulk operations are more efficient than multiple individual requests."""
+    # Returns: [
+    #   ["=== START: 0x401000 ===", ...disassembly..., "=== END: 0x401000 ==="],
+    #   ["=== START: 0x402000 ===", ...disassembly..., "=== END: 0x402000 ==="],
+    #   ["=== START: 0x403000 ===", ...disassembly..., "=== END: 0x403000 ==="]
+    # ]"""
 
 MANUAL["get_address_context"] = """Get disassembly context around an address showing both code and data.
 

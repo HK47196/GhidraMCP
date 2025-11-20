@@ -534,14 +534,14 @@ def disassemble_function(address: str | list[str], include_bytes: bool = False) 
         if not address:
             return "Error: address list cannot be empty"
 
-        # Build bulk operations for each address
-        operations = [
-            {"endpoint": "/disassemble_function", "params": {"address": addr, "include_bytes": str(include_bytes).lower()}}
-            for addr in address
-        ]
-
-        # Use bulk_operations to process all at once
-        return bulk_operations(operations)
+        # Call safe_get for each address and return array with matching indices
+        results = []
+        for addr in address:
+            result = safe_get("disassemble_function", {"address": addr, "include_bytes": str(include_bytes).lower()})
+            # Add markers for start/end of each function
+            marked_result = [f"=== START: {addr} ==="] + result + [f"=== END: {addr} ==="]
+            results.append(marked_result)
+        return results
 
     # Single address - original behavior
     return safe_get("disassemble_function", {"address": address, "include_bytes": str(include_bytes).lower()})
