@@ -525,26 +525,21 @@ def decompile_function_by_address(address: str) -> str:
     return "\n".join(safe_get("decompile_function", {"address": address}))
 
 @conditional_tool
-def disassemble_function(address: str | list[str], include_bytes: bool = False) -> str | list:
+def disassemble_function(address: list[str], include_bytes: bool = False) -> list:
     """
-    Get assembly code (address: instruction; comment) for one or more functions.
+    Get assembly code for one or more functions. Takes a list of addresses.
     """
-    # Handle bulk disassemble
-    if isinstance(address, list):
-        if not address:
-            return "Error: address list cannot be empty"
+    if not address:
+        return ["Error: address list cannot be empty"]
 
-        # Call safe_get for each address and return array with matching indices
-        results = []
-        for addr in address:
-            result = safe_get("disassemble_function", {"address": addr, "include_bytes": str(include_bytes).lower()})
-            # Add markers for start/end of each function
-            marked_result = [f"=== START: {addr} ==="] + result + [f"=== END: {addr} ==="]
-            results.append(marked_result)
-        return results
-
-    # Single address - original behavior
-    return safe_get("disassemble_function", {"address": address, "include_bytes": str(include_bytes).lower()})
+    # Call safe_get for each address and return array with matching indices
+    results = []
+    for addr in address:
+        result = safe_get("disassemble_function", {"address": addr, "include_bytes": str(include_bytes).lower()})
+        # Add markers for start/end of each function
+        marked_result = [f"=== START: {addr} ==="] + result + [f"=== END: {addr} ==="]
+        results.append(marked_result)
+    return results
 
 @conditional_tool
 def get_address_context(address: str, before: int = 5, after: int = 5, include_bytes: bool = False) -> list:

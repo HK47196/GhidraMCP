@@ -39,13 +39,14 @@ class TestDecompilation:
         # Add 0x prefix if not present
         address = f"0x{addr_match.group(1)}"
 
-        # Now disassemble at that address
-        result = disassemble_function(address=address)
+        # Now disassemble at that address (pass as list)
+        result = disassemble_function(address=[address])
 
-        # Result is a list of lines
+        # Result is a list of lists (one per address)
         assert isinstance(result, list)
+        assert len(result) == 1
 
-        text = "\n".join(result)
+        text = "\n".join(result[0])
 
         # Should contain assembly instructions
         instructions = ["mov", "push", "pop", "ret", "call", "lea", "sub", "endbr", "test", "jz", "add"]

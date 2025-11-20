@@ -410,19 +410,16 @@ Displays enhanced Ghidra-style disassembly including:
 - Call destinations with function signatures
 
 Params:
-    address: Single address string (e.g., "0x401000") or list of addresses for bulk disassembly
+    address: List of addresses to disassemble (e.g., ["0x401000"] or ["0x401000", "0x402000"])
     include_bytes: Include raw instruction bytes in output (default: False)
 
 Returns:
-    - For single address: List of assembly lines with full disassembly details
-    - For multiple addresses: List of lists where results[i] corresponds to address[i].
-      Each result includes START/END markers: ["=== START: addr ===", ...lines..., "=== END: addr ==="]
+    List of lists where results[i] corresponds to address[i].
+    Each result includes START/END markers: ["=== START: addr ===", ...lines..., "=== END: addr ==="]
 
-Example (single):
-    disassemble_function("0x401000")
-    disassemble_function("0x401000", include_bytes=True)  # With instruction bytes
-
-Example (bulk):
+Example:
+    disassemble_function(["0x401000"])
+    disassemble_function(["0x401000"], include_bytes=True)  # With instruction bytes
     disassemble_function(["0x401000", "0x402000", "0x403000"])
     # Returns: [
     #   ["=== START: 0x401000 ===", ...disassembly..., "=== END: 0x401000 ==="],

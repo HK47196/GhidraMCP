@@ -2039,22 +2039,6 @@ class TestBulkDisassemble:
     """Test suite for disassemble_function with bulk support."""
 
     @patch('bridge_mcp_ghidra.safe_get')
-    def test_disassemble_function_single_address(self, mock_safe_get):
-        """Test disassemble_function with a single address (original behavior)."""
-        mock_safe_get.return_value = [
-            "uint16_t myFunc()",
-            "0x401000 55              PUSH       BP",
-            "0x401001 8b ec           MOV        BP,SP"
-        ]
-
-        result = bridge_mcp_ghidra.disassemble_function("0x401000")
-
-        assert isinstance(result, list)
-        assert len(result) == 3
-        assert "PUSH       BP" in result[1]
-        mock_safe_get.assert_called_once_with("disassemble_function", {"address": "0x401000", "include_bytes": "false"})
-
-    @patch('bridge_mcp_ghidra.safe_get')
     def test_disassemble_function_bulk_addresses(self, mock_safe_get):
         """Test disassemble_function with multiple addresses."""
         mock_safe_get.return_value = ["0x401000 PUSH BP", "0x401001 MOV BP,SP"]
@@ -2079,8 +2063,10 @@ class TestBulkDisassemble:
         """Test disassemble_function with empty list returns error."""
         result = bridge_mcp_ghidra.disassemble_function([])
 
-        assert "Error" in result
-        assert "cannot be empty" in result
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "Error" in result[0]
+        assert "cannot be empty" in result[0]
 
     @patch('bridge_mcp_ghidra.safe_get')
     def test_disassemble_function_bulk_single_item_list(self, mock_safe_get):
