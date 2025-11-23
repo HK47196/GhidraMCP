@@ -503,6 +503,15 @@ public class DisassemblyService {
                 break;
             }
 
+            // Check for error messages (disassembly errors) at this address
+            List<String> errorMessages = getErrorMessages(program, addr);
+            if (!errorMessages.isEmpty()) {
+                for (String errorMsg : errorMessages) {
+                    result.append("Error (Bad Instruction): ").append(errorMsg).append("\n");
+                }
+                result.append("Changes Unsaved\n");
+            }
+
             // Show label at this address if any (with XREFs for jump targets)
             Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
             if (primarySymbol != null && !primarySymbol.getName().equals(func.getName())) {
@@ -854,6 +863,31 @@ public class DisassemblyService {
     }
 
     /**
+     * Get error messages from bookmarks at a specific address
+     */
+    private List<String> getErrorMessages(Program program, Address addr) {
+        List<String> errorMessages = new ArrayList<>();
+        try {
+            ghidra.program.model.listing.BookmarkManager bookmarkMgr = program.getBookmarkManager();
+            if (bookmarkMgr != null) {
+                // Get all "Error" type bookmarks at this address
+                ghidra.program.model.listing.Bookmark[] bookmarks = bookmarkMgr.getBookmarks(addr, "Error");
+                if (bookmarks != null) {
+                    for (ghidra.program.model.listing.Bookmark bookmark : bookmarks) {
+                        String comment = bookmark.getComment();
+                        if (comment != null && !comment.isEmpty()) {
+                            errorMessages.add(comment);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Msg.debug(this, "Could not retrieve error bookmarks: " + e.getMessage());
+        }
+        return errorMessages;
+    }
+
+    /**
      * Display an instruction in Ghidra UI format
      */
     private void displayInstruction(Instruction instruction, boolean isTarget, StringBuilder result,
@@ -861,6 +895,15 @@ public class DisassemblyService {
                                     ReferenceManager refManager, SymbolTable symbolTable,
                                     Function containingFunc, boolean includeBytes) {
         Address addr = instruction.getAddress();
+
+        // Check for error messages (disassembly errors) at this address
+        List<String> errorMessages = getErrorMessages(program, addr);
+        if (!errorMessages.isEmpty()) {
+            for (String errorMsg : errorMessages) {
+                result.append("Error (Bad Instruction): ").append(errorMsg).append("\n");
+            }
+            result.append("Changes Unsaved\n");
+        }
 
         // Show label at this address if any
         Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
@@ -989,6 +1032,15 @@ public class DisassemblyService {
                             ReferenceManager refManager, SymbolTable symbolTable, boolean includeBytes,
                             int before, int after) {
         Address addr = data.getMinAddress();
+
+        // Check for error messages (disassembly/data errors) at this address
+        List<String> errorMessages = getErrorMessages(program, addr);
+        if (!errorMessages.isEmpty()) {
+            for (String errorMsg : errorMessages) {
+                result.append("Error (Bad Instruction): ").append(errorMsg).append("\n");
+            }
+            result.append("Changes Unsaved\n");
+        }
 
         // Check if this is a composite type (needed to decide symbol display)
         int numComponents = data.getNumComponents();
