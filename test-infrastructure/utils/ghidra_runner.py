@@ -218,35 +218,6 @@ class GhidraRunner:
         else:
             raise ValueError(f"Unsupported plugin format: {self.plugin_path}")
 
-    def _install_tool_config(self):
-        """Install pre-configured CodeBrowser tool with GhidraMCP plugin enabled"""
-        # Detect Ghidra version
-        ghidra_version = self._detect_ghidra_version()
-
-        # Get current username for Ghidra's directory naming convention
-        import getpass
-        username = getpass.getuser()
-
-        # Use isolated directory if specified
-        if self.isolated_user_dir:
-            config_dir = self.isolated_user_dir / ".config"
-            tools_dir = config_dir / f"{username}-ghidra" / f"ghidra_{ghidra_version}_PUBLIC" / "tools"
-        else:
-            xdg_config = os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))
-            tools_dir = Path(xdg_config) / f"{username}-ghidra" / f"ghidra_{ghidra_version}_PUBLIC" / "tools"
-
-        tools_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy the pre-configured CodeBrowser tool
-        source_tool = Path(__file__).parent.parent / "fixtures" / "_code_browser.tcd"
-        if not source_tool.exists():
-            logger.warning(f"Pre-configured CodeBrowser tool not found: {source_tool}")
-            return
-
-        dest_tool = tools_dir / "_code_browser.tcd"
-        shutil.copy2(source_tool, dest_tool)
-        logger.info(f"Installed pre-configured CodeBrowser tool to {dest_tool}")
-
     def _accept_user_agreement(self):
         """Pre-accept Ghidra user agreement to avoid blocking dialog"""
         # Detect Ghidra version
@@ -545,7 +516,6 @@ class GhidraRunner:
                 self._start_xvfb()
 
             self._install_plugin()
-            self._install_tool_config()
             self._accept_user_agreement()
             project_name, program_name = self._import_binary()
             self._start_ghidra_gui(project_name, program_name)
