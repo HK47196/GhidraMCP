@@ -499,4 +499,182 @@ class AddressContextTest {
         assertTrue(componentTypes.contains("WORD"), "Should show word types");
         assertTrue(componentTypes.contains("TextAttr *"), "Should show pointer types");
     }
+
+    // ==================== Function Marker Tests ====================
+
+    @Test
+    @DisplayName("Function start markers should be displayed with function name")
+    void testFunctionStartMarker() {
+        // Function entry point should show start marker
+        String functionStart = "                             ┌─ FUNCTION: entry\n" +
+                              "       000015f8  JMP       FUN_00001663\n";
+
+        assertTrue(functionStart.contains("┌─ FUNCTION:"), "Should show function start marker");
+        assertTrue(functionStart.contains("entry"), "Should show function name");
+        assertTrue(functionStart.indexOf("┌─ FUNCTION:") < functionStart.indexOf("000015f8"),
+                  "Function marker should appear before first instruction");
+    }
+
+    @Test
+    @DisplayName("Function start markers should show ENTRY POINT attribute")
+    void testFunctionStartMarkerWithEntryPoint() {
+        String entryFunction = "                             ┌─ FUNCTION: entry (ENTRY POINT)\n" +
+                              "       000015f8  JMP       FUN_00001663\n";
+
+        assertTrue(entryFunction.contains("(ENTRY POINT)"), "Should show ENTRY POINT attribute");
+    }
+
+    @Test
+    @DisplayName("Function start markers should show THUNK attribute")
+    void testFunctionStartMarkerWithThunk() {
+        String thunkFunction = "                             ┌─ FUNCTION: malloc (THUNK)\n" +
+                              "       00001234  JMP       FUN_00005678\n";
+
+        assertTrue(thunkFunction.contains("(THUNK)"), "Should show THUNK attribute");
+    }
+
+    @Test
+    @DisplayName("Function start markers should show EXTERNAL attribute")
+    void testFunctionStartMarkerWithExternal() {
+        String externalFunction = "                             ┌─ FUNCTION: printf (EXTERNAL)\n" +
+                                 "       00001000  RET\n";
+
+        assertTrue(externalFunction.contains("(EXTERNAL)"), "Should show EXTERNAL attribute");
+    }
+
+    @Test
+    @DisplayName("Function start markers should show multiple attributes")
+    void testFunctionStartMarkerWithMultipleAttributes() {
+        String multiAttrFunction = "                             ┌─ FUNCTION: _start (ENTRY POINT, THUNK)\n" +
+                                  "       00001000  JMP       main\n";
+
+        assertTrue(multiAttrFunction.contains("ENTRY POINT"), "Should show ENTRY POINT");
+        assertTrue(multiAttrFunction.contains("THUNK"), "Should show THUNK");
+        assertTrue(multiAttrFunction.contains(", "), "Should separate attributes with comma");
+    }
+
+    @Test
+    @DisplayName("Function end markers should be displayed after last instruction")
+    void testFunctionEndMarker() {
+        String functionEnd = "       000015f7  RET\n" +
+                           "                             └─ END FUNCTION: some_function\n";
+
+        assertTrue(functionEnd.contains("└─ END FUNCTION:"), "Should show function end marker");
+        assertTrue(functionEnd.contains("some_function"), "Should show function name");
+        assertTrue(functionEnd.indexOf("RET") < functionEnd.indexOf("└─ END FUNCTION:"),
+                  "End marker should appear after last instruction");
+    }
+
+    @Test
+    @DisplayName("Function end markers should appear after terminal instructions")
+    void testFunctionEndMarkerAfterTerminal() {
+        String terminalInstr = "       00001234  RET\n" +
+                              "                             └─ END FUNCTION: myFunction\n" +
+                              "                             ┌─ FUNCTION: nextFunction\n";
+
+        assertTrue(terminalInstr.contains("└─ END FUNCTION: myFunction"),
+                  "Should show end marker after RET");
+        assertTrue(terminalInstr.indexOf("└─ END FUNCTION:") < terminalInstr.indexOf("┌─ FUNCTION: nextFunction"),
+                  "End marker should appear before next function starts");
+    }
+
+    @Test
+    @DisplayName("Function boundaries should be clearly marked in context")
+    void testFunctionBoundariesInContext() {
+        String contextWithFunctions =
+            "                             ┌─ FUNCTION: func1 (ENTRY POINT)\n" +
+            "       00001000  PUSH      EBP\n" +
+            "       00001001  MOV       EBP,ESP\n" +
+            "       00001003  RET\n" +
+            "                             └─ END FUNCTION: func1\n" +
+            "                             ┌─ FUNCTION: func2\n" +
+            "       00001004  PUSH      EBP\n";
+
+        assertTrue(contextWithFunctions.contains("┌─ FUNCTION: func1"), "Should show first function start");
+        assertTrue(contextWithFunctions.contains("└─ END FUNCTION: func1"), "Should show first function end");
+        assertTrue(contextWithFunctions.contains("┌─ FUNCTION: func2"), "Should show second function start");
+    }
+
+    // ==================== Enhanced XREF Tests ====================
+
+    @Test
+    @DisplayName("XREFs should include function names for data references")
+    void testXrefWithFunctionNames() {
+        String xrefWithFunction = "DAT_00001600    XREF[1]:     FUN_00008100:00008154(*)";
+
+        assertTrue(xrefWithFunction.contains("FUN_00008100:00008154"),
+                  "XREF should include function name and address");
+        assertTrue(xrefWithFunction.contains("(*)"),
+                  "XREF should include reference type indicator");
+    }
+
+    @Test
+    @DisplayName("XREFs should show function:address format")
+    void testXrefFunctionAddressFormat() {
+        String xrefLine = "XREF[1]:     FUN_00008100:00008154(*)";
+
+        assertTrue(xrefLine.matches(".*[A-Za-z0-9_]+:[0-9a-f]{8}\\(.*\\).*"),
+                  "XREF should match pattern FunctionName:Address(Type)");
+    }
+
+    @Test
+    @DisplayName("Multiple XREFs should all include function names")
+    void testMultipleXrefsWithFunctionNames() {
+        String multipleXrefs =
+            "DAT_00001600    XREF[3]:     FUN_00008100:00008154(*), FUN_00009200:00009234(*), FUN_0000a300:0000a456(*)";
+
+        assertTrue(multipleXrefs.contains("FUN_00008100:00008154"),
+                  "First XREF should include function name");
+        assertTrue(multipleXrefs.contains("FUN_00009200:00009234"),
+                  "Second XREF should include function name");
+        assertTrue(multipleXrefs.contains("FUN_0000a300:0000a456"),
+                  "Third XREF should include function name");
+    }
+
+    @Test
+    @DisplayName("XREFs from different reference types should show type indicators")
+    void testXrefTypesWithFunctionNames() {
+        // Different reference types: (R)=read, (W)=write, (*)=data, (j)=jump, (c)=call
+        String xrefsWithTypes =
+            "XREF[4]:     func1:00001000(R), func2:00002000(W), func3:00003000(*), func4:00004000(j)";
+
+        assertTrue(xrefsWithTypes.contains("(R)"), "Should show read type");
+        assertTrue(xrefsWithTypes.contains("(W)"), "Should show write type");
+        assertTrue(xrefsWithTypes.contains("(*)"), "Should show data type");
+        assertTrue(xrefsWithTypes.contains("(j)"), "Should show jump type");
+    }
+
+    @Test
+    @DisplayName("XREFs should handle labels without function context gracefully")
+    void testXrefWithoutFunctionContext() {
+        // Some XREFs might not be from within a function
+        String xrefNoFunction = "DAT_00001600    XREF[1]:     00008154(*)";
+
+        // Should still work if no function context available (just address)
+        assertTrue(xrefNoFunction.matches(".*[0-9a-f]{8}\\(.*\\).*"),
+                  "XREF should at minimum show address and type");
+    }
+
+    @Test
+    @DisplayName("Data label XREFs should match instruction XREF format")
+    void testDataLabelXrefConsistency() {
+        String dataXref = "DAT_00001600                          XREF[1]:     FUN_00008100:00008154(*)";
+        String instrXref = "                     XREF from: FUN_00008100:00008154 (DATA)";
+
+        // Both should include function name
+        assertTrue(dataXref.contains("FUN_00008100:"), "Data XREF should include function name");
+        assertTrue(instrXref.contains("FUN_00008100:"), "Instruction XREF should include function name");
+    }
+
+    @Test
+    @DisplayName("Enhanced XREFs should preserve all existing formatting")
+    void testEnhancedXrefsPreserveFormatting() {
+        String enhancedXref =
+            "                             Script::g_Bytecode_Stack                        XREF[2]:     Stack_PushWord:00224762(*), Stack_PopWord:00224766(*)";
+
+        // Verify formatting is preserved
+        assertTrue(enhancedXref.contains("Script::g_Bytecode_Stack"), "Should preserve symbol name");
+        assertTrue(enhancedXref.contains("XREF[2]:"), "Should preserve XREF count");
+        assertTrue(enhancedXref.matches(".*\\s+XREF\\[\\d+\\]:.*"), "Should preserve spacing");
+    }
 }

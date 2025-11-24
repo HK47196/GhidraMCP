@@ -905,22 +905,47 @@ public class DisassemblyService {
             result.append("Changes Unsaved\n");
         }
 
-        // Show label at this address if any
+        // Check if this address is a function entry point and show function start marker
+        Function funcAtAddr = program.getFunctionManager().getFunctionAt(addr);
+        if (funcAtAddr != null) {
+            // This is a function entry point - add start marker
+            result.append("                             ┌─ FUNCTION: ");
+            result.append(funcAtAddr.getName());
+
+            // Add function attributes (ENTRY POINT, THUNK, etc.)
+            List<String> attributes = new ArrayList<>();
+            if (funcAtAddr.isThunk()) {
+                attributes.add("THUNK");
+            }
+            if (program.getSymbolTable().getPrimarySymbol(addr) != null) {
+                Symbol sym = program.getSymbolTable().getPrimarySymbol(addr);
+                if (sym.isExternal()) {
+                    attributes.add("EXTERNAL");
+                } else if (sym.isExternalEntryPoint()) {
+                    attributes.add("ENTRY POINT");
+                }
+            }
+
+            if (!attributes.isEmpty()) {
+                result.append(" (").append(String.join(", ", attributes)).append(")");
+            }
+            result.append("\n");
+        }
+
+        // Show label at this address if any (skip function labels since we show them above)
         Symbol primarySymbol = symbolTable.getPrimarySymbol(addr);
-        if (primarySymbol != null && (containingFunc == null || !primarySymbol.getName().equals(containingFunc.getName()))) {
+        if (primarySymbol != null &&
+            (containingFunc == null || !primarySymbol.getName().equals(containingFunc.getName())) &&
+            (funcAtAddr == null || !primarySymbol.getName().equals(funcAtAddr.getName()))) {
             result.append("                             ");
             result.append(primarySymbol.getName());
 
-            // Add XREFs for labels
-            ReferenceIterator labelXrefs = refManager.getReferencesTo(addr);
-            List<String> jumpRefs = new ArrayList<>();
-            while (labelXrefs.hasNext()) {
-                Reference ref = labelXrefs.next();
-                if (ref.getReferenceType().isJump() || ref.getReferenceType().isConditional()) {
-                    String refTypeStr = getRefTypeDisplayString(ref);
-                    jumpRefs.add(ref.getFromAddress().toString() + refTypeStr);
-                }
-            }
+            // Add XREFs for labels with function names
+            List<String> jumpRefs = collectXRefsWithFunctionNames(addr, refManager, program);
+            // Filter only jump/conditional references
+            jumpRefs = jumpRefs.stream()
+                .filter(xref -> xref.contains("(j)") || xref.contains("(c)"))
+                .collect(Collectors.toList());
 
             if (!jumpRefs.isEmpty()) {
                 result.append("                                    XREF[").append(jumpRefs.size()).append("]:     ");
@@ -1021,6 +1046,22 @@ public class DisassemblyService {
                 result.append("                     XREF from: [").append(xrefList.size()).append(" references]\n");
             }
         }
+
+        // Check if this instruction marks the end of a function
+        if (containingFunc != null) {
+            Address funcMaxAddr = containingFunc.getBody().getMaxAddress();
+            // Function ends if this is the last instruction OR if this is a terminal instruction (RET, JMP, etc.)
+            boolean isLastInstr = addr.equals(funcMaxAddr) ||
+                                 (instruction.getNext() != null &&
+                                  instruction.getNext().getAddress().compareTo(funcMaxAddr) > 0);
+            boolean isTerminalInstr = instruction.getFlowType().isTerminal();
+
+            if (isLastInstr || (isTerminalInstr && addr.compareTo(funcMaxAddr) >= 0)) {
+                result.append("                             └─ END FUNCTION: ");
+                result.append(containingFunc.getName());
+                result.append("\n");
+            }
+        }
     }
 
     /**
@@ -1091,15 +1132,8 @@ public class DisassemblyService {
 
                     result.append(symbol.getName());
 
-                    // Show XREFs to this symbol (limit to first 3)
-                    ReferenceIterator xrefsTo = refManager.getReferencesTo(addr);
-                    List<String> xrefList = new ArrayList<>();
-                    while (xrefsTo.hasNext()) {
-                        Reference ref = xrefsTo.next();
-                        String xrefStr = ref.getFromAddress().toString();
-                        xrefStr += getRefTypeDisplayString(ref);
-                        xrefList.add(xrefStr);
-                    }
+                    // Show XREFs to this symbol with function names (limit to first 3)
+                    List<String> xrefList = collectXRefsWithFunctionNames(addr, refManager, program);
 
                     if (!xrefList.isEmpty()) {
                         result.append("                          XREF[").append(xrefList.size()).append("]:     ");
