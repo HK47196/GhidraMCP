@@ -29,7 +29,8 @@ class GhidraRunner:
         http_port: Optional[int] = None,
         use_xvfb: bool = True,
         verbose: bool = False,
-        isolated_user_dir: Optional[str] = None
+        isolated_user_dir: Optional[str] = None,
+        additional_binaries: Optional[list] = None
     ):
         self.ghidra_dir = Path(ghidra_install_dir)
         self.project_dir = Path(test_project_dir)
@@ -38,6 +39,14 @@ class GhidraRunner:
         self.use_xvfb = use_xvfb
         self.verbose = verbose
         self.isolated_user_dir = Path(isolated_user_dir) if isolated_user_dir else None
+
+        # Collect all binaries to import
+        self.binaries_to_import = [self.binary_path]
+        if additional_binaries:
+            for binary in additional_binaries:
+                binary_path = Path(binary)
+                if binary_path.exists() and binary_path != self.binary_path:
+                    self.binaries_to_import.append(binary_path)
 
         self.ghidra_process = None
         self.xvfb_process = None
@@ -267,7 +276,7 @@ class GhidraRunner:
         logger.info(f"Pre-accepted user agreement and configured auto-restore in {preferences_file}")
 
     def _import_binary(self):
-        """Import binary into Ghidra project using analyzeHeadless"""
+        """Import all binaries into Ghidra project using analyzeHeadless"""
         analyze_headless = self.ghidra_dir / "support" / "analyzeHeadless"
 
         if not analyze_headless.exists():
@@ -276,31 +285,39 @@ class GhidraRunner:
         self.project_dir.mkdir(parents=True, exist_ok=True)
         project_name = "TestProject"
 
-        logger.info(f"Importing {self.binary_path.name} into Ghidra project")
+        binary_names = [b.name for b in self.binaries_to_import]
+        logger.info(f"Importing {len(self.binaries_to_import)} binary(ies) into Ghidra project: {binary_names}")
 
+        # Build command with all binaries
         cmd = [
             str(analyze_headless),
             str(self.project_dir),
             project_name,
-            "-import", str(self.binary_path),
+        ]
+
+        # Add each binary with -import flag
+        for binary in self.binaries_to_import:
+            cmd.extend(["-import", str(binary)])
+
+        cmd.extend([
             "-analysisTimeoutPerFile", "120",
             "-max-cpu", "2"
-        ]
+        ])
 
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=180
+            timeout=300  # Increased timeout for multiple binaries
         )
 
         if result.returncode != 0:
             logger.error(f"Binary import failed: {result.stderr}")
             raise RuntimeError(f"Failed to import binary: {result.stderr}")
 
-        logger.info("Binary import completed")
+        logger.info(f"Binary import completed for {len(self.binaries_to_import)} binary(ies)")
 
-        # Return both project name and program name (binary filename)
+        # Return both project name and program name (first/primary binary filename)
         program_name = self.binary_path.name
         return project_name, program_name
 

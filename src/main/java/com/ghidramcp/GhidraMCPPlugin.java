@@ -73,6 +73,7 @@ public class GhidraMCPPlugin extends Plugin {
     private DecompiledTextSearchService decompiledTextSearchService;
     private InstructionPatternSearchService instructionPatternSearchService;
     private FunctionCallGraphService functionCallGraphService;
+    private ProgramManagerService programManagerService;
 
     public GhidraMCPPlugin(PluginTool tool) {
         super(tool);
@@ -124,6 +125,7 @@ public class GhidraMCPPlugin extends Plugin {
         decompiledTextSearchService = new DecompiledTextSearchService(functionNavigator, decompileTimeout);
         instructionPatternSearchService = new InstructionPatternSearchService(functionNavigator);
         functionCallGraphService = new FunctionCallGraphService(functionNavigator);
+        programManagerService = new ProgramManagerService(tool);
 
         server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -706,6 +708,28 @@ public class GhidraMCPPlugin extends Plugin {
 
             program.clearUndo();
             sendResponse(exchange, "{\"success\": true, \"message\": \"Undo stack cleared\"}");
+        });
+
+        // ==================== PROGRAM MANAGEMENT ENDPOINTS ====================
+
+        server.createContext("/program/list", exchange -> {
+            sendResponse(exchange, programManagerService.listPrograms());
+        });
+
+        server.createContext("/program/current", exchange -> {
+            sendResponse(exchange, programManagerService.getCurrentProgramInfo());
+        });
+
+        server.createContext("/program/switch", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String programName = params.get("program_name");
+            sendResponse(exchange, programManagerService.switchProgram(programName));
+        });
+
+        server.createContext("/program/import", exchange -> {
+            Map<String, String> params = PluginUtils.parsePostParams(exchange);
+            String filePath = params.get("file_path");
+            sendResponse(exchange, programManagerService.importBinary(filePath));
         });
 
         server.setExecutor(null);
