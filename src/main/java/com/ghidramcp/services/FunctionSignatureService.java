@@ -28,11 +28,17 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Service for managing function signatures and variable types
  */
 public class FunctionSignatureService {
+
+    // Pattern for pointer types: "BaseType*", "BaseType *", "BaseType *32", etc.
+    // Group 1: base type name, Group 2: optional size in bits (for far pointers)
+    private static final Pattern POINTER_PATTERN = Pattern.compile("^(.+?)\\s*\\*\\s*(\\d*)\\s*$");
 
     private final FunctionNavigator navigator;
     private final DecompilationService decompilationService;
@@ -438,48 +444,46 @@ public class FunctionSignatureService {
             return new PointerDataType(dtm.getDataType("/void"));
         }
 
-        // Check for far pointer types with explicit size (e.g., "EffectData *32" for 32-bit pointer)
-        // Pattern: "BaseType *NN" where NN is the pointer size in bits
-        if (typeName.contains("*")) {
-            String[] parts = typeName.split("\\*");
-            if (parts.length == 2) {
-                String baseTypeName = parts[0].trim();
-                String sizeStr = parts[1].trim();
+        // Check for pointer types: "BaseType*", "BaseType *", "BaseType *32" (far pointer)
+        // Uses regex to handle all whitespace variations correctly
+        Matcher pointerMatcher = POINTER_PATTERN.matcher(typeName);
+        if (pointerMatcher.matches()) {
+            String baseTypeName = pointerMatcher.group(1).trim();
+            String sizeStr = pointerMatcher.group(2);  // Already just digits or empty
 
-                // Check if we have a size specification (e.g., "32", "16")
-                if (!sizeStr.isEmpty() && sizeStr.matches("\\d+")) {
-                    try {
-                        int pointerSizeBits = Integer.parseInt(sizeStr);
-                        int pointerSizeBytes = pointerSizeBits / 8;
+            // Check if we have a size specification (e.g., "32", "16") for far pointers
+            if (!sizeStr.isEmpty()) {
+                try {
+                    int pointerSizeBits = Integer.parseInt(sizeStr);
+                    int pointerSizeBytes = pointerSizeBits / 8;
 
-                        if (pointerSizeBytes <= 0) {
-                            Msg.warn(this, "Invalid pointer size in type: " + typeName);
-                            return null;
-                        }
-
-                        // Resolve base type
-                        DataType baseType = resolveDataType(dtm, baseTypeName);
-                        if (baseType == null) {
-                            // Default to void* with specified size
-                            baseType = dtm.getDataType("/void");
-                        }
-
-                        // Create pointer with specified size
-                        return new PointerDataType(baseType, pointerSizeBytes, dtm);
-                    } catch (NumberFormatException e) {
+                    if (pointerSizeBytes <= 0) {
                         Msg.warn(this, "Invalid pointer size in type: " + typeName);
                         return null;
                     }
-                }
-                // No size specified or empty after *, treat as regular pointer
-                else if (sizeStr.isEmpty()) {
+
+                    // Resolve base type
                     DataType baseType = resolveDataType(dtm, baseTypeName);
-                    if (baseType != null) {
-                        return new PointerDataType(baseType);
+                    if (baseType == null) {
+                        // Default to void* with specified size
+                        baseType = dtm.getDataType("/void");
                     }
-                    // Default to void*
-                    return new PointerDataType(dtm.getDataType("/void"));
+
+                    // Create pointer with specified size
+                    return new PointerDataType(baseType, pointerSizeBytes, dtm);
+                } catch (NumberFormatException e) {
+                    Msg.warn(this, "Invalid pointer size in type: " + typeName);
+                    return null;
                 }
+            }
+            // No size specified, treat as regular pointer
+            else {
+                DataType baseType = resolveDataType(dtm, baseTypeName);
+                if (baseType != null) {
+                    return new PointerDataType(baseType);
+                }
+                // Default to void*
+                return new PointerDataType(dtm.getDataType("/void"));
             }
         }
 
