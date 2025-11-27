@@ -6,6 +6,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -16,6 +19,49 @@ import static org.junit.jupiter.api.Assertions.*;
  * sizes using the format "BaseType *NN" where NN is the size in bits.
  */
 class FarPointerParsingTest {
+
+    // Same pattern used in FunctionSignatureService
+    private static final Pattern POINTER_PATTERN = Pattern.compile("^(.+?)\\s*\\*\\s*(\\d*)\\s*$");
+
+    /**
+     * Test the regex pattern matches all pointer type variations correctly
+     */
+    @ParameterizedTest
+    @DisplayName("Regex should match all pointer syntax variations")
+    @CsvSource({
+        "int*, int, ''",
+        "int *, int, ''",
+        "int* , int, ''",
+        "int * , int, ''",
+        "MyStruct*, MyStruct, ''",
+        "MyStruct *, MyStruct, ''",
+        "void*, void, ''",
+        "char*, char, ''",
+        "int*32, int, 32",
+        "int *32, int, 32",
+        "int* 32, int, 32",
+        "int * 32, int, 32",
+        "EffectData *32, EffectData, 32",
+        "void *16, void, 16",
+        "MyStruct *64, MyStruct, 64"
+    })
+    void testPointerPatternMatching(String typeName, String expectedBaseType, String expectedSize) {
+        Matcher matcher = POINTER_PATTERN.matcher(typeName);
+        assertTrue(matcher.matches(), "Pattern should match: " + typeName);
+        assertEquals(expectedBaseType, matcher.group(1).trim(), "Base type should match");
+        assertEquals(expectedSize, matcher.group(2), "Size should match");
+    }
+
+    /**
+     * Test that non-pointer types do NOT match the pattern
+     */
+    @ParameterizedTest
+    @DisplayName("Regex should NOT match non-pointer types")
+    @ValueSource(strings = {"int", "void", "MyStruct", "char", "uint8_t", "DWORD"})
+    void testNonPointerTypesDoNotMatch(String typeName) {
+        Matcher matcher = POINTER_PATTERN.matcher(typeName);
+        assertFalse(matcher.matches(), "Pattern should NOT match non-pointer type: " + typeName);
+    }
 
     /**
      * Test parsing of far pointer syntax: "type *NN"
@@ -32,12 +78,12 @@ class FarPointerParsingTest {
     })
     void testFarPointerParsing(String typeName, String expectedBaseType,
                                int expectedBits, int expectedBytes) {
-        // Test the parsing logic
-        String[] parts = typeName.split("\\*");
-        assertEquals(2, parts.length, "Should split into exactly 2 parts");
+        // Test the parsing logic using regex pattern
+        Matcher matcher = POINTER_PATTERN.matcher(typeName);
+        assertTrue(matcher.matches(), "Should match pointer pattern");
 
-        String baseTypeName = parts[0].trim();
-        String sizeStr = parts[1].trim();
+        String baseTypeName = matcher.group(1).trim();
+        String sizeStr = matcher.group(2);
 
         assertEquals(expectedBaseType, baseTypeName, "Base type should match");
         assertEquals(String.valueOf(expectedBits), sizeStr, "Size string should match");
@@ -50,18 +96,18 @@ class FarPointerParsingTest {
     }
 
     /**
-     * Test regular pointer syntax still works: "type *"
+     * Test regular pointer syntax still works: "type *" and "type*"
      */
     @ParameterizedTest
     @DisplayName("Should handle regular pointer syntax")
-    @ValueSource(strings = {"int *", "void *", "char *", "MyStruct *", "unsigned long *"})
+    @ValueSource(strings = {"int *", "void *", "char *", "MyStruct *", "unsigned long *", "int*", "void*", "char*"})
     void testRegularPointerSyntax(String typeName) {
-        // Use split with -1 limit to preserve trailing empty strings
-        String[] parts = typeName.split("\\*", -1);
-        assertEquals(2, parts.length, "Should split into exactly 2 parts");
+        // Use regex pattern for parsing
+        Matcher matcher = POINTER_PATTERN.matcher(typeName);
+        assertTrue(matcher.matches(), "Should match pointer pattern: " + typeName);
 
-        String baseTypeName = parts[0].trim();
-        String sizeStr = parts[1].trim();
+        String baseTypeName = matcher.group(1).trim();
+        String sizeStr = matcher.group(2);
 
         assertFalse(baseTypeName.isEmpty(), "Base type should not be empty");
         assertTrue(sizeStr.isEmpty(), "Regular pointer should have empty size string");
@@ -263,17 +309,18 @@ class FarPointerParsingTest {
     @Test
     @DisplayName("Should maintain backward compatibility with existing pointer syntax")
     void testBackwardCompatibility() {
-        // Regular pointers should still work
-        String regularPtr = "int *";
-        // Use split with -1 limit to preserve trailing empty strings
-        String[] parts = regularPtr.split("\\*", -1);
-        assertEquals("", parts[1].trim(), "Regular pointer should have empty size");
+        // Regular pointers should still work (with and without space)
+        for (String regularPtr : new String[] {"int *", "int*"}) {
+            Matcher matcher = POINTER_PATTERN.matcher(regularPtr);
+            assertTrue(matcher.matches(), "Should match: " + regularPtr);
+            assertEquals("", matcher.group(2), "Regular pointer should have empty size");
+        }
 
         // Far pointers should be detected
         String farPtr = "int *32";
-        parts = farPtr.split("\\*", -1);
-        assertEquals("32", parts[1].trim(), "Far pointer should have size");
-        assertTrue(parts[1].trim().matches("\\d+"), "Far pointer size should be numeric");
+        Matcher matcher = POINTER_PATTERN.matcher(farPtr);
+        assertTrue(matcher.matches(), "Far pointer should match");
+        assertEquals("32", matcher.group(2), "Far pointer should have size");
     }
 
     /**

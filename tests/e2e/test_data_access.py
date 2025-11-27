@@ -176,3 +176,105 @@ class TestDataTypes:
                 # Verify the type was set
                 verify_result = get_data_by_address(address)
                 assert "dword" in verify_result.lower() or "4 bytes" in verify_result
+
+    def test_set_data_type_pointer_no_space(self, ghidra_server):
+        """Test setting a pointer type without space (e.g., 'int*')"""
+        # Get a data address
+        data_result = query(type="data", limit=10)
+        assert isinstance(data_result, list)
+
+        if len(data_result) > 0:
+            first_line = data_result[0]
+            if ":" in first_line:
+                address = first_line.split(":")[0].strip()
+
+                # Set a pointer type WITHOUT space - this was the bug
+                result = set_data_type(address=address, type_name="int*")
+                assert isinstance(result, str)
+                assert "success" in result.lower(), f"Expected success but got: {result}"
+
+                # Verify the type was set to a pointer, not int
+                verify_result = get_data_by_address(address)
+                # Should be a pointer (typically 4 or 8 bytes depending on arch)
+                assert "int *" in verify_result or "pointer" in verify_result.lower() or "4 bytes" in verify_result or "8 bytes" in verify_result
+
+    def test_set_data_type_pointer_with_space(self, ghidra_server):
+        """Test setting a pointer type with space (e.g., 'int *')"""
+        # Get a data address
+        data_result = query(type="data", limit=10)
+        assert isinstance(data_result, list)
+
+        if len(data_result) > 0:
+            first_line = data_result[0]
+            if ":" in first_line:
+                address = first_line.split(":")[0].strip()
+
+                # Set a pointer type with space
+                result = set_data_type(address=address, type_name="int *")
+                assert isinstance(result, str)
+                assert "success" in result.lower(), f"Expected success but got: {result}"
+
+                # Verify the type was set to a pointer
+                verify_result = get_data_by_address(address)
+                assert "int *" in verify_result or "pointer" in verify_result.lower() or "4 bytes" in verify_result or "8 bytes" in verify_result
+
+    def test_set_data_type_void_pointer(self, ghidra_server):
+        """Test setting a void pointer type"""
+        data_result = query(type="data", limit=10)
+        assert isinstance(data_result, list)
+
+        if len(data_result) > 0:
+            first_line = data_result[0]
+            if ":" in first_line:
+                address = first_line.split(":")[0].strip()
+
+                # Set void pointer - both variations
+                for type_name in ["void*", "void *"]:
+                    result = set_data_type(address=address, type_name=type_name)
+                    assert isinstance(result, str)
+                    assert "success" in result.lower(), f"Expected success for '{type_name}' but got: {result}"
+
+    def test_set_data_type_far_pointer(self, ghidra_server):
+        """Test setting a far pointer type with explicit size (e.g., 'int *32')"""
+        data_result = query(type="data", limit=10)
+        assert isinstance(data_result, list)
+
+        if len(data_result) > 0:
+            first_line = data_result[0]
+            if ":" in first_line:
+                address = first_line.split(":")[0].strip()
+
+                # Set a 32-bit far pointer
+                result = set_data_type(address=address, type_name="int *32")
+                assert isinstance(result, str)
+                assert "success" in result.lower(), f"Expected success but got: {result}"
+
+                # Verify - should be 4 bytes (32 bits)
+                verify_result = get_data_by_address(address)
+                assert "4 bytes" in verify_result or "pointer" in verify_result.lower()
+
+    def test_set_data_type_custom_struct_pointer(self, ghidra_server):
+        """Test setting a pointer to a custom struct"""
+        # First create a custom struct
+        struct_name = "TestPtrStruct"
+        create_struct(name=struct_name, size=8)
+        add_struct_field(struct_name=struct_name, field_type="int", field_name="value")
+
+        # Get a data address
+        data_result = query(type="data", limit=10)
+        assert isinstance(data_result, list)
+
+        if len(data_result) > 0:
+            first_line = data_result[0]
+            if ":" in first_line:
+                address = first_line.split(":")[0].strip()
+
+                # Set pointer to custom struct - without space (the bug case)
+                result = set_data_type(address=address, type_name=f"{struct_name}*")
+                assert isinstance(result, str)
+                assert "success" in result.lower(), f"Expected success for '{struct_name}*' but got: {result}"
+
+                # Also test with space
+                result = set_data_type(address=address, type_name=f"{struct_name} *")
+                assert isinstance(result, str)
+                assert "success" in result.lower(), f"Expected success for '{struct_name} *' but got: {result}"
