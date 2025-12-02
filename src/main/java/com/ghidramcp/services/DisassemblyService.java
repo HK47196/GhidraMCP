@@ -17,6 +17,7 @@ import ghidra.program.model.pcode.*;
 import ghidra.program.model.symbol.*;
 import ghidra.program.model.lang.Register;
 import ghidra.program.model.lang.RegisterValue;
+import ghidra.program.model.listing.VariableOffset;
 import ghidra.util.Msg;
 import ghidra.util.task.ConsoleTaskMonitor;
 
@@ -30,7 +31,8 @@ public class DisassemblyService {
 
     private final FunctionNavigator navigator;
     private final int decompileTimeout;
-    private final CodeUnitFormat codeUnitFormatter;
+    private final CodeUnitFormat codeUnitFormatter;      // With markup (for collecting annotations)
+    private final CodeUnitFormat rawCodeUnitFormatter;   // Without markup (for raw disassembly)
     private final DataLookupService dataLookupService;
 
     public DisassemblyService(FunctionNavigator navigator, int decompileTimeout) {
@@ -55,6 +57,23 @@ public class DisassemblyService {
         );
 
         this.codeUnitFormatter = new CodeUnitFormat(formatOptions);
+
+        // Raw formatter with NO variable/symbol markup - shows actual registers and addresses
+        CodeUnitFormatOptions rawFormatOptions = new CodeUnitFormatOptions(
+            ShowBlockName.NEVER,           // showBlockName
+            ShowNamespace.NON_LOCAL,       // showNamespace
+            null,                          // localPrefixOverride
+            false,                         // doRegVariableMarkup - DISABLED for raw output
+            false,                         // doStackVariableMarkup - DISABLED for raw output
+            false,                         // includeInferredVariableMarkup - DISABLED
+            false,                         // alwaysShowPrimaryReference - DISABLED to show raw addresses
+            false,                         // includeScalarReferenceAdjustment
+            true,                          // showLibraryInNamespace
+            false,                         // followReferencedPointers - DISABLED
+            new TemplateSimplifier()       // templateSimplifier
+        );
+
+        this.rawCodeUnitFormatter = new CodeUnitFormat(rawFormatOptions);
     }
 
     /**
@@ -573,11 +592,21 @@ public class DisassemblyService {
     }
 
     /**
-     * Build enhanced operand string using Ghidra's CodeUnitFormat
-     * This automatically handles variable names, symbols, and reference markup
+     * Build enhanced operand string showing raw disassembly with inline annotations.
+     * Format: "rawOperand1 (annotation), rawOperand2 (annotation)"
+     *
+     * This shows the actual registers/addresses with variable/symbol annotations
+     * placed inline right after each operand they describe.
+     *
+     * Examples:
+     *   - "AX (context), word ptr [EAX + 0x2]" - annotation on destination
+     *   - "AH (context), AH" - annotation on first operand only (deduplicated)
+     *   - "[0x12345678] (globalVar)" - symbol annotation
+     *   - "word ptr [EBP + -0x8] (local_14), 0x0" - stack variable annotation
      */
     private String buildEnhancedOperands(Instruction instr, Program program, Function func) {
         StringBuilder result = new StringBuilder();
+        Set<String> seenAnnotations = new HashSet<>();  // Track across all operands for deduplication
         int numOperands = instr.getNumOperands();
 
         for (int i = 0; i < numOperands; i++) {
@@ -587,22 +616,75 @@ public class DisassemblyService {
                 result.append(separator != null ? separator : ",");
             }
 
-            // Get formatted operand representation using CodeUnitFormat
-            // This handles:
-            // - Variable name replacement (VariableOffset objects)
-            // - Symbol/label resolution (LabelString objects)
-            // - Arrow notation (=> and ->)
-            // - Data value display
-            OperandRepresentationList repList = codeUnitFormatter.getOperandRepresentationList(instr, i);
-            if (repList != null) {
-                result.append(repList.toString());
+            // Get RAW operand representation (no variable/symbol substitution)
+            OperandRepresentationList rawRepList = rawCodeUnitFormatter.getOperandRepresentationList(instr, i);
+            if (rawRepList != null) {
+                result.append(rawRepList.toString());
             } else {
-                // Fallback for unsupported languages
                 result.append(instr.getDefaultOperandRepresentation(i));
+            }
+
+            // Get MARKUP operand representation to collect annotations for THIS operand
+            OperandRepresentationList markupRepList = codeUnitFormatter.getOperandRepresentationList(instr, i);
+            if (markupRepList != null) {
+                LinkedHashSet<String> operandAnnotations = new LinkedHashSet<>();
+                collectAnnotations(markupRepList, operandAnnotations);
+
+                // Filter out annotations we've already shown on previous operands
+                operandAnnotations.removeAll(seenAnnotations);
+
+                // Append inline annotations for this operand
+                if (!operandAnnotations.isEmpty()) {
+                    result.append(" (");
+                    result.append(String.join(", ", operandAnnotations));
+                    result.append(")");
+
+                    // Mark these as seen so we don't repeat them
+                    seenAnnotations.addAll(operandAnnotations);
+                }
             }
         }
 
         return result.toString();
+    }
+
+    /**
+     * Recursively collect annotation names from an OperandRepresentationList.
+     * Extracts variable names from VariableOffset objects and symbol names from LabelString objects.
+     */
+    private void collectAnnotations(OperandRepresentationList repList, Set<String> annotations) {
+        for (int i = 0; i < repList.size(); i++) {
+            Object elem = repList.get(i);
+
+            if (elem instanceof VariableOffset) {
+                // Variable substitution (register or stack variable)
+                VariableOffset varOff = (VariableOffset) elem;
+                Variable var = varOff.getVariable();
+                if (var != null) {
+                    String varName = var.getName();
+                    // Skip auto-generated names that aren't meaningful
+                    if (varName != null && !varName.isEmpty() &&
+                        !varName.startsWith("in_") && !varName.startsWith("unaff_")) {
+                        annotations.add(varName);
+                    }
+                }
+            } else if (elem instanceof LabelString) {
+                // Symbol/label reference (global data, function names, etc.)
+                String labelStr = elem.toString();
+                if (labelStr != null && !labelStr.isEmpty()) {
+                    // LabelString may contain markup like "=>", clean it up
+                    labelStr = labelStr.replace("=>", "").trim();
+                    if (!labelStr.isEmpty()) {
+                        annotations.add(labelStr);
+                    }
+                }
+            } else if (elem instanceof OperandRepresentationList) {
+                // Nested list (compound operands) - recurse
+                collectAnnotations((OperandRepresentationList) elem, annotations);
+            }
+            // Other types (Register, Scalar, String, Character, Address, Equate)
+            // don't produce annotations - they're shown in the raw output
+        }
     }
 
     /**
