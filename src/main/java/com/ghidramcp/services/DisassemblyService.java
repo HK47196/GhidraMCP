@@ -1090,8 +1090,9 @@ public class DisassemblyService {
         }
 
         // Check if this instruction marks the end of a function
-        if (containingFunc != null) {
-            Address funcMaxAddr = containingFunc.getBody().getMaxAddress();
+        Function actualContainingFunc = program.getFunctionManager().getFunctionContaining(addr);
+        if (actualContainingFunc != null) {
+            Address funcMaxAddr = actualContainingFunc.getBody().getMaxAddress();
             // Function ends if this is the last instruction OR if this is a terminal instruction (RET, JMP, etc.)
             boolean isLastInstr = addr.equals(funcMaxAddr) ||
                                  (instruction.getNext() != null &&
@@ -1100,7 +1101,7 @@ public class DisassemblyService {
 
             if (isLastInstr || (isTerminalInstr && addr.compareTo(funcMaxAddr) >= 0)) {
                 result.append("                             └─ END FUNCTION: ");
-                result.append(containingFunc.getName());
+                result.append(actualContainingFunc.getName());
                 result.append("\n");
             }
         }
